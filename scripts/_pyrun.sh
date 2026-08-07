@@ -2,21 +2,28 @@
 # Cross-platform Python launcher for AI log hooks.
 # Tries python3 → python → py -3 on PATH; on Windows, falls back to common
 # Python install locations because Git Bash launched by some hooks gets a
-# stripped PATH that omits the Windows Python directory.
+# stripped PATH that omits the Windows Python directory. Also skips the
+# Windows Store "App execution alias" stub, which resolves on PATH but
+# exits non-zero without running any code.
 # Designed to be sourced or called as: bash scripts/_pyrun.sh <script> [args...]
 #
 # Exits 0 silently if no Python is found — hooks must never block the AI tool.
 set -u
 
-if command -v python3 >/dev/null 2>&1; then
+works() { "$@" -c "" >/dev/null 2>&1; }
+
+PY=""
+if command -v python3 >/dev/null 2>&1 && works python3; then
   PY=python3
-elif command -v python >/dev/null 2>&1; then
+elif command -v python >/dev/null 2>&1 && works python; then
   PY=python
-elif command -v py >/dev/null 2>&1; then
+elif command -v py >/dev/null 2>&1 && works py -3; then
   PY="py -3"
-else
-  # PATH lookup failed — probe standard Windows install locations.
-  PY=""
+fi
+
+if [ -z "$PY" ]; then
+  # PATH lookup failed (or only found broken stubs) — probe standard Windows
+  # install locations.
   shopt -s nullglob 2>/dev/null || true
   for cand in \
     /c/Users/*/AppData/Local/Programs/Python/Python*/python.exe \
