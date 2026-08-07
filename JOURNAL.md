@@ -62,7 +62,7 @@
 
 ---
 
-## Week 3: 06/08 - 12/08 — Chuẩn hóa tài liệu, thiết kế kiến trúc & MVP
+## Week 3: 07/08 - 12/08 — Chuẩn hóa tài liệu, thiết kế kiến trúc & MVP
 
 ### Mục tiêu tuần này
 - [x] Lập PROJECT_CHARTER làm nguồn sự thật duy nhất
@@ -73,26 +73,26 @@
 - [ ] Demo GATE 2 (12/08)
 
 ### Đã hoàn thành
-- 06/08 — lập `docs/PROJECT_CHARTER.md`, phát hiện và xử lý một loạt mâu thuẫn giữa các tài liệu nội bộ (xem phần Khó khăn)
-- 06/08 — chốt persona: chủ căn hộ là chính, có nhánh cho người thuê; phạm vi chỉ Vinhomes Smart City
-- 06/08 — chốt phạm vi quy trình: chỉ hỗ trợ đầy đủ thủ tục thuộc BQL; thủ tục bên thứ ba chỉ hướng dẫn theo quy định công khai
-- 06/08 — thiết kế và viết `docs/architecture_diagram.md`
-- 06/08 — ghim phiên bản thư viện, cài đủ dependency Phase 1 cho cả backend và frontend
-- 06/08 — phân role chính thức: Hiếu (BE + Data), Hải (AI), Thu (FE)
+- 07/08 — lập `docs/PROJECT_CHARTER.md`, phát hiện và xử lý một loạt mâu thuẫn giữa các tài liệu nội bộ (xem phần Khó khăn)
+- 07/08 — chốt persona: chủ căn hộ là chính, có nhánh cho người thuê; phạm vi chỉ Vinhomes Smart City
+- 07/08 — chốt phạm vi quy trình: chỉ hỗ trợ đầy đủ thủ tục thuộc BQL; thủ tục bên thứ ba chỉ hướng dẫn theo quy định công khai
+- 07/08 — thiết kế và viết `docs/architecture_diagram.md`
+- 07/08 — ghim phiên bản thư viện, cài đủ dependency Phase 1 cho cả backend và frontend
+- 07/08 — phân role chính thức: Hiếu (BE + Data), Hải (AI), Thu (FE)
 
 ### Khó khăn & Giải pháp
 | Khó khăn | Giải pháp | Kết quả |
 |----------|-----------|---------|
 | **Các tài liệu của nhóm mâu thuẫn nhau** — bộ user story/schema mới bỏ hẳn tính cá nhân hóa, trong khi PRD và đề bài đều yêu cầu; PRD dùng bộ thuộc tính khác hẳn tài liệu tóm tắt bối cảnh | Đối chiếu tất cả tài liệu với **đề bài gốc**, lập PROJECT_CHARTER làm nguồn sự thật duy nhất, kèm sổ ghi quyết định phân biệt rõ "đã xác nhận" và "còn giả định" | Hết mâu thuẫn; mọi quyết định về sau đều ghi vào một chỗ |
 | Nhầm lẫn về người dùng chính — tưởng là người thuê, thực tế người thuê không dùng được app Vinhomes Resident và phải làm tạm trú qua công an | Tách vấn đề theo **loại quy trình** thay vì theo loại người dùng: quy trình thuộc BQL hỗ trợ đầy đủ, quy trình bên thứ ba chỉ hướng dẫn tham khảo | Phục vụ được cả chủ hộ lẫn người thuê mà không vi phạm yêu cầu "trích nguồn, không bịa" |
-| Khối lượng Phase 1 (~120h) vượt xa 6 ngày còn lại tới GATE 2 | Cắt Phase 1 thành hai lát: `[GATE 2]` bắt buộc và `[W4]` làm sau. Hoãn nhánh FAQ, giao diện upload, dashboard, PWA | Lát cắt GATE 2 vừa sức, vẫn đủ chứng minh giá trị sản phẩm |
+| Khối lượng Phase 1 (~120h) vượt xa 5 ngày còn lại tới GATE 2 | Cắt Phase 1 thành hai lát: `[GATE 2]` bắt buộc và `[W4]` làm sau. Hoãn nhánh FAQ, giao diện upload, dashboard, PWA | Lát cắt GATE 2 vừa sức, vẫn đủ chứng minh giá trị sản phẩm |
 | Cổng dữ liệu 13/08 nằm **sau** ngày demo 12/08 → có nguy cơ không có tài liệu nào để RAG truy xuất lúc demo | Dùng Thông tư 02/2016/TT-BXD (công khai, tải được ngay) làm KB cho GATE 2, gắn `source_type: public_regulation` | Không còn phụ thuộc việc BQL có hợp tác hay không |
 
 ### Bài học
 - **Tài liệu do nhiều người soạn độc lập sẽ trôi lệch nhau nếu không có nguồn sự thật duy nhất.** Triệu chứng chỉ lộ ra khi ghép lại để code, lúc đó đã tốn công.
 - **Đối chiếu ngược lên đề bài gốc trước khi tranh luận nội bộ.** Nhóm suýt bỏ tính cá nhân hóa — thứ mà đề bài ghi rõ trong yêu cầu Cơ bản, tức là bắt buộc chấm điểm.
 - Phân biệt "đã xác nhận" và "đang giả định" trong tài liệu quan trọng không kém việc ghi lại quyết định. Một giả định cá nhân bị tưởng là quyết định của cả nhóm đã dẫn tới thiết kế sai hướng.
-- Ước lượng effort phải đặt cạnh deadline mới có ý nghĩa. Kiến trúc đúng cho Phase 1 chưa chắc là thứ làm kịp trong 6 ngày.
+- Ước lượng effort phải đặt cạnh deadline mới có ý nghĩa. Kiến trúc đúng cho Phase 1 chưa chắc là thứ làm kịp trong 5 ngày.
 
 ### Kế hoạch tuần sau
 - [ ] Hoàn thiện phần còn lại của Phase 1 (nhánh FAQ, upload tài liệu, dashboard BQL, PWA)

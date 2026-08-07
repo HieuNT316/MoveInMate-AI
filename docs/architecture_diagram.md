@@ -3,7 +3,7 @@
 > Kiến trúc hệ thống cho Phase 1. Nguồn quyết định về scope và persona: [`PROJECT_CHARTER.md`](./PROJECT_CHARTER.md).
 > Nhãn **`[GATE 2]`** = bắt buộc xong trước 12/08. Nhãn **`[W4]`** = vẫn thuộc Phase 1 nhưng làm sau.
 
-**Cập nhật:** 06/08/2026
+**Cập nhật:** 07/08/2026
 
 ---
 
