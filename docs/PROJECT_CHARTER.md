@@ -1,7 +1,7 @@
 # PROJECT CHARTER — MoveInMate
 
 > Tài liệu chính thức, là nguồn sự thật (single source of truth) cho scope, kiến trúc và quyết định của dự án.
-> Kiến trúc kỹ thuật chi tiết: [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+> Kiến trúc kỹ thuật chi tiết: [`architecture_diagram.md`](./architecture_diagram.md).
 >
 > *(Bản tóm tắt bối cảnh cũ `MoveInMate_Context_Summary.md` đã được gỡ bỏ ngày 06/08 — nội dung của nó đã được chuẩn hoá và thay thế hoàn toàn bởi tài liệu này. Cần tra lịch sử thì xem git.)*
 
@@ -272,7 +272,7 @@ Cố định theo chương trình: GATE 1 (05/08, đã qua) → báo cáo lần 
 | Nếu `login/page.tsx` hiện tại là form tự đăng ký (self-signup) | **Cần FE kiểm tra lại (06/08)** — quyết định "BQL cấp tài khoản, không tự đăng ký" nghĩa là không cần trang đăng ký công khai; thay vào đó BE/FE cần thêm màn hình BQL "tạo tài khoản cư dân" (US-00) |
 | **Khối lượng Phase 1 (~120h) vượt sức 3 người trong 6 ngày tới GATE 2** | **Đã xử lý 06/08** — chia lát cắt `[GATE 2]` / `[W4]`, xem mục 4 |
 | **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | Giảm thiểu: nạp Thông tư 02/2016/TT-BXD (công khai, tải ngay được) trong tuần này, không đợi cổng 13/08 |
-| Chất lượng chunking kém → retrieval trả về đoạn sai, nhìn như "AI kém" dù code đúng | Hỏng thầm lặng, khó phát hiện. Bắt buộc kiểm tra thủ công 10 câu hỏi trước khi tin pipeline (xem ARCHITECTURE.md mục 11) |
+| Chất lượng chunking kém → retrieval trả về đoạn sai, nhìn như "AI kém" dù code đúng | Hỏng thầm lặng, khó phát hiện. Bắt buộc kiểm tra thủ công 10 câu hỏi trước khi tin pipeline (xem `docs/architecture_diagram.md` mục 11) |
 | Cấu hình xác thực JWT Supabase sai → chặn toàn bộ API | Giới hạn 2h thử; chưa xong thì tạm dùng `supabase-py` gọi `auth.get_user(jwt)`, tối ưu sau |
 
 ## 12. Governance — quy trình đồng bộ liên vai trò

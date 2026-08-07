@@ -24,7 +24,7 @@ langgraph==1.2.9
 langsmith==0.10.10              # tracing — deliverable #4 của BTC
 
 # ---- Vector Store ----
-# Chạy in-process, persist vào Railway Volume (xem ARCHITECTURE.md muc 2).
+# Chạy in-process, persist vào Railway Volume (xem docs/architecture_diagram.md muc 2).
 # LƯU Ý: phải tắt embedding function mặc định của Chroma và dùng
 # OpenAIEmbeddings, nếu không vector lúc index và lúc query khác không gian.
 chromadb==1.5.9
