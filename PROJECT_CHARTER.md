@@ -1,7 +1,9 @@
 # PROJECT CHARTER — MoveInMate
 
 > Tài liệu chính thức, là nguồn sự thật (single source of truth) cho scope, kiến trúc và quyết định của dự án.
-> Thay thế vai trò định hướng của `MoveInMate_Context_Summary.md` (file đó giữ lại làm lịch sử quá trình ra quyết định).
+> Kiến trúc kỹ thuật chi tiết: [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+>
+> *(Bản tóm tắt bối cảnh cũ `MoveInMate_Context_Summary.md` đã được gỡ bỏ ngày 06/08 — nội dung của nó đã được chuẩn hoá và thay thế hoàn toàn bởi tài liệu này. Cần tra lịch sử thì xem git.)*
 
 **Cập nhật lần cuối:** 06/08/2026
 **Team:** P-225 — AI20K Build Phase, Cohort 3
@@ -61,17 +63,31 @@
 
 ## 4. Scope
 
-### Phase 1 — Lõi (bắt buộc GATE 2, 12/08)
+### Phase 1 — Lõi
+
+**Chia hai lát cắt (quyết định 06/08):** tổng effort Phase 1 ~120h, chia 3 người trong 6 ngày tới GATE 2 là ~6,7h/người/ngày không nghỉ — không thực tế. Nên phần bắt buộc cho 12/08 được cắt gọn lại, phần còn lại vẫn thuộc Phase 1 nhưng làm ở W4 (hạn 19/08).
+
+**Lát cắt `[GATE 2]` — bắt buộc xong 12/08:**
 
 | ID | Tính năng | Effort |
 |---|---|---|
 | US-00 (mới, 06/08) | BQL tạo/cấp tài khoản cư dân (không tự đăng ký) | ~4h |
-| US-01/US-05 | Auth qua Supabase Auth (đăng nhập bằng tài khoản BQL cấp) | 12h |
-| US-02 (mới) | Form onboarding + rule-based profiling (không LLM) — thuộc tính: `ownership_type`, loại căn, có xe, gói tiện ích | 8h |
-| US-03/US-04 | Sinh checklist cá nhân hóa theo `conditions` + theo dõi tiến độ | 20h + 12h |
-| US-05 | RAG hỏi đáp có trích nguồn (FAQ fallback → RAG) | 40h |
-| US-08/US-09 | BQL upload tài liệu KB + quản lý FAQ | (đi kèm US-05) |
-| US-12-mini (mới, 06/08) | Dashboard BQL tối giản (danh sách cư dân + % tiến độ từng người, không biểu đồ/bộ lọc) | ~5h |
+| US-01 | Auth qua Supabase Auth (đăng nhập bằng tài khoản BQL cấp) | 12h |
+| US-02 | Form onboarding + rule-based profiling (không LLM) — thuộc tính: `ownership_type`, loại căn, có xe, gói tiện ích | 8h |
+| US-03/US-04 | Checklist cá nhân hóa (lọc trực tiếp) + tiến độ | 20h + 12h |
+| US-05 (một phần) | **RAG** hỏi đáp có trích nguồn — chưa có nhánh FAQ | ~30h |
+| US-06/US-07 | Xem/sửa hồ sơ, lịch sử chat | ~6h |
+| — | Nạp KB bằng script CLI (chưa cần giao diện upload) | ~4h |
+
+**Lát cắt `[W4]` — vẫn Phase 1, hạn 19/08:**
+
+| ID | Tính năng | Effort | Ghi chú |
+|---|---|---|---|
+| US-05 (phần còn lại) | Nhánh FAQ + hiệu chỉnh ngưỡng | ~10h | Chi phí thật ở hiệu chỉnh, cần dữ liệu thật |
+| US-08 | Giao diện BQL upload tài liệu | ~8h | |
+| US-09 | CRUD FAQ cho BQL | ~6h | |
+| US-12-mini | Dashboard BQL tối giản (danh sách + % tiến độ) | ~5h | |
+| — | PWA: manifest + service worker + icon | ~5h | |
 
 ### Phase 2 — Nâng cao (W4-W5, không cắt, chỉ hoãn)
 
@@ -99,7 +115,7 @@
 | US-03 | Cư dân | Xem Dashboard | Tổng quan chức năng + trạng thái hồ sơ |
 | US-04 | Cư dân | Xem Checklist cá nhân hóa & tick hoàn thành | Theo dõi tiến độ nhận nhà |
 | US-05 | Cư dân | Hỏi AI (FAQ fallback → RAG có trích nguồn) | Giải đáp thủ tục nhận nhà |
-| US-06 | Cư dân | Xem hồ sơ | Kiểm tra thông tin cá nhân/căn hộ/persona đã khai |
+| US-06 | Cư dân | Xem **và sửa** hồ sơ | Kiểm tra/cập nhật thông tin cá nhân, căn hộ, persona — sửa xong checklist tự cập nhật (xác nhận 06/08) |
 | US-07 | Cư dân | Xem lịch sử chat | Tra cứu lại hội thoại |
 | US-08 | BQL | Upload tài liệu | Cung cấp nguồn cho RAG |
 | US-09 | BQL | Quản lý FAQ | Fallback nhanh trước khi gọi RAG |
@@ -147,17 +163,18 @@ UC00 BQL tạo/cấp tài khoản cư dân · UC01 Đăng nhập · UC02 Điền
 | conditions | JSONB | `{}` = áp dụng mọi người; vd `{"ownership_type":"renter"}`. Với `amenity_packages` (multi-select): value đơn được hiểu là "nằm trong danh sách", vd `{"amenity_packages":"pool"}` khớp user có pool trong gói. **Validate key phải khớp field hợp lệ của USERS khi seed** (chặn lỗi gõ nhầm) |
 | order_index | INT | |
 
-### CHECKLIST (bảng tiến độ per-user — sửa từ bản gốc: tham chiếu template thay vì lưu text)
+### CHECKLIST_COMPLETIONS (đổi tên + đổi thiết kế 06/08 — chỉ lưu mục ĐÃ hoàn thành)
 | Field | Type | Ghi chú |
 |---|---|---|
-| checklist_id | INT, PK | |
+| completion_id | INT, PK | |
 | user_id | FK → USERS | |
 | checklist_item_id | FK → CHECKLIST_ITEMS | |
-| status | BOOLEAN, default false | |
-| completed_at | DATETIME, nullable | |
+| completed_at | DATETIME | Có dòng = đã xong; không có dòng = chưa xong |
 | | UNIQUE(user_id, checklist_item_id) | |
 
-Tiến độ (%) = số item `status=true` / tổng số item khớp `conditions` của user đó — tính tại query time, không cần bảng PROGRESS riêng.
+**Lọc trực tiếp, không chốt cứng checklist lúc onboarding.** Danh sách hiển thị được tính lại mỗi lần `GET /checklist`: lọc `CHECKLIST_ITEMS` theo profile hiện tại → left join bảng này. Lý do đổi (06/08): (a) BQL cập nhật thủ tục thì cư dân cũ thấy ngay, không cần logic đồng bộ; (b) cư dân sửa hồ sơ thì checklist tự cập nhật, không cần logic gộp dễ mất dữ liệu; (c) không phát sinh câu hỏi khó "mục đã tick nhưng không còn khớp điều kiện thì xử lý sao".
+
+Tiến độ (%) = số dòng completion / tổng số item khớp `conditions` của user đó — tính tại query time, không cần bảng PROGRESS riêng.
 
 ### CHAT_HISTORY (bổ sung field trích nguồn — yêu cầu cốt lõi của US-05)
 | Field | Type | Ghi chú |
@@ -216,6 +233,12 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | "Lấy form biểu mẫu" (tải template) | **Đã xác nhận** (06/08) — gộp cùng nhóm Phase 2 với "nộp hồ sơ online", không làm ở MVP W2-W3 | Team | — | Đã chốt |
 | Buyer thật là ai | **Đã xác nhận** (06/08) — Buyer = **BQL**. Cư dân là end-user, được BQL phân bổ/cấp quyền truy cập app, không phải người trả tiền | Team | — | Đã chốt |
 | Cư dân tự đăng ký hay được BQL cấp tài khoản? | **Đã xác nhận — họp team 06/08: BQL cấp/tạo tài khoản, cư dân KHÔNG tự tạo được** | Quyết định team — đảo ngược so với hướng nghiêng "tự đăng ký" trước đó | — | Đã chốt |
+| **Checklist: lọc trực tiếp thay vì chốt cứng lúc onboarding** | **Đã xác nhận** (06/08, phiên thiết kế kiến trúc) | Bảng `CHECKLIST_COMPLETIONS` chỉ lưu mục đã xong. BQL cập nhật thủ tục → cư dân cũ thấy ngay; bỏ được logic đồng bộ/gộp | — | Đã chốt |
+| **Cư dân sửa được hồ sơ sau onboarding** | **Đã xác nhận** (06/08) | Mua xe/đăng ký thêm tiện ích sau khi dọn vào là tình huống thực tế; với lọc trực tiếp thì không tốn thêm công | — | Đã chốt |
+| **Checklist KHÔNG đi qua LangGraph** | **Đã xác nhận** (06/08) — đảo ngược quyết định "bọc thành node" trước đó trong cùng phiên | Graph 1 node bọc hàm thuần là thừa, dễ bị đánh giá là chưa hiểu LangGraph. Lập luận mạnh hơn: rule-based là lựa chọn có chủ đích, LangGraph dành cho chỗ cần quyết định thật | — | Đã chốt |
+| **Hội thoại single-turn ở Phase 1** | **Đã xác nhận** (06/08) — giới hạn có ý thức, không phải sót | Multi-turn cần bước viết lại câu hỏi theo ngữ cảnh (~6-8h). Nên hỏi mentor chữ "memory" trong đề bài có hàm ý bộ nhớ hội thoại không | Mentor (làm rõ) | Cân nhắc Phase 2 |
+| **Nhánh FAQ hoãn code sang W4** | **Đã xác nhận** (06/08) | Chi phí thật nằm ở hiệu chỉnh ngưỡng (cần dữ liệu thật), không phải ở code. RAG đơn thuần đã thoả mãn yêu cầu "hỏi đáp có trích tài liệu" của đề bài | — | Đã chốt |
+| **KB cho GATE 2 dùng Thông tư 02/2016/TT-BXD** | Đề xuất từ phiên kiến trúc 06/08, **cần team xác nhận** | Cổng dữ liệu 13/08 nằm **sau** GATE 2 (12/08) → ngày demo vẫn có thể chưa có tài liệu BQL. Thông tư này công khai, tải được ngay, gắn `source_type: public_regulation` | Cả team | **Trong tuần này, không đợi 13/08** |
 | Eval offline có được chấp nhận không | Còn mở — **tạm chưa cần bàn** (xác nhận 06/08) | Team quyết định hoãn, không phải việc gấp | Mentor | Trước W5, không gấp |
 | Success metrics sản phẩm thật chưa có con số target | Còn mở — **tạm chưa cần bàn** (xác nhận 06/08) | Team quyết định hoãn, không phải việc gấp | Team/mentor | Trước US-15, không gấp |
 
@@ -247,6 +270,10 @@ Cố định theo chương trình: GATE 1 (05/08, đã qua) → báo cáo lần 
 | UI (`web/`) hiện toàn bộ mock, chưa có trang form onboarding | Đã xác nhận (đọc trực tiếp code nhánh `MinhThu`), cần FE bổ sung trang `/onboarding` |
 | Dữ liệu KB là "việc chung cả team" — nguy cơ không ai làm | Rủi ro của mô hình role AI/FE/BE — giảm thiểu: phân task data cụ thể theo tuần trong WORKLOG.md |
 | Nếu `login/page.tsx` hiện tại là form tự đăng ký (self-signup) | **Cần FE kiểm tra lại (06/08)** — quyết định "BQL cấp tài khoản, không tự đăng ký" nghĩa là không cần trang đăng ký công khai; thay vào đó BE/FE cần thêm màn hình BQL "tạo tài khoản cư dân" (US-00) |
+| **Khối lượng Phase 1 (~120h) vượt sức 3 người trong 6 ngày tới GATE 2** | **Đã xử lý 06/08** — chia lát cắt `[GATE 2]` / `[W4]`, xem mục 4 |
+| **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | Giảm thiểu: nạp Thông tư 02/2016/TT-BXD (công khai, tải ngay được) trong tuần này, không đợi cổng 13/08 |
+| Chất lượng chunking kém → retrieval trả về đoạn sai, nhìn như "AI kém" dù code đúng | Hỏng thầm lặng, khó phát hiện. Bắt buộc kiểm tra thủ công 10 câu hỏi trước khi tin pipeline (xem ARCHITECTURE.md mục 11) |
+| Cấu hình xác thực JWT Supabase sai → chặn toàn bộ API | Giới hạn 2h thử; chưa xong thì tạm dùng `supabase-py` gọi `auth.get_user(jwt)`, tối ưu sau |
 
 ## 12. Governance — quy trình đồng bộ liên vai trò
 
