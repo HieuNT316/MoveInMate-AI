@@ -1,201 +1,134 @@
-# 🤖 AI20K Agent Template
+# MoveInMate
 
-Template chính thức cho học viên **VinUni AI20K Build Phase** — cung cấp sẵn cấu trúc dự án, code mẫu, và hướng dẫn kỹ thuật chi tiết để xây dựng AI Agent đạt điểm cao (35+/50).
+> Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-> 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
+**Trạng thái:** đang phát triển (Phase 1). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc.
 
-## 🎯 Template này dùng để làm gì?
+## Vấn đề
 
-Khi tham gia AI20K Build Phase, mỗi đội cần xây dựng một AI Agent hoàn chỉnh — từ kiến trúc, code, test, đến deploy. Thay vì bắt đầu từ con số không, template này cung cấp:
+Cư dân mới nhận nhà tại chung cư phải hoàn thành nhiều thủ tục rời rạc — đăng ký thẻ cư dân, thẻ xe, internet, ký nội quy, kích hoạt tiện ích — mà không có hướng dẫn tập trung.
 
-- **Cấu trúc thư mục chuẩn** — đã được thiết kế theo best practices (separation of concerns)
-- **Code mẫu** cho các phần cốt lõi: LangGraph agent, FastAPI API, config, schemas
-- **Docker + CI/CD sẵn** — Dockerfile multi-stage, GitHub Actions workflow
-- **Hướng dẫn kỹ thuật 10 chương** — từ clone template đến nộp bài Demo Day
-- **Checklist 10 deliverables** — đảm bảo không bỏ sót yêu cầu BTC
-- **AI Usage Logging tự động** — Pre-configured hooks cho Claude Code, Cursor, Codex, Gemini CLI, Antigravity, và GitHub Copilot
+- **Cư dân** choáng ngợp, không biết bắt đầu từ đâu, dễ sót việc hoặc làm sai thứ tự.
+- **Ban quản lý (BQL)** phải trả lời lặp đi lặp lại cùng những câu hỏi: đăng ký ở đâu, cần giấy tờ gì, hồ sơ đến đâu rồi. Ở các dự án lớn có thể lên tới hàng trăm lượt hỏi mỗi ngày.
+- Phát sinh **chi phí vận hành ẩn**: nhân sự CSKH xử lý thủ công, nhập liệu, sai sót hồ sơ, cư dân gọi điện hỏi tiến độ nhiều lần.
 
-## ⚡ Quick Start
+**Vì sao app hiện có chưa đủ:** Vinhomes Resident xử lý đặt tiện ích, thanh toán phí, gửi phản ánh — phục vụ cư dân *đã ổn định*. Hồ sơ giấy tờ và thẻ ra/vào vẫn phải làm việc trực tiếp qua BQL. MoveInMate lấp khoảng trống của **4-6 tuần đầu tiên**, khi cư dân chưa biết mình cần làm gì.
 
-### Bước 1: Fork hoặc Clone
+## Giải pháp
+
+- **Checklist cá nhân hóa** — cư dân điền form ngắn (chủ hộ hay người thuê, loại căn hộ, có xe, gói tiện ích đã đăng ký); hệ thống sinh đúng danh sách thủ tục cho hoàn cảnh của họ, không phải danh sách chung chung. Dùng rule engine tất định, không dùng LLM.
+- **Hỏi đáp thủ tục có trích nguồn** — RAG trên tài liệu của dự án. Nguồn trích dẫn lấy tất định từ bước truy xuất, không do LLM tự liệt kê; không tìm được tài liệu thì hệ thống từ chối trả lời thay vì bịa.
+- **Theo dõi tiến độ** — cư dân thấy còn thiếu bước nào; BQL thấy ai đang tắc ở đâu để chủ động hỗ trợ.
+
+Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục thuộc cơ quan bên thứ ba (ví dụ đăng ký tạm trú qua công an) chỉ được hướng dẫn theo quy định công khai và ghi rõ nguồn — hệ thống không mạo nhận đó là quy trình của BQL.
+
+## Người dùng
+
+- **Khách hàng (buyer):** Ban quản lý chung cư — đơn vị triển khai và trả phí.
+- **Người dùng cuối:** cư dân mới, được BQL cấp tài khoản. Persona chính là **chủ căn hộ**, có nhánh riêng cho **người thuê**.
+- **Phạm vi:** Vinhomes Smart City.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| AI Agent | LangGraph + GPT-4o-mini |
+| RAG | ChromaDB + OpenAI embeddings |
+| Backend | FastAPI + Python 3.11 |
+| Frontend | Next.js 16 + React 19 + TypeScript (PWA) |
+| Database | PostgreSQL qua Supabase |
+| Auth | Supabase Auth |
+| DevOps | Docker + GitHub Actions · Railway (backend) + Vercel (frontend) |
+| Observability | LangSmith |
+
+## Quick Start
 
 ```bash
-# Clone template
-git clone https://github.com/AI20K-Build-Cohort-2/starter-code-template.git team-YOUR_TEAM_NAME
-cd team-YOUR_TEAM_NAME
+# 1. Clone
+git clone https://github.com/AI20K-Build-Phase-Cohort-3/P-225.git
+cd P-225
 
-# Xóa git history cũ và khởi tạo lại
-rm -rf .git
-git init
-git add .
-git commit -m "feat: khởi tạo dự án từ template"
-```
-
-### Bước 2: Setup môi trường
-
-```bash
-# Tạo virtual environment
+# 2. Backend
 python3.11 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-# Cài dependencies
-pip install -e ".[dev]"
+cp .env.example .env               # điền OPENAI_API_KEY, SUPABASE_*, ...
+uvicorn src.main:app --reload      # http://localhost:8000/docs
 
-# Cấu hình API keys
-cp .env.example .env
-# Mở .env và thêm OPENAI_API_KEY của bạn
-# Đồng thời cập nhật AI_LOG_API_KEY bằng key riêng từ link mời của BTC
-# (giá trị trong .env.example chỉ là placeholder)
+# 3. Frontend (terminal khác)
+cd web
+npm ci
+npm run dev                        # http://localhost:3000
+
+# 4. Cài AI logging hook (một lần sau khi clone)
+bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
 ```
 
-### Bước 3: Cài AI Logging Hooks
-
-```bash
-# Linux / macOS / Git Bash
-bash scripts/setup_hooks.sh
-
-# Windows PowerShell
-# powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
-```
-
-Hooks tự động log mọi AI prompt khi dùng Claude Code, Cursor, Codex, Gemini CLI, Antigravity, hoặc GitHub Copilot. Không cần thao tác thủ công.
-
-### Bước 4: Chạy server
-
-```bash
-# Chạy FastAPI backend
-uvicorn src.main:app --reload --port 8000
-
-# Mở Swagger UI
-# http://localhost:8000/docs
-```
-
-### Bước 5: Đọc hướng dẫn
-
-📖 Mở **[Technical Guidebook](https://phoenix.note.transformerlabs.ai/technical-book)** và làm theo từng chương.
-
-## 📁 Cấu trúc dự án
+## Project Structure
 
 ```
-├── src/
-│   ├── agents/           # 🧠 LangGraph Agent
-│   │   ├── graph.py      #    State graph (nodes + edges)
-│   │   ├── state.py      #    State schema (TypedDict)
-│   │   ├── nodes/        #    Node functions
-│   │   └── tools/        #    Agent tools (@tool)
-│   ├── api/              # 🌐 FastAPI Backend
-│   │   └── routes.py     #    API endpoints
-│   ├── models/           # 📋 Pydantic schemas
-│   ├── services/         # 🔧 Business logic (LLM, etc.)
-│   ├── config.py         # ⚙️ Pydantic Settings
-│   └── main.py           # 🚀 App entry point
-├── tests/                # 🧪 pytest suite
-│   ├── test_agents/      #    Agent/graph tests
-│   └── test_api/         #    API endpoint tests
-├── scripts/              # 🔌 AI Logging Hooks
-│   ├── log_hook.py       #    Auto-log cho Claude/Cursor/Codex/Gemini/Copilot
-│   ├── log_antigravity.py#    Antigravity IDE prompt scanner
-│   ├── log_manual.py     #    Manual log cho ChatGPT / web tools
-│   ├── submit_log.py     #    Submit logs on git push
-│   └── setup_hooks.sh    #    One-time hook installer
-├── .claude/ .codex/ .cursor/ .gemini/  # Per-tool hook configs
-├── .agents/              # Antigravity rules + workflows
-├── .ai-log/              # 📊 AI usage logs (auto-generated)
+├── src/                      # Backend Python
+│   ├── agents/               # LangGraph — graph, state, nodes
+│   ├── api/                  # FastAPI routes
+│   ├── models/               # Pydantic schemas + SQLAlchemy models
+│   ├── services/             # Rule engine checklist, vectorstore, ingest
+│   ├── config.py
+│   └── main.py
+├── web/                      # Frontend Next.js (PWA)
+├── tests/                    # pytest
 ├── docs/
-│   ├── guide/            # 📖 Technical Guidebook (10 chapters)
-│   └── architecture_diagram.md
-├── eval/                 # 📊 Evaluation results
-├── presentation/         # 🎤 Demo Day slides
-├── .github/workflows/    # ⚡ CI/CD (GitHub Actions)
-├── .github/hooks/        # 🪝 Copilot hook config
-├── Dockerfile            # 🐳 Multi-stage build
-├── docker-compose.yml    # 🐙 Full stack orchestration
-└── README_boilerplate.md # 📝 README template cho đội của bạn
+│   ├── PROJECT_CHARTER.md    # Scope, quyết định, rủi ro — nguồn sự thật
+│   ├── architecture_diagram.md
+│   └── guide/                # Technical guidebook của chương trình
+├── eval/                     # Bằng chứng đánh giá
+├── presentation/             # Slide + video demo
+├── scripts/                  # AI usage logging hooks
+├── Dockerfile
+└── .github/workflows/        # CI: ruff + pytest
 ```
 
-## 📚 Technical Guidebook — 10 Chương
+## API Endpoints
 
-| Chương | Nội dung | Thời gian |
-|---------|----------|-----------|
-| 1 | Lời mở đầu — Mục tiêu, cách sử dụng | 15 phút |
-| 2 | Khởi tạo dự án — Clone, setup, git workflow | 4 giờ |
-| 3 | Thiết kế kiến trúc — 3-tier, diagrams, ADR | 6 giờ |
-| 4 | **LangGraph Agent** — State, nodes, edges, tools, RAG | 8 giờ |
-| 5 | FastAPI — Routes, validation, error handling, streaming | 6 giờ |
-| 6 | Giao diện — Next.js + Streamlit quickstart | 6 giờ |
-| 7 | DevOps — Docker, CI/CD, deploy, logging | 6 giờ |
-| 8 | Kiểm thử — Unit test, integration test, RAGAS | 4 giờ |
-| 9 | Demo Day — 10 deliverables, checklist, tips | 2 giờ |
-| 10 | Tài nguyên — Khóa học, docs, BMAD method | tham khảo |
+| Method | Path | Mô tả | Giai đoạn |
+|--------|------|-------|-----------|
+| GET | `/health` | Health check | ✅ có |
+| POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân | GATE 2 |
+| GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ | GATE 2 |
+| PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành | GATE 2 |
+| POST | `/api/v1/chat` | Hỏi đáp thủ tục (RAG có trích nguồn) | GATE 2 |
+| GET | `/api/v1/profile` · PATCH | Xem/sửa hồ sơ | GATE 2 |
+| GET | `/api/v1/chat/history` | Lịch sử hội thoại | GATE 2 |
+| POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân | GATE 2 |
+| POST | `/api/v1/admin/documents` | BQL nạp tài liệu | W4 |
+| CRUD | `/api/v1/admin/faq` | BQL quản lý FAQ | W4 |
+| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | W4 |
 
-📖 **Đọc online:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
+Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
 
-## 📋 10 Deliverables cho Demo Day
+## Deliverables Checklist
 
-| # | Deliverable | File vị trí | Template có sẵn |
-|---|-------------|-------------|:---:|
-| 1 | Source Code | `src/` | ✅ |
-| 2 | README.md | `README_boilerplate.md` → copy thành `README.md` | ✅ |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md` | ✅ |
-| 4 | AI Logs | LangSmith (3 env vars) + Auto AI Usage Logging | ✅ |
-| 5 | Live URL | Deploy lên Render/Vercel | ⚡ CI/CD sẵn |
-| 6 | Video Demo | `presentation/` | 📝 |
-| 7 | Pitch Deck | `presentation/` | 📝 |
-| 8 | Development Journal | `JOURNAL.md` | ✅ |
-| 9 | Worklog | `WORKLOG.md` | ✅ |
-| 10 | Evaluation Evidence | `eval/` | 📝 |
+- [x] Source Code (GitHub)
+- [x] README.md
+- [x] Architecture Diagram (`docs/architecture_diagram.md`)
+- [x] AI Logs (tự động qua pre-push hook)
+- [ ] Live URL / Deploy
+- [ ] Video Demo
+- [ ] Pitch Deck (`presentation/`)
+- [x] Weekly Journal (`JOURNAL.md`)
+- [x] Worklog (`WORKLOG.md`)
+- [ ] Evaluation Evidence (`eval/results/`)
 
-## 🛠 Tech Stack
+## Team
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| AI Agent | LangGraph + LangChain | Latest |
-| Backend | FastAPI + Uvicorn | 0.100+ |
-| LLM | OpenAI GPT-4o-mini | API |
-| Frontend | Next.js / Streamlit | 14+ / 1.30+ |
-| Database | SQLite (dev) / PostgreSQL (prod) | — |
-| DevOps | Docker + GitHub Actions | — |
-| Testing | pytest + pytest-asyncio | 8+ |
+| Thành viên | Role | Phụ trách |
+|------------|------|-----------|
+| Nguyễn Trung Hiếu | Backend + Data | FastAPI, schema DB, rule engine checklist, Supabase Auth, thu thập tài liệu KB |
+| Nguyễn Việt Hải | AI | Pipeline RAG, LangGraph, prompt, chất lượng truy xuất |
+| Nguyễn Minh Thu | Frontend | Next.js PWA, giao diện cư dân và BQL |
 
-## 📊 AI Usage Logging
+**Mentor:** Đặng Hải Lộc · **Chương trình:** VinUni AI20K Build Phase, Cohort 3
 
-Template đã tích hợp sẵn auto-logging hooks cho 6 AI tools:
+## License
 
-| Tool | Cơ chế | Config |
-|------|--------|--------|
-| Claude Code | `.claude/settings.json` hooks | Tự động |
-| Cursor | `.cursor/hooks.json` | Tự động |
-| OpenAI Codex CLI | `.codex/hooks.json` | Tự động |
-| Gemini CLI | `.gemini/settings.json` | Tự động |
-| GitHub Copilot | `.github/hooks/hooks.json` | Tự động |
-| Antigravity IDE | Pre-push scan transcript | Tự động trên `git push` |
-
-Tất cả prompts và tool calls được log vào `.ai-log/session.jsonl` và tự động submit lên grading server mỗi khi `git push`.
-
-**ChatGPT / web tools khác** — log thủ công:
-```bash
-bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "What you asked"
-```
-
-> ⚠️ Chạy `bash scripts/setup_hooks.sh` một lần sau khi clone để cài pre-push hook.
-
-## 📖 Đọc Technical Guidebook
-
-**Online (khuyến nghị):** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-
-Đăng nhập bằng GitHub (cùng account đã được BTC mời vào org `AI20K-Build-Cohort-2`)
-→ chọn tab **Technical Book** ở sidebar trái → đọc 10 chương + topic sections,
-có table of contents bên phải, hỗ trợ light/dark/cyberpunk theme.
-
-**Offline:** mọi chương đều ở thư mục `docs/guide/` trong template này — mở bằng
-bất kỳ markdown viewer/editor nào (VS Code, Obsidian, GitHub UI, …).
-
-## 🔗 Liên kết
-
-- 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-- 🏫 **AI20K Program:** VinUni AI20K Build Phase
-- 👨‍🏫 **Mentor:** Đặng Hải Lộc
-
-## 📄 License
-
-MIT — Sử dụng tự do cho mục đích giáo dục.
+MIT
