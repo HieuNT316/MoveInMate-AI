@@ -35,6 +35,7 @@ data/*
 !data/kb/
 data/kb/*
 !data/kb/web/
+!data/kb/legal/
 *.db
 *.sqlite3
 
