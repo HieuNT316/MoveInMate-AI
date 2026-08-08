@@ -39,6 +39,31 @@ SOURCES = [
         "url": "https://vinhomessmartcitytaymo.com/cu-dan/khai-bao-tam-tru-thong-bao-luu-tru/",
         "topic": "Khai báo tạm trú / thông báo lưu trú",
     },
+    {
+        "slug": "vsc-phi-gui-xe-tien-ich",
+        "url": "https://vinhomessmartcitytaymo.com/cu-dan/phi-gui-xe-su-dung-tien-ich/",
+        "topic": "Phí gửi xe & sử dụng tiện ích",
+    },
+    {
+        "slug": "vsc-phi-dich-vu",
+        "url": "https://vinhomessmartcitytaymo.com/cu-dan/phi-dich-vu/",
+        "topic": "Phí dịch vụ",
+    },
+    {
+        "slug": "vsc-thanh-toan-dien-nuoc",
+        "url": "https://vinhomessmartcitytaymo.com/cu-dan/thanh-toan-tien-dien-nuoc-phi-dich-vu/",
+        "topic": "Thanh toán tiền điện, nước, phí dịch vụ",
+    },
+    {
+        "slug": "vsc-app-doi-mat-khau",
+        "url": "https://vinhomessmartcitytaymo.com/cu-dan/huong-dan-doi-mat-khau-cua-vinhomes-smart-city/",
+        "topic": "App Vinhomes Resident — đăng nhập, đổi mật khẩu",
+    },
+    {
+        "slug": "vsc-hotline-bql",
+        "url": "https://vinhomessmartcitytaymo.com/cu-dan/hotline-ban-quan-ly/",
+        "topic": "Hotline & liên hệ Ban quản lý",
+    },
 ]
 
 CONTENT_SELECTOR = "div.space-page-content"

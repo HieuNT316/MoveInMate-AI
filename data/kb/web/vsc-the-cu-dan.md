@@ -5,7 +5,7 @@ source_type: unofficial_web
 publisher: vinhomessmartcitytaymo.com
 is_official: false
 topic: "Thẻ cư dân"
-fetched_at: 2026-08-08T09:03:58+00:00
+fetched_at: 2026-08-08T10:48:40+00:00
 ---
 
 # Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ
