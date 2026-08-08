@@ -5,7 +5,7 @@ source_type: unofficial_web
 publisher: vinhomessmartcitytaymo.com
 is_official: false
 topic: "Khai báo tạm trú / thông báo lưu trú"
-fetched_at: 2026-08-08T09:03:58+00:00
+fetched_at: 2026-08-08T10:48:40+00:00
 ---
 
 # Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City
