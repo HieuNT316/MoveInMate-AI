@@ -29,6 +29,7 @@ langsmith==0.10.10              # tracing — deliverable #4 của BTC
 # OpenAIEmbeddings, nếu không vector lúc index và lúc query khác không gian.
 chromadb==1.5.9
 pypdf==6.15.0                   # đọc PDF trong pipeline ingest
+beautifulsoup4==4.14.2          # scripts/scrape_kb.py — cào trang thủ tục về Markdown
 
 # ---- Database ----
 SQLAlchemy==2.0.51
