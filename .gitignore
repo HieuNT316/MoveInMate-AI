@@ -29,7 +29,12 @@ env/
 Thumbs.db
 
 # Data (never commit large data)
-data/
+data/*
+# ...trừ KB dạng text cào từ web: vài chục KB, và là input cố định để
+# đo lại retrieval accuracy. Nếu không commit thì mỗi máy một bản khác nhau.
+!data/kb/
+data/kb/*
+!data/kb/web/
 *.db
 *.sqlite3
 
