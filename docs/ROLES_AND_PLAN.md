@@ -31,7 +31,7 @@
 Hiếu: Supabase project + key ──┬──► Thu: đăng nhập thật
                                └──► Hiếu: migration, seed
 
-Hiếu: tải PDF Thông tư 02/2016 ────► Hải: chunk + embed
+Hiếu: data/kb/ (TT 05/2024 + web) ─► Hải: chunk + embed
 
 Cả ba: chốt hợp đồng API + ChatState ──┬──► Thu: code UI theo contract
                                         └──► Hải: code node theo state
@@ -54,7 +54,7 @@ Hiếu: API thật xong ───────────────► Thu: b�
 |---|---|---|
 | Hiếu | Tạo Supabase project; lấy `DATABASE_URL`, `SUPABASE_URL`, `ANON_KEY`, `SERVICE_KEY`, `JWT_SECRET`; chia cho Thu và Hải | Thu đăng nhập được vào Supabase dashboard |
 | Hiếu | Cập nhật `src/config.py`: thêm biến Supabase, `chroma_persist_dir`, `rag_top_k`, LangSmith; đổi `database_url` mặc định khỏi SQLite | `get_settings()` đọc được `.env` mới |
-| Hiếu | Tải Thông tư 02/2016/TT-BXD (PDF) vào `data/kb/`, báo Hải | Hải có file trong tay |
+| Hiếu | ~~Tải Thông tư~~ **Xong 08/08:** `data/kb/legal/` + `data/kb/web/`, chạy `scripts/fetch_legal_kb.py` và `scripts/scrape_kb.py` | Hải có file trong tay |
 | **Cả ba** | **Họp 30 phút chốt hợp đồng API + `ChatState`**, ghi vào `docs/architecture_diagram.md` nếu có sửa | Ba người cùng xác nhận bằng văn bản |
 
 > Nếu chỉ làm được một việc tối nay thì làm **Supabase project + chia key**. Nó chặn nhiều nhất.

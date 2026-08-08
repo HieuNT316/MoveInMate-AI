@@ -385,6 +385,6 @@ graph LR
 |---|---|---|
 | Chất lượng chunking kém → retrieval trả về đoạn sai | Cao — hỏng thầm lặng | Kiểm tra thủ công 10 câu hỏi trước khi tin pipeline |
 | Xác thực JWT Supabase cấu hình sai | Cao — chặn cả đội | Giới hạn 2h thử; chưa xong thì tạm dùng `supabase-py` gọi `auth.get_user(jwt)` |
-| Chưa có tài liệu KB để demo ở GATE 2 (cổng dữ liệu là 13/08, **sau** GATE 2) | Cao | Dùng Thông tư 02/2016/TT-BXD — công khai, tải được ngay, gắn `source_type: public_regulation` |
+| Chưa có tài liệu KB để demo ở GATE 2 (cổng dữ liệu là 13/08, **sau** GATE 2) | ~~Cao~~ Đã xử lý 08/08 | Quy chế kèm **Thông tư 05/2024/TT-BXD** (02/2016 đã hết hiệu lực 01/08/2024) + 7 trang thủ tục VSC. `source_type`: `public_regulation` / `unofficial_web` |
 | Ngưỡng FAQ chưa hiệu chỉnh → không bao giờ trúng hoặc trúng sai | Trung bình | Để trong config; hiệu chỉnh bằng ~20 câu hỏi thật ở W4 |
 | Chroma client là sync, node LangGraph là async → chẹn event loop | Trung bình | Bọc `run_in_threadpool` |

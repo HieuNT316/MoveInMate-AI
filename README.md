@@ -54,6 +54,9 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env               # điền OPENAI_API_KEY, SUPABASE_*, ...
+
+alembic upgrade head               # tạo bảng
+python -m scripts.seed_data        # 12 checklist item + 40 cư dân giả
 uvicorn src.main:app --reload      # http://localhost:8000/docs
 
 # 3. Frontend (terminal khác)

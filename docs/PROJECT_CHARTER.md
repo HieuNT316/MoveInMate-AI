@@ -248,7 +248,7 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **Checklist KHÔNG đi qua LangGraph** | **Đã xác nhận** (07/08) — đảo ngược quyết định "bọc thành node" trước đó trong cùng phiên | Graph 1 node bọc hàm thuần là thừa, dễ bị đánh giá là chưa hiểu LangGraph. Lập luận mạnh hơn: rule-based là lựa chọn có chủ đích, LangGraph dành cho chỗ cần quyết định thật | — | Đã chốt |
 | **Hội thoại single-turn ở Phase 1** | **Đã xác nhận** (07/08) — giới hạn có ý thức, không phải sót | Multi-turn cần bước viết lại câu hỏi theo ngữ cảnh (~6-8h). Nên hỏi mentor chữ "memory" trong đề bài có hàm ý bộ nhớ hội thoại không | Mentor (làm rõ) | Cân nhắc Phase 2 |
 | **Nhánh FAQ hoãn code sang W4** | **Đã xác nhận** (07/08) | Chi phí thật nằm ở hiệu chỉnh ngưỡng (cần dữ liệu thật), không phải ở code. RAG đơn thuần đã thoả mãn yêu cầu "hỏi đáp có trích tài liệu" của đề bài | — | Đã chốt |
-| **KB cho GATE 2 dùng Thông tư 02/2016/TT-BXD** | Đề xuất từ phiên kiến trúc 07/08, **cần team xác nhận** | Cổng dữ liệu 13/08 nằm **sau** GATE 2 (12/08) → ngày demo vẫn có thể chưa có tài liệu BQL. Thông tư này công khai, tải được ngay, gắn `source_type: public_regulation` | Cả team | **Trong tuần này, không đợi 13/08** |
+| **KB cho GATE 2 dùng Thông tư 05/2024/TT-BXD** | **Đã thực hiện 08/08** — đảo ngược đề xuất 02/2016/TT-BXD của phiên kiến trúc 07/08 | 02/2016 **hết hiệu lực 01/08/2024**, bị thay bởi 05/2024/TT-BXD theo Luật Nhà ở 2023. Nạp văn bản hết hiệu lực vào hệ thống có trích nguồn = trả lời sai kèm trích dẫn đáng tin. Đã tải phần Quy chế (Điều 1-50) vào `data/kb/legal/`, gắn `source_type: public_regulation` | — | Đã chốt |
 | Eval offline có được chấp nhận không | Còn mở — **tạm chưa cần bàn** (xác nhận 07/08) | Team quyết định hoãn, không phải việc gấp | Mentor | Trước W5, không gấp |
 | Success metrics sản phẩm thật chưa có con số target | Còn mở — **tạm chưa cần bàn** (xác nhận 07/08) | Team quyết định hoãn, không phải việc gấp | Team/mentor | Trước US-15, không gấp |
 
@@ -263,7 +263,7 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 
 5 nguồn song song: (1) Mentor làm kênh trung gian, (2) trang thông tin bên thứ ba (đối chiếu trước khi đưa vào KB), (3) kênh chính thức Vinhomes, (4) proxy qua cư dân thật, (5) khảo sát thực địa.
 
-**Cổng 13/08:** ≥3 bộ tài liệu thật → dùng nguồn thật. 1-2 bộ → dùng làm khung, mở rộng bằng Thông tư 02/2016/TT-BXD. Không có bộ nào → chuyển hẳn phương án dự phòng, không kéo dài thêm.
+**Cổng 13/08:** ≥3 bộ tài liệu thật → dùng nguồn thật. 1-2 bộ → dùng làm khung, mở rộng bằng Thông tư 05/2024/TT-BXD. Không có bộ nào → chuyển hẳn phương án dự phòng, không kéo dài thêm.
 
 ## 10. Timeline & Mốc
 
@@ -281,7 +281,7 @@ Cố định theo chương trình: GATE 1 (05/08, đã qua) → báo cáo lần 
 | Dữ liệu KB là "việc chung cả team" — nguy cơ không ai làm | Rủi ro của mô hình role AI/FE/BE — giảm thiểu: phân task data cụ thể theo tuần trong WORKLOG.md |
 | Nếu `login/page.tsx` hiện tại là form tự đăng ký (self-signup) | **Cần FE kiểm tra lại (07/08)** — quyết định "BQL cấp tài khoản, không tự đăng ký" nghĩa là không cần trang đăng ký công khai; thay vào đó BE/FE cần thêm màn hình BQL "tạo tài khoản cư dân" (US-00) |
 | **Khối lượng Phase 1 (~120h) vượt sức 3 người trong 6 ngày tới GATE 2** | **Đã xử lý 07/08** — chia lát cắt `[GATE 2]` / `[W4]`, xem mục 4 |
-| **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | Giảm thiểu: nạp Thông tư 02/2016/TT-BXD (công khai, tải ngay được) trong tuần này, không đợi cổng 13/08 |
+| **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | **Đã xử lý 08/08:** `data/kb/legal/` (Quy chế kèm TT 05/2024) + `data/kb/web/` (7 trang thủ tục Vinhomes Smart City) — tổng ~107k token, 295 chunk |
 | Chất lượng chunking kém → retrieval trả về đoạn sai, nhìn như "AI kém" dù code đúng | Hỏng thầm lặng, khó phát hiện. Bắt buộc kiểm tra thủ công 10 câu hỏi trước khi tin pipeline (xem `docs/architecture_diagram.md` mục 11) |
 | Cấu hình xác thực JWT Supabase sai → chặn toàn bộ API | Giới hạn 2h thử; chưa xong thì tạm dùng `supabase-py` gọi `auth.get_user(jwt)`, tối ưu sau |
 
