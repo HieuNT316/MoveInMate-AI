@@ -185,7 +185,7 @@ Tiến độ (%) = số dòng completion / tổng số item khớp `conditions` 
 | chat_id | INT, PK | |
 | user_id | FK → USERS | |
 | question, answer | TEXT | |
-| source_type | ENUM(faq, rag) | Biết câu trả lời từ FAQ hay RAG |
+| answer_source | ENUM(faq, rag, no_context) | Câu trả lời đến từ FAQ, RAG, hay không tìm được tài liệu. Đổi tên khỏi `source_type` để không trùng nghĩa với `source_type` của từng nguồn tài liệu (bql_internal / public_regulation) |
 | sources | JSONB, nullable | `[{document_id, title, snippet}]` — **bổ sung: bản gốc thiếu field này dù US-05 yêu cầu "trích nguồn"** |
 | created_at | DATETIME | |
 

@@ -120,7 +120,7 @@ graph LR
 
 | Node | Đọc state | Ghi state | Trách nhiệm |
 |---|---|---|---|
-| `faq_lookup` **`[W4]`** | `query` | `query_vector`, `faq_answer`, `faq_score`, `source_type` | Embed query → search collection `faq` → so ngưỡng |
+| `faq_lookup` **`[W4]`** | `query` | `query_vector`, `faq_answer`, `faq_score`, `answer_source` | Embed query → search collection `faq` → so ngưỡng |
 | `rag_retrieve` **`[GATE 2]`** | `query`, `query_vector?` | `query_vector`, `retrieved[]`, `sources[]` | Search collection `documents`, top-k |
 | `generate` **`[GATE 2]`** | `query`, `retrieved[]` | `answer` | LLM chỉ viết văn xuôi từ context |
 
@@ -172,7 +172,7 @@ Hai collection:
 | `USERS` | Hồ sơ cư dân + `auth_user_id` trỏ Supabase Auth. Không lưu password |
 | `CHECKLIST_ITEMS` | Template thủ tục, có `conditions` (JSONB) và `item_type` |
 | `CHECKLIST_COMPLETIONS` | Chỉ lưu mục **đã hoàn thành**: `(user_id, checklist_item_id, completed_at)` |
-| `CHAT_HISTORY` | Lịch sử hỏi đáp + `source_type` + `sources` (JSONB) |
+| `CHAT_HISTORY` | Lịch sử hỏi đáp + `answer_source` + `sources` (JSONB) |
 | `FAQ` | Câu hỏi thường gặp do BQL quản lý |
 | `DOCUMENTS` | Metadata tài liệu + `ingest_status` |
 | `APPLICATIONS` | Hồ sơ duyệt — **Phase 2**, chưa migrate ở Phase 1 |
@@ -243,7 +243,7 @@ sequenceDiagram
     else không có context
         G->>G: câu từ chối, KHÔNG gọi LLM
     end
-    G-->>API: answer + sources + source_type
+    G-->>API: answer + sources + answer_source
     API->>DB: ghi CHAT_HISTORY
     API-->>CD: response
 ```
