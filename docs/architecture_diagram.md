@@ -3,7 +3,7 @@
 > Kiến trúc hệ thống cho Phase 1. Nguồn quyết định về scope và persona: [`PROJECT_CHARTER.md`](./PROJECT_CHARTER.md).
 > Nhãn **`[GATE 2]`** = bắt buộc xong trước 12/08. Nhãn **`[W4]`** = vẫn thuộc Phase 1 nhưng làm sau.
 
-**Cập nhật:** 06/08/2026
+**Cập nhật:** 07/08/2026
 
 ---
 
@@ -120,7 +120,7 @@ graph LR
 
 | Node | Đọc state | Ghi state | Trách nhiệm |
 |---|---|---|---|
-| `faq_lookup` **`[W4]`** | `query` | `query_vector`, `faq_answer`, `faq_score`, `source_type` | Embed query → search collection `faq` → so ngưỡng |
+| `faq_lookup` **`[W4]`** | `query` | `query_vector`, `faq_answer`, `faq_score`, `answer_source` | Embed query → search collection `faq` → so ngưỡng |
 | `rag_retrieve` **`[GATE 2]`** | `query`, `query_vector?` | `query_vector`, `retrieved[]`, `sources[]` | Search collection `documents`, top-k |
 | `generate` **`[GATE 2]`** | `query`, `retrieved[]` | `answer` | LLM chỉ viết văn xuôi từ context |
 
@@ -172,7 +172,7 @@ Hai collection:
 | `USERS` | Hồ sơ cư dân + `auth_user_id` trỏ Supabase Auth. Không lưu password |
 | `CHECKLIST_ITEMS` | Template thủ tục, có `conditions` (JSONB) và `item_type` |
 | `CHECKLIST_COMPLETIONS` | Chỉ lưu mục **đã hoàn thành**: `(user_id, checklist_item_id, completed_at)` |
-| `CHAT_HISTORY` | Lịch sử hỏi đáp + `source_type` + `sources` (JSONB) |
+| `CHAT_HISTORY` | Lịch sử hỏi đáp + `answer_source` + `sources` (JSONB) |
 | `FAQ` | Câu hỏi thường gặp do BQL quản lý |
 | `DOCUMENTS` | Metadata tài liệu + `ingest_status` |
 | `APPLICATIONS` | Hồ sơ duyệt — **Phase 2**, chưa migrate ở Phase 1 |
@@ -243,7 +243,7 @@ sequenceDiagram
     else không có context
         G->>G: câu từ chối, KHÔNG gọi LLM
     end
-    G-->>API: answer + sources + source_type
+    G-->>API: answer + sources + answer_source
     API->>DB: ghi CHAT_HISTORY
     API-->>CD: response
 ```
@@ -265,7 +265,17 @@ sequenceDiagram
 | CRUD | `/api/v1/admin/faq` | US-09 | `[W4]` |
 | GET | `/api/v1/admin/dashboard` | US-12-mini | `[W4]` |
 
-**Cư dân chưa hoàn thành onboarding:** `GET /profile` trả `onboarding_completed_at = null`, FE dựa vào đó chuyển hướng sang `/onboarding`. Quy ước này phải nằm trong hợp đồng, không để mỗi bên tự đoán.
+**Cư dân chưa hoàn thành onboarding:** `GET /profile` trả `onboarding_completed_at = null`, FE dựa vào đó chuyển hướng sang `/onboarding`. `GET /checklist` cũng trả cờ `onboarding_completed` để FE không phải gọi hai lần mới biết có nên hiển thị danh sách hay không.
+
+**Quy ước đã chốt khi rà soát API (08/08):**
+
+| Điểm | Quy ước |
+|---|---|
+| `GET /checklist` trả tiến độ | Hai nhóm: `overall` (cư dân xem, gồm cả thủ tục bên ngoài) và `bql_scope` (BQL xem và dùng cho eval, chỉ `bql_actionable`) |
+| `PATCH /checklist/{id}` | Trả về **toàn bộ checklist đã cập nhật**, không chỉ mục vừa sửa — FE cập nhật cả thanh tiến độ trong một lượt gọi |
+| `PATCH /profile` | PATCH đúng nghĩa: mọi field tuỳ chọn, chỉ gửi phần muốn đổi. Body rỗng trả 400 |
+| `POST /onboarding` gọi lại | Cập nhật hồ sơ nhưng **không ghi đè** `onboarding_completed_at` |
+| `amenity_packages` | Danh sách đóng (`pool`, `gym`, `tennis`, `bbq`, `kids_area`), không phải chuỗi tự do — giá trị lệch phải báo 422 thay vì âm thầm làm mục tiện ích biến mất |
 
 ## 5. Error Handling
 

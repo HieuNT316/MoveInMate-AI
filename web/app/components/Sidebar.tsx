@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +12,9 @@ import {
   Plus,
 } from "lucide-react";
 
+import { api, type Profile } from "../../lib/api";
+import { useDemoUser } from "../../lib/useDemoUser";
+
 const menus = [
   { title: "Tổng quan", icon: LayoutDashboard, href: "/dashboard" },
   { title: "AI Chat", icon: Bot, href: "/chat" },
@@ -20,6 +24,13 @@ const menus = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { userId, ready } = useDemoUser();
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    if (!ready) return;
+    api.getProfile(userId).then(setProfile).catch(() => setProfile(null));
+  }, [ready, userId]);
 
   return (
     <aside className="w-72 shrink-0 bg-ink text-white/90 min-h-screen flex flex-col">
@@ -89,11 +100,15 @@ export default function Sidebar() {
           className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-white/[0.05]"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/40 bg-gold/15 font-display text-base text-gold-soft">
-            M
+            {profile ? profile.full_name.charAt(0).toUpperCase() : "?"}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-white">Minh Thu</p>
-            <p className="truncate text-xs text-white/40">Căn hộ A1 · 1208</p>
+            <p className="truncate text-sm font-medium text-white">
+              {profile ? profile.full_name : "Đang tải..."}
+            </p>
+            <p className="truncate text-xs text-white/40">
+              {profile ? `${profile.building} · ${profile.apartment}` : "—"}
+            </p>
           </div>
         </Link>
       </div>
