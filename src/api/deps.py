@@ -8,13 +8,18 @@ Chữ ký hàm giữ nguyên khi thay, nên route không phải sửa.
 from typing import Any
 
 from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.orm import Session
 
-from src.services import mock_store
+from src.database import get_db
+from src.services import store
 
 
-async def get_current_user(x_user_id: int = Header(...)) -> dict[str, Any]:
+async def get_current_user(
+    x_user_id: int = Header(...),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """Lấy người dùng hiện tại. Không hợp lệ thì 401."""
-    user = mock_store.get_user(x_user_id)
+    user = store.get_user(db, x_user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

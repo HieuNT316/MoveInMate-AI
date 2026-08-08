@@ -68,6 +68,31 @@ class ProfileResponse(BaseModel):
     onboarding_completed_at: datetime | None = None
 
 
+class LoginRequest(BaseModel):
+    """⚠️ TẠM THỜI — đăng nhập chỉ bằng email, chưa có mật khẩu.
+
+    Supabase Auth là nguồn xác thực duy nhất đã chốt (charter mục 7), nhưng
+    project Supabase chưa dựng. Endpoint này tồn tại để demo được nhiều persona
+    thay vì hardcode user id ở frontend, và phải xoá khi có Supabase Auth.
+    """
+
+    email: str
+
+
+class DemoAccount(BaseModel):
+    """Một tài khoản mẫu cho màn đăng nhập demo, kèm mô tả để chọn nhanh."""
+
+    user_id: int
+    full_name: str
+    email: str
+    role: Literal["resident", "admin"]
+    summary: str = Field(description="Mô tả hồ sơ, vd 'Chủ hộ · 2PN · có ô tô · hồ bơi'")
+    checklist_total: int = Field(
+        description="Số mục checklist rule engine sinh ra cho hồ sơ này — "
+        "hai persona khác nhau sẽ ra hai con số khác nhau"
+    )
+
+
 class ChecklistItemResponse(BaseModel):
     """Một mục trong checklist đã lọc theo hồ sơ cư dân.
 

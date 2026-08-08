@@ -95,6 +95,21 @@ export type Dashboard = {
   total_residents: number;
 };
 
+/**
+ * ⚠️ TẠM THỜI — tài khoản mẫu cho màn đăng nhập demo.
+ * Xoá cùng lúc với `/auth/demo-accounts` khi có Supabase Auth.
+ */
+export type DemoAccount = {
+  user_id: number;
+  full_name: string;
+  email: string;
+  role: "resident" | "admin";
+  /** Mô tả hồ sơ, vd "Chủ hộ · 2PN · có ô tô · pool, gym". */
+  summary: string;
+  /** Số mục rule engine sinh ra cho hồ sơ này — khác nhau giữa các persona. */
+  checklist_total: number;
+};
+
 const STORAGE_KEY = "moveinmate.demo-user-id";
 export const DEFAULT_USER_ID = 2;
 
@@ -143,7 +158,31 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+/** Gọi endpoint không cần danh tính — chỉ dùng cho luồng đăng nhập. */
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new ApiError(response.status, detail || response.statusText);
+  }
+  return response.json() as Promise<T>;
+}
+
 export const api = {
+  /** ⚠️ TẠM THỜI — không kiểm mật khẩu, chờ Supabase Auth. */
+  login: (email: string) =>
+    publicRequest<Profile>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  /** ⚠️ TẠM THỜI — persona mẫu để demo nhanh. */
+  getDemoAccounts: () => publicRequest<DemoAccount[]>("/auth/demo-accounts"),
+
   getProfile: (userId: number) => request<Profile>("/profile", userId),
 
   submitOnboarding: (userId: number, payload: OnboardingPayload) =>
