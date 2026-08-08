@@ -61,3 +61,26 @@ def progress_percent(total: int, completed: int) -> int:
     if total <= 0:
         return 0
     return int(completed * 100 / total)
+
+
+def summarize_progress(
+    items: list[dict[str, Any]], completed_ids: set[int]
+) -> dict[str, int]:
+    """Tổng hợp tiến độ cho một tập mục."""
+    total = len(items)
+    completed = sum(1 for item in items if item["id"] in completed_ids)
+    return {
+        "total": total,
+        "completed": completed,
+        "percent": progress_percent(total, completed),
+    }
+
+
+def only_bql_scope(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Lọc ra các mục BQL thật sự xử lý được.
+
+    Dùng cho dashboard BQL và cho eval tỉ lệ hoàn tất. Trộn chung với thủ tục
+    ở cơ quan bên ngoài sẽ khiến BQL thấy cư dân "chậm" vì việc mà chính BQL
+    không giúp được và cũng không có cách nào xác nhận.
+    """
+    return [item for item in items if item["item_type"] == "bql_actionable"]

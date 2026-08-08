@@ -18,11 +18,13 @@ from src.models.schemas import (
     ChecklistResponse,
     CompletionRequest,
     CreateUserRequest,
+    DashboardResponse,
     OnboardingRequest,
     ProfileResponse,
+    ProfileUpdateRequest,
 )
 from src.services import mock_chat, mock_store
-from src.services.checklist import generate_checklist, progress_percent
+from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 
 router = APIRouter()
 
@@ -51,11 +53,39 @@ async def submit_onboarding(
 
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(
-    payload: OnboardingRequest,
+    payload: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> Any:
-    """US-06 — sửa hồ sơ; checklist tự cập nhật theo vì được lọc trực tiếp."""
-    return mock_store.update_profile(user["user_id"], payload.model_dump())
+    """US-06 — sửa hồ sơ. Chỉ gửi field muốn đổi; checklist tự cập nhật theo."""
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cần ít nhất một trường để cập nhật",
+        )
+    return mock_store.update_profile(user["user_id"], changes)
+
+
+def _build_checklist(user: dict[str, Any]) -> ChecklistResponse:
+    """Lọc checklist theo hồ sơ và tổng hợp tiến độ cho hai đối tượng."""
+    matched = generate_checklist(user, mock_store.list_checklist_items())
+    done = mock_store.get_completions(user["user_id"])
+    done_ids = set(done)
+
+    items = [
+        ChecklistItemResponse(
+            **{k: v for k, v in item.items() if k != "conditions"},
+            completed=item["id"] in done_ids,
+            completed_at=done.get(item["id"]),
+        )
+        for item in matched
+    ]
+    return ChecklistResponse(
+        items=items,
+        overall=summarize_progress(matched, done_ids),
+        bql_scope=summarize_progress(only_bql_scope(matched), done_ids),
+        onboarding_completed=user["onboarding_completed_at"] is not None,
+    )
 
 
 @router.get("/checklist", response_model=ChecklistResponse)
@@ -63,24 +93,7 @@ async def get_checklist(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ChecklistResponse:
     """US-04 — checklist cá nhân hóa, tính lại mỗi lần gọi."""
-    matched = generate_checklist(user, mock_store.list_checklist_items())
-    done = mock_store.get_completions(user["user_id"])
-
-    items = [
-        ChecklistItemResponse(
-            **{k: v for k, v in item.items() if k != "conditions"},
-            completed=item["id"] in done,
-            completed_at=done.get(item["id"]),
-        )
-        for item in matched
-    ]
-    completed_count = sum(1 for item in items if item.completed)
-    return ChecklistResponse(
-        items=items,
-        total=len(items),
-        completed_count=completed_count,
-        progress_percent=progress_percent(len(items), completed_count),
-    )
+    return _build_checklist(user)
 
 
 @router.patch("/checklist/{item_id}", response_model=ChecklistResponse)
@@ -89,14 +102,18 @@ async def set_checklist_item(
     payload: CompletionRequest,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> ChecklistResponse:
-    """US-04 — đánh dấu hoàn thành, trả về checklist đã cập nhật."""
+    """US-04 — đánh dấu hoàn thành.
+
+    Trả về **toàn bộ checklist đã cập nhật** thay vì riêng mục vừa sửa, để
+    frontend cập nhật cả thanh tiến độ trong một lượt gọi.
+    """
     known = {item["id"] for item in mock_store.list_checklist_items()}
     if item_id not in known:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mục này"
         )
     mock_store.set_completion(user["user_id"], item_id, payload.completed)
-    return await get_checklist(user)
+    return _build_checklist(user)
 
 
 # --- Hỏi đáp ------------------------------------------------------------
@@ -133,15 +150,16 @@ async def create_resident(
     return mock_store.create_user(payload.model_dump())
 
 
-@router.get("/admin/dashboard")
-async def dashboard(_admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+@router.get("/admin/dashboard", response_model=DashboardResponse)
+async def dashboard(
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> DashboardResponse:
     """Tiến độ onboarding của toàn bộ cư dân, để BQL chủ động hỗ trợ."""
     items = mock_store.list_checklist_items()
     residents = []
     for resident in mock_store.list_users():
-        matched = generate_checklist(resident, items)
-        done = mock_store.get_completions(resident["user_id"])
-        completed = sum(1 for item in matched if item["id"] in done)
+        matched = only_bql_scope(generate_checklist(resident, items))
+        done_ids = set(mock_store.get_completions(resident["user_id"]))
         residents.append(
             {
                 "user_id": resident["user_id"],
@@ -149,9 +167,7 @@ async def dashboard(_admin: dict[str, Any] = Depends(require_admin)) -> dict[str
                 "apartment": resident["apartment"],
                 "ownership_type": resident["ownership_type"],
                 "onboarded": resident["onboarding_completed_at"] is not None,
-                "total": len(matched),
-                "completed": completed,
-                "progress_percent": progress_percent(len(matched), completed),
+                "bql_scope": summarize_progress(matched, done_ids),
             }
         )
-    return {"residents": residents, "total_residents": len(residents)}
+    return DashboardResponse(residents=residents, total_residents=len(residents))

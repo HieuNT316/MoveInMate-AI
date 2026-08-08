@@ -265,7 +265,17 @@ sequenceDiagram
 | CRUD | `/api/v1/admin/faq` | US-09 | `[W4]` |
 | GET | `/api/v1/admin/dashboard` | US-12-mini | `[W4]` |
 
-**Cư dân chưa hoàn thành onboarding:** `GET /profile` trả `onboarding_completed_at = null`, FE dựa vào đó chuyển hướng sang `/onboarding`. Quy ước này phải nằm trong hợp đồng, không để mỗi bên tự đoán.
+**Cư dân chưa hoàn thành onboarding:** `GET /profile` trả `onboarding_completed_at = null`, FE dựa vào đó chuyển hướng sang `/onboarding`. `GET /checklist` cũng trả cờ `onboarding_completed` để FE không phải gọi hai lần mới biết có nên hiển thị danh sách hay không.
+
+**Quy ước đã chốt khi rà soát API (08/08):**
+
+| Điểm | Quy ước |
+|---|---|
+| `GET /checklist` trả tiến độ | Hai nhóm: `overall` (cư dân xem, gồm cả thủ tục bên ngoài) và `bql_scope` (BQL xem và dùng cho eval, chỉ `bql_actionable`) |
+| `PATCH /checklist/{id}` | Trả về **toàn bộ checklist đã cập nhật**, không chỉ mục vừa sửa — FE cập nhật cả thanh tiến độ trong một lượt gọi |
+| `PATCH /profile` | PATCH đúng nghĩa: mọi field tuỳ chọn, chỉ gửi phần muốn đổi. Body rỗng trả 400 |
+| `POST /onboarding` gọi lại | Cập nhật hồ sơ nhưng **không ghi đè** `onboarding_completed_at` |
+| `amenity_packages` | Danh sách đóng (`pool`, `gym`, `tennis`, `bbq`, `kids_area`), không phải chuỗi tự do — giá trị lệch phải báo 422 thay vì âm thầm làm mục tiện ích biến mất |
 
 ## 5. Error Handling
 

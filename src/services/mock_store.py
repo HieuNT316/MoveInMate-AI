@@ -221,14 +221,25 @@ def create_user(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def save_onboarding(user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Lưu hồ sơ onboarding.
+
+    `onboarding_completed_at` chỉ ghi ở lần hoàn thành ĐẦU TIÊN. Ghi đè mỗi
+    lần submit sẽ làm hỏng metric "% cư dân hoàn thành onboarding trong X ngày
+    đầu" — metric đó cần mốc đầu tiên, không phải lần gần nhất.
+    """
     user = _USERS[user_id]
     user.update(payload)
-    user["onboarding_completed_at"] = _now()
+    if user["onboarding_completed_at"] is None:
+        user["onboarding_completed_at"] = _now()
     return user
 
 
 def update_profile(user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    """Cư dân sửa hồ sơ; checklist tự cập nhật vì được lọc trực tiếp."""
+    """Cư dân sửa hồ sơ; checklist tự cập nhật vì được lọc trực tiếp.
+
+    `payload` chỉ chứa các field người dùng thật sự gửi lên, nên không đụng
+    tới phần còn lại của hồ sơ.
+    """
     _USERS[user_id].update(payload)
     return _USERS[user_id]
 

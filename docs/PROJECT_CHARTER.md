@@ -177,7 +177,14 @@ UC00 BQL tạo/cấp tài khoản cư dân · UC01 Đăng nhập · UC02 Điền
 
 **Lọc trực tiếp, không chốt cứng checklist lúc onboarding.** Danh sách hiển thị được tính lại mỗi lần `GET /checklist`: lọc `CHECKLIST_ITEMS` theo profile hiện tại → left join bảng này. Lý do đổi (07/08): (a) BQL cập nhật thủ tục thì cư dân cũ thấy ngay, không cần logic đồng bộ; (b) cư dân sửa hồ sơ thì checklist tự cập nhật, không cần logic gộp dễ mất dữ liệu; (c) không phát sinh câu hỏi khó "mục đã tick nhưng không còn khớp điều kiện thì xử lý sao".
 
-Tiến độ (%) = số dòng completion / tổng số item khớp `conditions` của user đó — tính tại query time, không cần bảng PROGRESS riêng.
+Tiến độ tính tại query time, không cần bảng PROGRESS riêng. **Trả về hai con số cho hai đối tượng** (chốt 08/08 khi rà soát API):
+
+- `overall` — mọi mục khớp `conditions`, dành cho cư dân xem
+- `bql_scope` — chỉ mục `item_type = bql_actionable`, dành cho dashboard BQL và cho eval US-15
+
+Lý do tách: gộp chung sẽ khiến BQL thấy cư dân "chậm" vì một thủ tục mà chính BQL không xử lý được, không xác nhận được và không giúp gì được (vd. tạm trú ở công an). Buyer là BQL nên tín hiệu vận hành của họ phải sạch.
+
+`onboarding_completed_at` **chỉ ghi ở lần hoàn thành đầu tiên**, submit lại không ghi đè — metric "% cư dân hoàn thành onboarding trong X ngày đầu" (PRD) cần mốc đầu tiên chứ không phải lần gần nhất.
 
 ### CHAT_HISTORY (bổ sung field trích nguồn — yêu cầu cốt lõi của US-05)
 | Field | Type | Ghi chú |
