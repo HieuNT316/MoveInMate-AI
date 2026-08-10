@@ -20,17 +20,29 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: str = "http://localhost:3000"
 
-    # Chat LLM — gọi qua OpenRouter (API tương thích OpenAI), không gọi thẳng
-    # OpenAI. Model giữ nguyên "openai/gpt-4o-mini" để khớp stack bắt buộc của
-    # charter (mục 8) — chỉ đổi đường gọi, không đổi model.
+    # Chat LLM — gpt-4o-mini theo stack bắt buộc của charter (mục 8). Chọn
+    # đường gọi bằng `CHAT_PROVIDER` trong .env vì mỗi thành viên có key khác
+    # nhau; model là một, chỉ khác nhà cung cấp đứng giữa.
+    #
+    #   openai     — gọi thẳng OpenAI, đúng stack BTC nêu. Cần OPENAI_API_KEY.
+    #   openrouter — proxy tương thích OpenAI. Cần OPEN_ROUTER_API_KEY.
+    #
+    # LƯU Ý tên model: OpenRouter yêu cầu tiền tố "openai/", còn API của OpenAI
+    # trả 400 "invalid model ID" nếu có tiền tố đó. `get_chat_llm()` tự thêm
+    # tiền tố cho nhánh openrouter — đừng đưa tiền tố vào `chat_model`.
+    chat_provider: Literal["openai", "openrouter"] = "openai"
+    chat_model: str = "gpt-4o-mini"
+    openai_api_key: str = ""
     open_router_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    chat_model: str = "openai/gpt-4o-mini"
+
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     llm_timeout_seconds: float = Field(default=20.0, gt=0)
-    # Giới hạn tường minh: mặc định của client (16k) vượt quá số credit của
-    # tài khoản OpenRouter free-tier hiện tại, khiến MỌI request bị từ chối
-    # với lỗi 402 dù key hợp lệ. Câu trả lời tiếng Việt không cần nhiều token.
+    # Giới hạn tường minh: mặc định của client là 16k token. Với tài khoản
+    # OpenRouter free-tier thì mức đó vượt credit và MỌI request bị 402 dù key
+    # hợp lệ. Tài khoản OpenAI trả phí không dính lỗi này, nhưng giữ nguyên
+    # giới hạn vì câu trả lời tiếng Việt không cần dài hơn — và để hoá đơn
+    # không phụ thuộc vào việc model có nói dài hay không.
     llm_max_tokens: int = Field(default=600, ge=1)
 
     # Embeddings — OpenRouter không có endpoint embeddings, nên dùng Google
