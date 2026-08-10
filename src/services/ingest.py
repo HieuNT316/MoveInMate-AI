@@ -33,7 +33,10 @@ REPO_ROOT = KB_DIR.parent.parent
 
 # Khớp DocSourceType trong src/models/schemas.py — sai giá trị dừng ngay lúc
 # ingest thay vì âm thầm trích nguồn sai loại lúc trả lời.
-VALID_SOURCE_TYPES = {"bql_internal", "public_regulation", "unofficial_web"}
+# synthetic_demo: quy trình do nhóm dựng để demo, neo theo quy định/thị trường
+# thật nhưng KHÔNG do BQL ban hành. Tách nhãn riêng để không bao giờ bị nhầm
+# thành tài liệu chính thức khi KB lớn dần.
+VALID_SOURCE_TYPES = {"bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"}
 
 _HEADERS_TO_SPLIT = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4")]
 _CHUNK_TOKENS = 500

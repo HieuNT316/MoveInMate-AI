@@ -14,7 +14,11 @@ const API_BASE =
 export type OwnershipType = "owner" | "renter";
 export type ApartmentType = "studio" | "1pn" | "2pn" | "3pn" | "duplex";
 export type ItemType = "bql_actionable" | "third_party_info";
-export type DocSourceType = "bql_internal" | "public_regulation" | "unofficial_web";
+export type DocSourceType =
+  | "bql_internal"
+  | "public_regulation"
+  | "unofficial_web"
+  | "synthetic_demo";
 export type AnswerSource = "faq" | "rag" | "no_context";
 export type AmenityPackage = "pool" | "gym" | "tennis" | "bbq" | "kids_area";
 

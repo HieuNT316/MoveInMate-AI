@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 OwnershipType = Literal["owner", "renter"]
 ApartmentType = Literal["studio", "1pn", "2pn", "3pn", "duplex"]
 ItemType = Literal["bql_actionable", "third_party_info"]
-DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web"]
+DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"]
 AnswerSource = Literal["faq", "rag", "no_context"]
 
 # Danh sách đóng, không dùng str tự do: giá trị lệch (vd. "POOL", "swimming")

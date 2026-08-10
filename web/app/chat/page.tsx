@@ -173,6 +173,9 @@ const SOURCE_LABELS: Record<Source["source_type"], string> = {
   bql_internal: "Tài liệu Ban quản lý",
   public_regulation: "Quy định pháp luật công khai",
   unofficial_web: "Trang tham khảo (chưa xác minh với BQL)",
+  // Nói thẳng đây là dữ liệu mô phỏng. Trình bày số liệu tự dựng như thể là
+  // số thật trước mặt doanh nghiệp là mất uy tín ngay khi có người biết rõ.
+  synthetic_demo: "Quy trình mô phỏng (dữ liệu demo)",
 };
 
 function SourceCard({ source }: { source: Source }) {
