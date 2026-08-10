@@ -27,7 +27,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 
-from src.config import get_settings
+from src.config import get_settings, safe_database_url
 from src.database import SessionLocal
 from src.models.db import ChecklistCompletion, ChecklistItem, User
 from src.services.checklist import matches, validate_conditions
@@ -313,7 +313,7 @@ def main() -> None:
         print(f"OK  {len(CHECKLIST_ITEMS)} checklist item")
         print(f"OK  1 tai khoan BQL + {len(residents)} cu dan ({onboarded} da onboarding)")
         print(f"OK  {len(completions)} luot tick checklist")
-        print(f"    DB: {get_settings().database_url}")
+        print(f"    DB: {safe_database_url()}")
     finally:
         session.close()
 

@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import Literal
 
@@ -96,3 +97,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def safe_database_url() -> str:
+    """`DATABASE_URL` đã che mật khẩu — dùng cho MỌI chỗ in ra màn hình.
+
+    Chuỗi Supabase chứa mật khẩu ngay trong URL. In thẳng ra là đẩy nó vào
+    scrollback terminal, log CI và màn hình đang chia sẻ.
+    """
+    return re.sub(r"(://[^:]+:)[^@]+(@)", r"\g<1>***\g<2>", get_settings().database_url)
