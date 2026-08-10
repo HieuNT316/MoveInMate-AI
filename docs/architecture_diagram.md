@@ -134,6 +134,17 @@ graph LR
 
 **Giới hạn Phase 1: single-turn.** Mỗi câu hỏi độc lập, không truyền lịch sử hội thoại vào agent. Hỏi nối tiếp kiểu "còn thẻ xe thì sao?" sẽ mất ngữ cảnh. Đây là quyết định có ý thức để tiết kiệm ~6-8h; làm đúng cần thêm bước viết lại câu hỏi theo ngữ cảnh. Cân nhắc ở Phase 2.
 
+**Nhà cung cấp model (cập nhật 11/08):**
+
+| Vai trò | Model | Đường gọi | Cấu hình |
+|---|---|---|---|
+| Chat | `gpt-4o-mini` | **Mặc định gọi thẳng OpenAI** (đúng stack BTC); OpenRouter là lựa chọn thay thế | `CHAT_PROVIDER=openai\|openrouter` |
+| Embeddings | `gemini-embedding-001` (Google, **3072 chiều**) | Google Generative AI | `EMBEDDING_MODEL` |
+
+Tên model khác nhau giữa hai đường: OpenRouter cần tiền tố `openai/`, còn API OpenAI trả `400 invalid model ID` nếu có tiền tố. `get_chat_llm()` tự thêm tiền tố cho nhánh openrouter — `CHAT_MODEL` luôn để trần.
+
+**Embeddings lệch stack BTC** (BTC nêu GPT-4o-mini, không nêu model embedding). Lý do lịch sử: quyết định gốc gọi chat qua OpenRouter, mà OpenRouter không có endpoint embeddings. **Cần mentor xác nhận trước mốc 17/08.**
+
 **Trace:** LangSmith bật qua biến môi trường (deliverable #4 của BTC).
 
 ### 3.5 Vector Store — Chroma (`src/services/vectorstore.py`, `ingest.py`)
@@ -155,7 +166,18 @@ Hai collection:
 }
 ```
 
-`source_type` nhận `bql_internal` (tài liệu nội bộ BQL) hoặc `public_regulation` (quy định pháp luật công khai). Nhờ đó câu trả lời phân biệt được nguồn, đúng ràng buộc: thủ tục thuộc bên thứ ba chỉ được hướng dẫn theo quy định công khai, không mạo nhận là quy trình BQL.
+`source_type` nhận **bốn** giá trị (cập nhật 11/08). Nhờ đó câu trả lời phân biệt được nguồn, đúng ràng buộc: thủ tục thuộc bên thứ ba chỉ được hướng dẫn theo quy định công khai, không mạo nhận là quy trình BQL.
+
+| Giá trị | Nghĩa | Nhãn hiển thị ở FE |
+|---|---|---|
+| `bql_internal` | Tài liệu nội bộ BQL cấp | Tài liệu Ban quản lý |
+| `public_regulation` | Văn bản pháp quy còn hiệu lực | Quy định pháp luật công khai |
+| `unofficial_web` | Trang cộng đồng/bên thứ ba | Trang tham khảo (chưa xác minh với BQL) |
+| `synthetic_demo` | **Quy trình nhóm tự dựng** cho demo, neo theo quy định thật | Quy trình mô phỏng (dữ liệu demo) |
+
+`synthetic_demo` phải hiển thị nhãn mô phỏng ở UI. Trình bày dữ liệu tự dựng như dữ liệu thật trước doanh nghiệp là rủi ro uy tín, không phải chi tiết thẩm mỹ.
+
+**Không đổi nguồn embedding khi đã có index.** Vector hiện tại là 3072 chiều (`gemini-embedding-001`). `text-embedding-3-large` của OpenAI **cũng 3072 chiều** — đổi sang nó mà không ingest lại thì Chroma **không báo lỗi kích thước**, vector chỉ nằm khác không gian và retrieval trả rác im lặng. Đổi nguồn embedding = bắt buộc ingest lại toàn bộ + hiệu chỉnh lại `rag_max_distance`.
 
 **Chiến lược chia nhỏ tài liệu (chunking)** — đây là yếu tố quyết định chất lượng retrieval, quan trọng hơn cấu trúc graph:
 
@@ -294,6 +316,17 @@ sequenceDiagram
 }
 ```
 
+**Đo thực tế 11/08 — tool bắn không ổn định (2/4 cách hỏi):**
+
+| Câu hỏi | Tool bắn? |
+|---|---|
+| "Cho tôi nộp hồ sơ thẻ cư dân" | ✅ |
+| "Dẫn tôi đến chỗ nộp hồ sơ đăng ký thẻ xe" | ✅ |
+| "Tôi muốn đăng ký thẻ xe" | ❌ |
+| "Tôi cần làm thẻ cư dân, giúp tôi nộp hồ sơ" | ❌ |
+
+Nghịch lý cần biết: **thêm dữ liệu định tuyến (`data/kb/bql/`) làm tool càng ít bắn**, vì LLM trả lời được "nộp tại quầy lễ tân tầng 1" bằng văn xuôi nên thấy không cần gọi tool. Đây là hệ quả trực tiếp của việc để LLM quyết định một việc tính tất định được — cùng loại lỗi mà `sources[]` đã tránh bằng cách không hỏi LLM. Hướng xử lý đề xuất: chạy `_match_checklist_item` **luôn luôn** trên câu hỏi, tool LLM hạ xuống thành tín hiệu bổ trợ; nhưng phải giữ được ý định gốc của tool (không gắn nút điều hướng cho câu hỏi thuần thông tin) — **cần thống nhất với vai AI trước khi sửa**.
+
 `suggested_action` là `null` khi không phát hiện ý định nộp hồ sơ. `checklist_item_id` là `null` khi `procedure_name` (do LLM tự suy ra) không đối chiếu khớp được với đúng một mục trong checklist thật của người dùng (`_match_checklist_item` trong `src/api/routes.py`) — **FE phải tự ẩn nút điều hướng trong trường hợp này**, không điều hướng mù.
 
 **Chưa làm ở lượt này (đang chặn tính năng phát huy tác dụng thật):**
@@ -346,6 +379,10 @@ tests/
 | Ingest tài liệu | Đồng bộ + script CLI | `BackgroundTasks` hỏng im lặng khi container restart, khó chẩn đoán |
 | Hội thoại | Single-turn ở Phase 1 | Multi-turn cần bước viết lại câu hỏi theo ngữ cảnh, ~6-8h. Cân nhắc Phase 2 |
 | Nhánh FAQ | Thiết kế sẵn, code ở `[W4]` | Chi phí thật nằm ở hiệu chỉnh ngưỡng, cần dữ liệu thật. RAG đơn thuần đã đủ thoả mãn yêu cầu đề bài |
+| Đường gọi chat model (11/08) | **OpenAI trực tiếp** mặc định, OpenRouter tuỳ chọn | Đúng stack BTC nêu; key trả phí không dính giới hạn credit của free tier. Giữ chuyển đổi vì các thành viên có key khác nhau |
+| Nguồn embedding (11/08) | Giữ Google `gemini-embedding-001` | Index 386 chunk đã embed bằng model này. Đổi = ingest lại + hiệu chỉnh lại ngưỡng; trùng số chiều với OpenAI large khiến lỗi không lộ ra |
+| Dữ liệu quy trình BQL (11/08) | **Tự sinh, gắn `synthetic_demo`**, neo theo Điều 6/7/13 Quy chế + hotline/bảng phí công khai | Mentor gỡ ràng buộc dữ liệu thật (08/08). Nhãn riêng để không bao giờ lẫn với tài liệu BQL thật khi KB lớn dần |
+| Số liệu phí trong dữ liệu tự sinh | **Chỉ trích nguồn công khai**, không tự đặt số | Số phí bịa bị người trong nghề phát hiện tức thì; thà ghi "theo bảng giá đơn vị vận hành" |
 
 ## 8. Deployment
 
@@ -417,3 +454,6 @@ graph LR
 | Chưa có tài liệu KB để demo ở GATE 2 (cổng dữ liệu là 13/08, **sau** GATE 2) | ~~Cao~~ Đã xử lý 08/08 | Quy chế kèm **Thông tư 05/2024/TT-BXD** (02/2016 đã hết hiệu lực 01/08/2024) + 7 trang thủ tục VSC. `source_type`: `public_regulation` / `unofficial_web` |
 | Ngưỡng FAQ chưa hiệu chỉnh → không bao giờ trúng hoặc trúng sai | Trung bình | Để trong config; hiệu chỉnh bằng ~20 câu hỏi thật ở W4 |
 | Chroma client là sync, node LangGraph là async → chẹn event loop | Trung bình | Bọc `run_in_threadpool` |
+| **`data/chroma/` là DB nhị phân commit trong git** — chỉ đọc cũng làm bẩn working tree; `git checkout` nhầm là mất kết quả ingest | Trung bình — **đã xảy ra 11/08** | Quy ước một người ingest; kiểm `collection.count()` sau mọi thao tác git đụng `data/chroma/` |
+| **Tool điều hướng bắn không ổn định** (2/4 cách hỏi, đo 11/08) | Cao cho demo | Lớp đối chiếu tất định ở BE; kịch bản demo chỉ dùng câu đã kiểm chứng |
+| **Dữ liệu `synthetic_demo` bị trình bày như thật** | Cao cho uy tín | Nhãn xuyên suốt frontmatter → metadata → badge UI; nói minh bạch trong lời dẫn demo |
