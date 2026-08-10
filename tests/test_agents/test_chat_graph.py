@@ -17,18 +17,36 @@ from src.services.vectorstore import RetrievalError
 
 
 class _FakeResponse:
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str = "", tool_calls: list[dict] | None = None) -> None:
         self.content = content
+        self.tool_calls = tool_calls or []
 
 
 class _FakeLLM:
-    def __init__(self, content: str = "Câu trả lời giả lập.", error: Exception | None = None):
+    """`responses` mô phỏng dãy lượt gọi (vd. lượt 1 tool_call, lượt 2 văn bản
+    cuối). Không truyền `responses` thì mọi lượt gọi đều trả về `content`."""
+
+    def __init__(
+        self,
+        content: str = "Câu trả lời giả lập.",
+        error: Exception | None = None,
+        responses: list[_FakeResponse] | None = None,
+    ):
         self._content = content
         self._error = error
+        self._responses = responses
+        self._call_index = 0
+
+    def bind_tools(self, _tools):
+        return self
 
     async def ainvoke(self, _messages):
         if self._error:
             raise self._error
+        if self._responses is not None:
+            response = self._responses[min(self._call_index, len(self._responses) - 1)]
+            self._call_index += 1
+            return response
         return _FakeResponse(self._content)
 
 
@@ -131,3 +149,62 @@ async def test_llm_loi_van_tra_ve_sources_da_truy_xuat(monkeypatch):
     assert result["answer_source"] == "rag"
     assert result["sources"]
     assert result["sources"][0]["document_id"] == 1
+
+
+# --- Tool điều hướng nộp hồ sơ -------------------------------------------
+
+
+def _tool_call_response(procedure_name: str) -> _FakeResponse:
+    return _FakeResponse(
+        tool_calls=[
+            {
+                "name": "request_submission_navigation",
+                "args": {"procedure_name": procedure_name},
+                "id": "call_1",
+            }
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_goi_tool_dieu_huong_thi_tra_ve_suggested_action(monkeypatch):
+    store = _FakeStore([(_doc("Nội dung A", 1, "Đăng ký thẻ xe"), 0.1)])
+    llm = _FakeLLM(
+        responses=[
+            _tool_call_response("Đăng ký thẻ xe"),
+            _FakeResponse(content="Bạn có muốn tôi đưa bạn tới đó không?"),
+        ]
+    )
+    result = await _run(monkeypatch, store, llm, query="Nộp hồ sơ thẻ xe ở đâu?")
+
+    assert result["answer"] == "Bạn có muốn tôi đưa bạn tới đó không?"
+    assert result["suggested_action"] == {
+        "type": "navigate_to_submission",
+        "procedure_name": "Đăng ký thẻ xe",
+    }
+
+
+@pytest.mark.asyncio
+async def test_khong_goi_tool_thi_khong_co_suggested_action(monkeypatch):
+    store = _FakeStore([(_doc("Nội dung A", 1, "Tài liệu A"), 0.1)])
+    result = await _run(monkeypatch, store, _FakeLLM("Câu trả lời thường."))
+
+    assert "suggested_action" not in result
+
+
+@pytest.mark.asyncio
+async def test_loi_o_luot_hai_van_giu_duoc_suggested_action(monkeypatch):
+    """LLM lỗi ở lượt xác nhận cuối — vẫn phải giữ được tín hiệu điều hướng đã có."""
+
+    class _FailSecondCallLLM(_FakeLLM):
+        async def ainvoke(self, messages):
+            if self._call_index == 0:
+                self._call_index += 1
+                return _tool_call_response("Đăng ký thẻ cư dân")
+            raise TimeoutError("hết giờ ở lượt hai")
+
+    store = _FakeStore([(_doc("Nội dung A", 1, "Đăng ký thẻ cư dân"), 0.1)])
+    result = await _run(monkeypatch, store, _FailSecondCallLLM())
+
+    assert result["answer_source"] == "rag"
+    assert result["suggested_action"]["procedure_name"] == "Đăng ký thẻ cư dân"

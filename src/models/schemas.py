@@ -157,6 +157,25 @@ class Source(BaseModel):
     source_type: DocSourceType
 
 
+class SuggestedAction(BaseModel):
+    """Tín hiệu điều hướng do AI phát hiện khi người dùng hỏi cách nộp hồ sơ.
+
+    `checklist_item_id` có thể null nếu backend không đối chiếu được
+    `procedure_name` (do AI suy ra, có thể lệch chữ) với đúng một mục trong
+    checklist thật của người dùng — FE nên ẩn nút điều hướng trong trường
+    hợp đó, chỉ hiển thị `procedure_name` dạng text.
+
+    ⚠️ Đích điều hướng thật (trang nộp hồ sơ/upload) CHƯA tồn tại — đây là
+    Phase 2 (APPLICATIONS, xem PROJECT_CHARTER.md mục 4). Field này mới chỉ
+    là tín hiệu để FE chuẩn bị, tạm thời có thể điều hướng tới `/checklist`
+    kèm `checklist_item_id` cho tới khi có trang nộp hồ sơ thật.
+    """
+
+    type: Literal["navigate_to_submission"]
+    procedure_name: str
+    checklist_item_id: int | None = None
+
+
 class ChatResponse(BaseModel):
     """US-05 — câu trả lời kèm nguồn.
 
@@ -167,6 +186,7 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[Source] = Field(default_factory=list)
     answer_source: AnswerSource
+    suggested_action: SuggestedAction | None = None
 
 
 class ChatHistoryEntry(BaseModel):

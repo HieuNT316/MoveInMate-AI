@@ -19,3 +19,7 @@ class ChatState(TypedDict, total=False):
     sources: list[dict[str, Any]]
     answer: str
     answer_source: str
+    # {"type": "navigate_to_submission", "procedure_name": str} — do generate
+    # phát ra khi LLM gọi tool `request_submission_navigation`. Chưa có
+    # checklist_item_id ở đây vì graph không chạm DB; route resolve tiếp.
+    suggested_action: dict[str, str] | None

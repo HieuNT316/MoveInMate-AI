@@ -5,6 +5,7 @@ tách thành package `src/api/routes/` như mô tả ở docs/architecture_diagr
 mục 3.2.
 """
 
+import unicodedata
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -211,6 +212,46 @@ async def set_checklist_item(
 # --- Hỏi đáp ------------------------------------------------------------
 
 
+# Động từ hành chính LLM hay dùng thay cho nhau ("làm thẻ..." / "đăng ký
+# thẻ..." / "xin cấp thẻ..." đều chỉ cùng một thủ tục) — bỏ đi trước khi so
+# khớp để chỉ còn lại phần lõi (danh từ thủ tục) mang tính phân biệt thật.
+_ACTION_PREFIXES = ("dang ky lam ", "dang ky ", "xin cap ", "xin ", "kich hoat ", "lam ")
+
+
+def _normalize(text: str) -> str:
+    """Bỏ dấu + hạ chữ thường — dùng để so tên thủ tục AI đoán với checklist thật."""
+    decomposed = unicodedata.normalize("NFD", text.lower())
+    without_marks = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
+    return without_marks.replace("đ", "d")
+
+
+def _strip_action_prefix(text: str) -> str:
+    for prefix in _ACTION_PREFIXES:
+        if text.startswith(prefix):
+            return text[len(prefix) :]
+    return text
+
+
+def _match_checklist_item(
+    procedure_name: str, items: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Đối chiếu tên thủ tục do LLM suy ra với đúng một mục checklist thật.
+
+    `chat_graph` không chạm DB (docs mục 7) nên tool chỉ trả tên tự nhiên;
+    việc khớp ra `checklist_item_id` thật nằm ở đây. So trên phần lõi sau khi
+    bỏ động từ đầu câu, để "đăng ký thẻ cư dân" (AI nói) khớp được với "Làm
+    thẻ cư dân" (tên thật trong checklist) — hai bên chỉ khác động từ.
+    Không khớp được thì trả None, FE tự ẩn nút điều hướng thay vì điều hướng
+    sai chỗ (vd. "thẻ xe" so với "thẻ cư dân" phải KHÔNG khớp nhau).
+    """
+    target = _strip_action_prefix(_normalize(procedure_name))
+    for item in items:
+        name = _strip_action_prefix(_normalize(item["task_name"]))
+        if name == target or name in target or target in name:
+            return item
+    return None
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     payload: ChatRequest,
@@ -226,11 +267,22 @@ async def chat(
             detail="Không thể tra cứu tài liệu lúc này, vui lòng thử lại sau.",
         ) from exc
 
-    result = {
+    result: dict[str, Any] = {
         "answer": state["answer"],
         "sources": state.get("sources", []),
         "answer_source": state["answer_source"],
     }
+
+    suggested = state.get("suggested_action")
+    if suggested:
+        items = generate_checklist(user, store.list_checklist_items(db))
+        match = _match_checklist_item(suggested["procedure_name"], items)
+        result["suggested_action"] = {
+            "type": suggested["type"],
+            "procedure_name": suggested["procedure_name"],
+            "checklist_item_id": match["id"] if match else None,
+        }
+
     store.add_chat(db, user["user_id"], {"question": payload.message, **result})
     return result
 

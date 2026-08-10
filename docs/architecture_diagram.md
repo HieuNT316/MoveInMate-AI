@@ -277,6 +277,35 @@ sequenceDiagram
 | `POST /onboarding` gọi lại | Cập nhật hồ sơ nhưng **không ghi đè** `onboarding_completed_at` |
 | `amenity_packages` | Danh sách đóng (`pool`, `gym`, `tennis`, `bbq`, `kids_area`), không phải chuỗi tự do — giá trị lệch phải báo 422 thay vì âm thầm làm mục tiện ích biến mất |
 
+### 4.4 `POST /chat` — tín hiệu điều hướng nộp hồ sơ (thêm 10/08)
+
+`ChatResponse` có thêm field tuỳ chọn `suggested_action`, do node `generate` phát ra khi LLM gọi tool `request_submission_navigation` (`src/agents/tools/navigation.py`) — tức là khi người dùng hỏi **cách nộp** hồ sơ cho một thủ tục cụ thể (khác với hỏi "cần giấy tờ gì"). Nếu câu hỏi mơ hồ về việc là thủ tục nào, model được prompt để hỏi lại trong câu trả lời thay vì gọi tool — đã kiểm chứng cả hai nhánh bằng gpt-4o-mini thật.
+
+```json
+{
+  "answer": "Bạn có thể nộp hồ sơ đăng ký thẻ xe tại Ban quản lý. Bạn có muốn tôi đưa bạn tới đó không?",
+  "sources": [...],
+  "answer_source": "rag",
+  "suggested_action": {
+    "type": "navigate_to_submission",
+    "procedure_name": "Đăng ký thẻ xe",
+    "checklist_item_id": 6
+  }
+}
+```
+
+`suggested_action` là `null` khi không phát hiện ý định nộp hồ sơ. `checklist_item_id` là `null` khi `procedure_name` (do LLM tự suy ra) không đối chiếu khớp được với đúng một mục trong checklist thật của người dùng (`_match_checklist_item` trong `src/api/routes.py`) — **FE phải tự ẩn nút điều hướng trong trường hợp này**, không điều hướng mù.
+
+**Chưa làm ở lượt này (đang chặn tính năng phát huy tác dụng thật):**
+
+| Việc cần làm | Vai trò | Ghi chú |
+|---|---|---|
+| Thêm `SuggestedAction` type + field `suggested_action` vào `ChatAnswer` (`web/lib/api.ts`) | FE | Hiện BE đã trả field này nhưng FE chưa khai báo type nên bị bỏ qua |
+| Hiện nút/CTA trong bong bóng chat khi `suggested_action.checklist_item_id` khác null (`web/app/chat/page.tsx`) | FE | Ẩn nút khi `checklist_item_id` là null |
+| Trang `/checklist` hỗ trợ nhận `checklist_item_id` (vd. query param) để cuộn tới + highlight đúng mục | FE | Đích tạm thời — **chưa có trang nộp hồ sơ/upload thật** |
+| Trang nộp hồ sơ thật (upload CCCD/hợp đồng, theo `checklist_item_id`) | BE + FE | Đây chính là US-10/`APPLICATIONS` — **đã xếp Phase 2** trong charter mục 4, chưa migrate. Tool này chỉ chuẩn bị tín hiệu, không kéo Phase 2 lên sớm |
+| (Tuỳ chọn) Lưu `suggested_action` vào `CHAT_HISTORY` | BE | Hiện KHÔNG lưu — xem lại lịch sử chat cũ sẽ không thấy `suggested_action`. Cần thêm cột JSONB + migration nếu muốn giữ |
+
 ## 5. Error Handling
 
 Phân biệt rõ "lỗi hệ thống" và "không có dữ liệu" — nhầm hai loại này làm hệ thống hoặc bịa thông tin, hoặc báo lỗi sai chỗ:
