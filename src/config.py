@@ -53,7 +53,25 @@ class Settings(BaseSettings):
     embedding_model: str = "models/gemini-embedding-001"
 
     # Database
+    #
+    # Supabase cho BA chuỗi kết nối khác nhau — chọn sai là mất hàng giờ:
+    #   Direct      db.<ref>.supabase.co:5432        → CHỈ IPv6, mạng nhà/văn
+    #                                                   phòng IPv4 sẽ treo rồi timeout
+    #   Session     <region>.pooler.supabase.com:5432 → DÙNG CÁI NÀY
+    #   Transaction <region>.pooler.supabase.com:6543 → pgbouncer transaction mode,
+    #                                                   hỏng prepared statement và
+    #                                                   DDL trong transaction → Alembic lỗi
+    #
+    # Mật khẩu có ký tự đặc biệt (@ : / ?) phải URL-encode trong chuỗi.
     database_url: str = "sqlite:///./data/app.db"
+
+    # Supabase Auth (US-01) — lấy ở Project Settings → API.
+    # service_role_key có toàn quyền, bỏ qua Row Level Security: chỉ dùng ở
+    # backend, KHÔNG bao giờ đưa sang frontend hay commit.
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_key: str = ""
+    supabase_jwt_secret: str = ""
 
     # Vector Store / RAG
     chroma_persist_dir: str = "./data/chroma"

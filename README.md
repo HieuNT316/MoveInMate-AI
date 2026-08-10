@@ -55,6 +55,7 @@ pip install -r requirements.txt
 
 cp .env.example .env               # điền OPENAI_API_KEY, SUPABASE_*, ...
 
+python -m scripts.check_db         # kiểm tra DATABASE_URL trước khi migrate
 alembic upgrade head               # tạo bảng
 python -m scripts.seed_data        # 12 checklist item + 40 cư dân giả
 uvicorn src.main:app --reload      # http://localhost:8000/docs
