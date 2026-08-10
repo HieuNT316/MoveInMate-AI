@@ -169,9 +169,14 @@ export default function ChatPage() {
   );
 }
 
+const SOURCE_LABELS: Record<Source["source_type"], string> = {
+  bql_internal: "Tài liệu Ban quản lý",
+  public_regulation: "Quy định pháp luật công khai",
+  unofficial_web: "Trang tham khảo (chưa xác minh với BQL)",
+};
+
 function SourceCard({ source }: { source: Source }) {
-  const official = source.source_type === "bql_internal";
-  const Icon = official ? FileText : Scale;
+  const Icon = source.source_type === "bql_internal" ? FileText : Scale;
 
   return (
     <div className="rounded-xl border border-border bg-background px-3.5 py-2.5">
@@ -183,7 +188,7 @@ function SourceCard({ source }: { source: Source }) {
             {source.snippet}
           </p>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-muted">
-            {official ? "Tài liệu Ban quản lý" : "Quy định pháp luật công khai"}
+            {SOURCE_LABELS[source.source_type]}
           </p>
         </div>
       </div>

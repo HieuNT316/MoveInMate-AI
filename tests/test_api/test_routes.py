@@ -6,6 +6,9 @@ onboarding.
 
 import pytest
 
+from src.api import routes as api_routes
+from src.services.vectorstore import RetrievalError
+
 ADMIN = {"X-User-Id": "1"}
 OWNER = {"X-User-Id": "2"}
 RENTER = {"X-User-Id": "3"}
@@ -215,11 +218,38 @@ async def test_sua_ho_so_rong_bi_tu_choi(client):
     assert response.status_code == 400
 
 
-# --- Hỏi đáp ------------------------------------------------------------
+# --- Hỏi đáp -------------------------------------------------------------
+#
+# Nội dung/chất lượng của rag_retrieve + generate (ngưỡng, gộp nguồn, guard
+# chống bịa...) đã có tests/test_agents/test_chat_graph.py mock riêng. Ở đây
+# chỉ kiểm tra phần API: route có gọi đúng chat_graph, có ghi CHAT_HISTORY,
+# và có map lỗi hạ tầng sang đúng mã HTTP hay không — không gọi mạng thật.
+
+
+class _FakeChatGraph:
+    def __init__(self, result: dict | None = None, error: Exception | None = None):
+        self.result = result or {
+            "answer": "Câu trả lời giả lập.",
+            "sources": [{"document_id": 1, "title": "Tài liệu A", "snippet": "...", "source_type": "bql_internal"}],
+            "answer_source": "rag",
+        }
+        self.error = error
+
+    async def ainvoke(self, state: dict) -> dict:
+        if self.error:
+            raise self.error
+        return {"query": state["query"], **self.result}
+
+
+@pytest.fixture
+def fake_chat_graph(monkeypatch):
+    fake = _FakeChatGraph()
+    monkeypatch.setattr(api_routes, "chat_graph", fake)
+    return fake
 
 
 @pytest.mark.asyncio
-async def test_hoi_dap_tra_ve_nguon_trich_dan(client):
+async def test_hoi_dap_tra_ve_nguon_trich_dan(client, fake_chat_graph):
     response = await client.post(
         "/api/v1/chat", json={"message": "Làm thẻ xe cần giấy tờ gì?"}, headers=OWNER
     )
@@ -231,43 +261,35 @@ async def test_hoi_dap_tra_ve_nguon_trich_dan(client):
 
 
 @pytest.mark.asyncio
-async def test_hoi_dap_khop_ca_khi_go_khong_dau(client):
-    """Người Việt hay gõ không dấu; không chuẩn hoá thì hệ thống từ chối nhầm."""
-    response = await client.post(
-        "/api/v1/chat",
-        json={"message": "Toi can giay to gi de lam the xe?"},
-        headers=OWNER,
-    )
-    data = response.json()
-    assert data["answer_source"] == "rag"
-    assert data["sources"]
+async def test_cau_hoi_khong_co_context_thi_tu_choi(client, monkeypatch):
+    fake = _FakeChatGraph(result={"answer": "Xin lỗi, không tìm thấy... liên hệ Ban quản lý.", "sources": [], "answer_source": "no_context"})
+    monkeypatch.setattr(api_routes, "chat_graph", fake)
 
-
-@pytest.mark.asyncio
-async def test_cau_hoi_ngoai_tai_lieu_thi_tu_choi_chu_khong_bia(client):
-    """Ràng buộc của đề bài, và là bước ăn điểm thứ hai của demo."""
     response = await client.post(
         "/api/v1/chat", json={"message": "Giá vàng hôm nay bao nhiêu?"}, headers=OWNER
     )
     data = response.json()
     assert data["answer_source"] == "no_context"
     assert data["sources"] == []
-    assert "Ban quản lý" in data["answer"]
 
 
 @pytest.mark.asyncio
-async def test_thu_tuc_ben_ngoai_trich_nguon_quy_dinh_cong_khai(client):
-    """Không được mạo nhận quy trình của cơ quan khác là tài liệu nội bộ BQL."""
+async def test_loi_ha_tang_rag_tra_503_khong_ghi_lich_su(client, monkeypatch):
+    """docs/architecture_diagram.md mục 5: lỗi embedding/Chroma là 503, không phải câu từ chối thường."""
+    fake = _FakeChatGraph(error=RetrievalError("Google API sập"))
+    monkeypatch.setattr(api_routes, "chat_graph", fake)
+
     response = await client.post(
-        "/api/v1/chat", json={"message": "đăng ký tạm trú thế nào?"}, headers=RENTER
+        "/api/v1/chat", json={"message": "thẻ cư dân"}, headers=OWNER
     )
-    sources = response.json()["sources"]
-    assert sources
-    assert all(s["source_type"] == "public_regulation" for s in sources)
+    assert response.status_code == 503
+
+    history = (await client.get("/api/v1/chat/history", headers=OWNER)).json()
+    assert history == []
 
 
 @pytest.mark.asyncio
-async def test_lich_su_chat_chi_cua_chinh_minh(client):
+async def test_lich_su_chat_chi_cua_chinh_minh(client, fake_chat_graph):
     await client.post("/api/v1/chat", json={"message": "thẻ cư dân"}, headers=OWNER)
 
     mine = (await client.get("/api/v1/chat/history", headers=OWNER)).json()

@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from src.agents.graph import chat_graph
 from src.api.deps import get_current_user, require_admin
 from src.database import get_db
 from src.models.schemas import (
@@ -27,8 +28,9 @@ from src.models.schemas import (
     ProfileResponse,
     ProfileUpdateRequest,
 )
-from src.services import mock_chat, store
+from src.services import store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
+from src.services.vectorstore import RetrievalError
 
 router = APIRouter()
 
@@ -215,8 +217,20 @@ async def chat(
     user: dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Any:
-    """US-05 — hỏi đáp thủ tục. Câu trả lời luôn kèm nguồn, hoặc từ chối."""
-    result = mock_chat.answer_question(payload.message)
+    """US-05 — hỏi đáp thủ tục qua `chat_graph` (RAG). Luôn kèm nguồn, hoặc từ chối."""
+    try:
+        state = await chat_graph.ainvoke({"query": payload.message})
+    except RetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Không thể tra cứu tài liệu lúc này, vui lòng thử lại sau.",
+        ) from exc
+
+    result = {
+        "answer": state["answer"],
+        "sources": state.get("sources", []),
+        "answer_source": state["answer_source"],
+    }
     store.add_chat(db, user["user_id"], {"question": payload.message, **result})
     return result
 
