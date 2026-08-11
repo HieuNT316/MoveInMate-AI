@@ -226,6 +226,12 @@ Mục 5-7 ở trên viết ngày 07/08 và **đã lạc hậu**. Thực tế t�
 | 2 | **BE đối chiếu tất định** — chạy `_match_checklist_item` trên mọi câu hỏi, tool LLM hạ thành tín hiệu bổ trợ | Hiếu + **Hải duyệt** | ~45' | Tool mới bắn 2/4 cách hỏi. **Phải hỏi Hải trước**: docstring tool cố ý không bắn cho câu hỏi thuần thông tin, sửa ẩu là phá thiết kế của anh ấy |
 | 3 | **Tổng duyệt demo trên URL đã deploy** + phương án dự phòng | Cả ba | ~1h | Mục 9 đã yêu cầu từ đầu, chưa làm |
 
+**Backend đã deploy 11/08:** `https://moveinmate-api-production.up.railway.app`
+
+Deploy bằng **Railway CLI**, không qua GitHub: repo là private thuộc org, mà Hiếu chỉ có quyền `push` (`admin=false`) nên không cài được Railway GitHub App — việc đó cần owner org. Hệ quả: **không tự deploy khi push**, mỗi lần cập nhật phải chạy lại `railway up` từ PowerShell (Git Bash dùng đường dẫn `/d/...` nên CLI không nhận ra liên kết).
+
+Biến môi trường đẩy bằng `python -m scripts.railway_env` (đọc từ `.env`, truyền qua stdin nên secret không vào lịch sử shell).
+
 ### Đã loại khỏi tối nay — và lý do
 
 | Việc | Vì sao loại |
