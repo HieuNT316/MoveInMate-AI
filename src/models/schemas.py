@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 OwnershipType = Literal["owner", "renter"]
 ApartmentType = Literal["studio", "1pn", "2pn", "3pn", "duplex"]
 ItemType = Literal["bql_actionable", "third_party_info"]
-DocSourceType = Literal["bql_internal", "public_regulation"]
+DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"]
 AnswerSource = Literal["faq", "rag", "no_context"]
 
 # Danh sách đóng, không dùng str tự do: giá trị lệch (vd. "POOL", "swimming")
@@ -66,6 +66,41 @@ class ProfileResponse(BaseModel):
     has_car: bool | None = None
     amenity_packages: list[AmenityPackage] = Field(default_factory=list)
     onboarding_completed_at: datetime | None = None
+
+
+class CreatedUserResponse(ProfileResponse):
+    """US-00 — hồ sơ vừa tạo, kèm mật khẩu tạm.
+
+    Mật khẩu chỉ xuất hiện đúng một lần ở phản hồi này để BQL bàn giao cho cư
+    dân; hệ thống không lưu lại và không có cách xem lại. Quên thì phải đặt lại.
+    """
+
+    temporary_password: str
+
+
+class LoginRequest(BaseModel):
+    """⚠️ TẠM THỜI — đăng nhập chỉ bằng email, chưa có mật khẩu.
+
+    Supabase Auth là nguồn xác thực duy nhất đã chốt (charter mục 7), nhưng
+    project Supabase chưa dựng. Endpoint này tồn tại để demo được nhiều persona
+    thay vì hardcode user id ở frontend, và phải xoá khi có Supabase Auth.
+    """
+
+    email: str
+
+
+class DemoAccount(BaseModel):
+    """Một tài khoản mẫu cho màn đăng nhập demo, kèm mô tả để chọn nhanh."""
+
+    user_id: int
+    full_name: str
+    email: str
+    role: Literal["resident", "admin"]
+    summary: str = Field(description="Mô tả hồ sơ, vd 'Chủ hộ · 2PN · có ô tô · hồ bơi'")
+    checklist_total: int = Field(
+        description="Số mục checklist rule engine sinh ra cho hồ sơ này — "
+        "hai persona khác nhau sẽ ra hai con số khác nhau"
+    )
 
 
 class ChecklistItemResponse(BaseModel):
@@ -132,6 +167,25 @@ class Source(BaseModel):
     source_type: DocSourceType
 
 
+class SuggestedAction(BaseModel):
+    """Tín hiệu điều hướng do AI phát hiện khi người dùng hỏi cách nộp hồ sơ.
+
+    `checklist_item_id` có thể null nếu backend không đối chiếu được
+    `procedure_name` (do AI suy ra, có thể lệch chữ) với đúng một mục trong
+    checklist thật của người dùng — FE nên ẩn nút điều hướng trong trường
+    hợp đó, chỉ hiển thị `procedure_name` dạng text.
+
+    ⚠️ Đích điều hướng thật (trang nộp hồ sơ/upload) CHƯA tồn tại — đây là
+    Phase 2 (APPLICATIONS, xem PROJECT_CHARTER.md mục 4). Field này mới chỉ
+    là tín hiệu để FE chuẩn bị, tạm thời có thể điều hướng tới `/checklist`
+    kèm `checklist_item_id` cho tới khi có trang nộp hồ sơ thật.
+    """
+
+    type: Literal["navigate_to_submission"]
+    procedure_name: str
+    checklist_item_id: int | None = None
+
+
 class ChatResponse(BaseModel):
     """US-05 — câu trả lời kèm nguồn.
 
@@ -142,6 +196,7 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[Source] = Field(default_factory=list)
     answer_source: AnswerSource
+    suggested_action: SuggestedAction | None = None
 
 
 class ChatHistoryEntry(BaseModel):

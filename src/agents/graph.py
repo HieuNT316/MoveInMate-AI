@@ -1,29 +1,24 @@
+"""`chat_graph` — docs/architecture_diagram.md mục 3.4.
+
+Hình dạng GATE 2: hai node, không nhánh FAQ (`faq_lookup` hoãn sang W4).
+Checklist không đi qua LangGraph — đây là graph duy nhất của hệ thống.
+"""
+
 from langgraph.graph import END, StateGraph
 
-from src.agents.nodes.example_node import analyze_node, respond_node
-from src.agents.state import AgentState
+from src.agents.nodes.generate import generate_node
+from src.agents.nodes.rag_retrieve import rag_retrieve_node
+from src.agents.state import ChatState
 
 
-def should_continue(state: AgentState) -> str:
-    """Route based on whether an error occurred during analysis."""
-    if state.get("error"):
-        return END
-    return "respond"
-
-
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
-
-    # Add nodes
-    graph.add_node("analyze", analyze_node)
-    graph.add_node("respond", respond_node)
-
-    # Add edges
-    graph.set_entry_point("analyze")
-    graph.add_conditional_edges("analyze", should_continue)
-    graph.add_edge("respond", END)
-
+def build_chat_graph() -> StateGraph:
+    graph = StateGraph(ChatState)
+    graph.add_node("rag_retrieve", rag_retrieve_node)
+    graph.add_node("generate", generate_node)
+    graph.set_entry_point("rag_retrieve")
+    graph.add_edge("rag_retrieve", "generate")
+    graph.add_edge("generate", END)
     return graph.compile()
 
 
-agent = build_graph()
+chat_graph = build_chat_graph()

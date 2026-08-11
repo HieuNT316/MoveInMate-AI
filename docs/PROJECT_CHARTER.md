@@ -96,7 +96,7 @@ Kế hoạch chi tiết theo ngày cho từng người: [`ROLES_AND_PLAN.md`](./
 
 | ID | Tính năng | Effort | Ghi chú |
 |---|---|---|---|
-| US-10 | Duyệt hồ sơ/giấy tờ (APPLICATIONS: CCCD, hợp đồng, thanh toán) | 12h | **Đã xác nhận giữ Phase 2** — không vào GATE 2 |
+| US-10 | Duyệt hồ sơ/giấy tờ (APPLICATIONS: CCCD, hợp đồng, thanh toán) | 12h | **Cập nhật 11/08:** phần *nộp* (form online + `POST /applications` tối giản, mã theo dõi + trạng thái) kéo lên sớm phục vụ agent điều hướng — xem register. Phần *duyệt* (Approved/Rejected/HITL) vẫn Phase 2 |
 | US-11 | Agent tạo ticket khi RAG không đủ tự tin | 14h | Lý do LangGraph tồn tại trong kiến trúc |
 | US-12 | Dashboard BQL nâng cao (biểu đồ, bộ lọc) — nối tiếp bản mini ở Phase 1 | 13h | Effort gốc 18h, trừ 5h đã làm bản mini ở Phase 1 |
 | US-13 | Định tuyến đa phòng ban | 10h | |
@@ -233,6 +233,9 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **Phạm vi quy trình: chỉ quy trình thuộc BQL; bên thứ ba (tạm trú/công an) chỉ hướng dẫn theo quy định công khai** | **Đã xác nhận — họp team 06/08** | Giải quyết vấn đề RAG không có tài liệu nội bộ BQL cho quy trình ngoài hệ thống. Cơ chế: `item_type` trên CHECKLIST_ITEMS | — | Đã chốt |
 | **Chia role: AI / FE / BE; dữ liệu là việc chung cả team** | **Đã xác nhận — quyết định nhóm trưởng 07/08** | 2 rủi ro cần bù có chủ đích: dữ liệu "việc chung" cần phân task cụ thể theo tuần; ranh giới BE/AI giao nhau cần contract trước khi code (mục 3, mục 12) | — | Đã chốt |
 | Auth dùng Supabase Auth thuần, bỏ password tự quản | **Đã xác nhận** (07/08) | Quyết định team trong buổi này | — | Đã chốt |
+| **US-01 đã triển khai xong 11/08** — đăng nhập bằng mật khẩu qua Supabase, BE verify JWT | **Đã thực hiện** | Project ký token **ES256 + JWKS**, KHÔNG phải HS256 — `SUPABASE_JWT_SECRET` vô dụng ở đây. 41 tài khoản đã cấp qua `scripts/provision_auth.py` | — | Đã chốt |
+| **`X-User-Id` giữ làm lối dev, chặn cứng khi `APP_ENV=production`** | **Đã chốt 11/08** | Không chặn thì ai cũng đặt `X-User-Id` của BQL để thành BQL. Giữ lại để bộ đổi persona demo còn chạy và FE chuyển dần không đứt | — | Gỡ hẳn khi bỏ `/auth/demo-accounts` |
+| **US-00 tạo tài khoản trả về mật khẩu tạm thay vì gửi email mời** | **Đã chốt 11/08** | `invite_user_by_email` cần SMTP và email có thật; dữ liệu demo dùng tên miền không tồn tại nên thư không bao giờ tới. Mật khẩu chỉ hiện đúng một lần, hệ thống không lưu | — | Xem lại khi có cư dân thật |
 | FAQ là fallback trước RAG | **Đã xác nhận** (07/08) | Quyết định team trong buổi này | — | Đã chốt |
 | APPLICATIONS (duyệt hồ sơ) giữ Phase 2 | **Đã xác nhận** (07/08) | Quyết định team trong buổi này — khớp với "HITL BQL duyệt hồ sơ" nằm trong mục Nâng cao của đề bài | — | Đã chốt |
 | Scope địa lý: **Vinhomes Smart City**, 1 khu duy nhất, không multi-khu | **Đã xác nhận — họp team 06/08** (cụ thể hóa từ quyết định "1 khu" trước đó) | Quyết định team | — | Đã chốt |
@@ -248,9 +251,17 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **Checklist KHÔNG đi qua LangGraph** | **Đã xác nhận** (07/08) — đảo ngược quyết định "bọc thành node" trước đó trong cùng phiên | Graph 1 node bọc hàm thuần là thừa, dễ bị đánh giá là chưa hiểu LangGraph. Lập luận mạnh hơn: rule-based là lựa chọn có chủ đích, LangGraph dành cho chỗ cần quyết định thật | — | Đã chốt |
 | **Hội thoại single-turn ở Phase 1** | **Đã xác nhận** (07/08) — giới hạn có ý thức, không phải sót | Multi-turn cần bước viết lại câu hỏi theo ngữ cảnh (~6-8h). Nên hỏi mentor chữ "memory" trong đề bài có hàm ý bộ nhớ hội thoại không | Mentor (làm rõ) | Cân nhắc Phase 2 |
 | **Nhánh FAQ hoãn code sang W4** | **Đã xác nhận** (07/08) | Chi phí thật nằm ở hiệu chỉnh ngưỡng (cần dữ liệu thật), không phải ở code. RAG đơn thuần đã thoả mãn yêu cầu "hỏi đáp có trích tài liệu" của đề bài | — | Đã chốt |
-| **KB cho GATE 2 dùng Thông tư 02/2016/TT-BXD** | Đề xuất từ phiên kiến trúc 07/08, **cần team xác nhận** | Cổng dữ liệu 13/08 nằm **sau** GATE 2 (12/08) → ngày demo vẫn có thể chưa có tài liệu BQL. Thông tư này công khai, tải được ngay, gắn `source_type: public_regulation` | Cả team | **Trong tuần này, không đợi 13/08** |
+| **KB cho GATE 2 dùng Thông tư 05/2024/TT-BXD** | **Đã thực hiện 08/08** — đảo ngược đề xuất 02/2016/TT-BXD của phiên kiến trúc 07/08 | 02/2016 **hết hiệu lực 01/08/2024**, bị thay bởi 05/2024/TT-BXD theo Luật Nhà ở 2023. Nạp văn bản hết hiệu lực vào hệ thống có trích nguồn = trả lời sai kèm trích dẫn đáng tin. Đã tải phần Quy chế (Điều 1-50) vào `data/kb/legal/`, gắn `source_type: public_regulation` | — | Đã chốt |
 | Eval offline có được chấp nhận không | Còn mở — **tạm chưa cần bàn** (xác nhận 07/08) | Team quyết định hoãn, không phải việc gấp | Mentor | Trước W5, không gấp |
 | Success metrics sản phẩm thật chưa có con số target | Còn mở — **tạm chưa cần bàn** (xác nhận 07/08) | Team quyết định hoãn, không phải việc gấp | Team/mentor | Trước US-15, không gấp |
+| **Mục tiêu demo (mentor, họp 08/08): chứng minh ý tưởng + tính khả thi + khả năng "thực chiến" — KHÔNG yêu cầu dữ liệu chính xác với thực tế; được sinh dữ liệu hoặc dùng nguồn ngoài (Kaggle...) khi khó thu thập** | **Đã chốt — mentor xác nhận 08/08** | Gỡ ràng buộc lớn nhất của cổng dữ liệu 13/08 (mục 9 đã cập nhật theo) | — | Đã chốt |
+| **`source_type` thứ tư: `synthetic_demo`** — quy trình do nhóm dựng, neo theo quy định thật (Điều 6/7/13 Quy chế) và hotline/bảng phí công khai; **số liệu phí KHÔNG được tự đặt**, phải trích nguồn công khai hoặc ghi rõ "đơn vị vận hành quy định" | **Đã thực hiện 11/08** | UI gắn nhãn "Quy trình mô phỏng (dữ liệu demo)" — minh bạch trước khi bị hỏi | — | Đã chốt |
+| **Chat LLM: mặc định gọi thẳng OpenAI (đúng stack BTC), OpenRouter là lựa chọn qua `CHAT_PROVIDER`** — cùng model gpt-4o-mini, chỉ khác đường gọi | **Đã thực hiện 11/08** — thay cấu hình chỉ-OpenRouter ngày 10/08 của AI | Key OpenAI (trả phí) đã có; kiểm chứng bằng gọi thật cả 2 đường | — | Đã chốt |
+| **Embeddings dùng Google `gemini-embedding-001` (3072 chiều)** — không phải OpenAI | Còn mở — **lệch stack BTC, cần mentor xác nhận** | OpenRouter không có endpoint embeddings (bối cảnh quyết định gốc của AI). CẢNH BÁO: `text-embedding-3-large` của OpenAI cũng 3072 chiều — đổi nguồn embed mà không re-ingest sẽ hỏng im lặng, Chroma không báo lỗi | Mentor | Trước 17/08 (mốc embed KB) |
+| **APPLICATIONS-mini kéo lên trước hạn: form nộp hồ sơ online (FE) + `POST /applications` tối giản (mã theo dõi, trạng thái)** — đảo một phần quyết định "giữ Phase 2" ngày 07/08 | **Quyết định nhóm trưởng 10-11/08** (chỉ đạo FE làm form; mentor muốn demo một phần agent điều hướng) | Điều kiện: chốt contract schema/API bằng văn bản TRƯỚC khi FE và BE code song song (mục 12). Phần duyệt hồ sơ đầy đủ (Pending/Approved/...) vẫn ở Phase 2 | — | Đã chốt |
+| **"Agent điều hướng" có HAI nghĩa, phải gọi tách bạch:** (a) điều hướng trong app tới form/màn hình — v0 đã có (tool `request_submission_navigation`, 10/08); (b) điều hướng trong quy trình hành chính: đúng bộ phận, bước kế tiếp, thời hạn — data nền đã sinh 11/08 (`data/kb/bql/`) | **Đã chốt 11/08** | Mentor muốn demo được một phần ở GATE 2. Tool LLM bắn không ổn định (2/4 cách hỏi) → cần lớp đối chiếu tất định ở BE, LLM chỉ là tín hiệu gợi ý | — | GATE 2 demo (b) qua chat; (a) hoàn thiện khi có form |
+| **`data/chroma/` commit vào git** (index đã embed, ~7.3MB nhị phân) | **Quyết định AI 10/08** — đã ghi đánh đổi trong `.gitignore` | Quy ước bắt buộc: CHỈ MỘT người chạy `ingest_kb` rồi commit; người khác chỉ pull. Bằng chứng rủi ro: 11/08 chính BE đã lỡ `git checkout -- data/chroma/` sau khi ingest → mất kết quả, phải chạy lại | — | Đã chốt, xem lại khi lên Railway Volume |
+| Góp ý UX của mentor (08/08): gamification khi hoàn thành thủ tục (huy hiệu/trang trí hồ sơ — KHÔNG hứa ưu đãi tiền thay BQL), câu trả lời chat có cấu trúc + hình minh hoạ | Ghi nhận — xếp W4, không bắt buộc GATE 2 | Ảnh trang nguồn là placeholder lazy-load không cào được; hướng đi: ảnh theo `category`, card có cấu trúc | Team | W4 |
 
 ## 8. Ràng buộc kỹ thuật
 
@@ -259,11 +270,21 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 - Code style: type hints bắt buộc, function ≤30 dòng, ≤3 params, không bare `except`, ruff pass trong CI
 - AI usage logging: hoàn toàn tự động qua pre-push hook, không tự gọi log script thủ công
 
-## 9. Chiến lược dữ liệu & cổng quyết định 13/08
+## 9. Chiến lược dữ liệu (cập nhật 11/08 theo quyết định mentor 08/08)
 
-5 nguồn song song: (1) Mentor làm kênh trung gian, (2) trang thông tin bên thứ ba (đối chiếu trước khi đưa vào KB), (3) kênh chính thức Vinhomes, (4) proxy qua cư dân thật, (5) khảo sát thực địa.
+**Mentor đã gỡ ràng buộc "dữ liệu phải thật":** mục tiêu demo là chứng minh ý tưởng + khả thi, nên được sinh dữ liệu hoặc dùng nguồn ngoài khi khó thu thập. Cổng 13/08 vì thế đổi ý nghĩa — không còn là "có/không có tài liệu BQL" mà là **rà soát chất lượng và nhãn nguồn** của KB hiện có.
 
-**Cổng 13/08:** ≥3 bộ tài liệu thật → dùng nguồn thật. 1-2 bộ → dùng làm khung, mở rộng bằng Thông tư 02/2016/TT-BXD. Không có bộ nào → chuyển hẳn phương án dự phòng, không kéo dài thêm.
+**Trạng thái KB (11/08, 386 chunk trong Chroma):**
+
+| Thư mục | Nguồn | `source_type` | Ghi chú |
+|---|---|---|---|
+| `data/kb/web/` (7 file) | Trang cộng đồng VSC, cào bằng `scripts/scrape_kb.py` | `unofficial_web` | Phí, thẻ cư dân, tạm trú, app, hotline |
+| `data/kb/legal/` (1 file) | Quy chế kèm TT 05/2024/TT-BXD, `scripts/fetch_legal_kb.py` | `public_regulation` | 02/2016 đã hết hiệu lực — không dùng |
+| `data/kb/bql/` (3 file) | **Nhóm tự sinh 11/08** — cơ cấu bộ phận, bảng định tuyến thủ tục, luồng xử lý 5 bước, thủ tục còn trống | `synthetic_demo` | Neo Điều 6/7/13 Quy chế + hotline/bảng phí công khai; UI gắn nhãn mô phỏng |
+
+**Kỷ luật sinh dữ liệu (bắt buộc):** chỉ sinh *quy trình/thủ tục*; **số liệu phí phải trích từ nguồn công khai** — không có số thì ghi "theo bảng giá đơn vị vận hành", không tự đặt. Mọi file sinh phải có frontmatter `source_type: synthetic_demo` + `is_official: false` + `grounded_on:` chỉ rõ neo. Vi phạm nhãn = coi như bug chặn merge.
+
+**Việc còn lại của cổng 13/08:** nếu xin được tài liệu BQL thật thì thay dần file `synthetic_demo` tương ứng (giữ nguyên tên thủ tục để khỏi vỡ eval); không xin được cũng **không chặn** tiến độ nữa.
 
 ## 10. Timeline & Mốc
 
@@ -281,9 +302,12 @@ Cố định theo chương trình: GATE 1 (05/08, đã qua) → báo cáo lần 
 | Dữ liệu KB là "việc chung cả team" — nguy cơ không ai làm | Rủi ro của mô hình role AI/FE/BE — giảm thiểu: phân task data cụ thể theo tuần trong WORKLOG.md |
 | Nếu `login/page.tsx` hiện tại là form tự đăng ký (self-signup) | **Cần FE kiểm tra lại (07/08)** — quyết định "BQL cấp tài khoản, không tự đăng ký" nghĩa là không cần trang đăng ký công khai; thay vào đó BE/FE cần thêm màn hình BQL "tạo tài khoản cư dân" (US-00) |
 | **Khối lượng Phase 1 (~120h) vượt sức 3 người trong 6 ngày tới GATE 2** | **Đã xử lý 07/08** — chia lát cắt `[GATE 2]` / `[W4]`, xem mục 4 |
-| **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | Giảm thiểu: nạp Thông tư 02/2016/TT-BXD (công khai, tải ngay được) trong tuần này, không đợi cổng 13/08 |
+| **Chưa có tài liệu KB nào để demo RAG ở GATE 2** — cổng dữ liệu 13/08 nằm SAU ngày demo 12/08 | **Đã xử lý 08/08:** `data/kb/legal/` (Quy chế kèm TT 05/2024) + `data/kb/web/` (7 trang thủ tục Vinhomes Smart City) — tổng ~107k token, 295 chunk |
 | Chất lượng chunking kém → retrieval trả về đoạn sai, nhìn như "AI kém" dù code đúng | Hỏng thầm lặng, khó phát hiện. Bắt buộc kiểm tra thủ công 10 câu hỏi trước khi tin pipeline (xem `docs/architecture_diagram.md` mục 11) |
 | Cấu hình xác thực JWT Supabase sai → chặn toàn bộ API | Giới hạn 2h thử; chưa xong thì tạm dùng `supabase-py` gọi `auth.get_user(jwt)`, tối ưu sau |
+| **Dữ liệu mô phỏng bị trình bày như dữ liệu thật trước doanh nghiệp** — mất uy tín ngay khi trong phòng có người biết số thật | Nhãn `synthetic_demo` xuyên suốt (frontmatter → Chroma metadata → badge UI "Quy trình mô phỏng") + một câu minh bạch trong lời dẫn demo |
+| **Tool điều hướng của LLM bắn không ổn định** (đo 11/08: 2/4 cách hỏi; thêm data càng ít bắn vì LLM tự trả lời được bằng chữ) | Lớp đối chiếu tất định ở BE (`_match_checklist_item` chạy luôn, tool LLM hạ thành gợi ý); demo dùng câu đã kiểm chứng |
+| **Ngưỡng `rag_max_distance=0.35` mong manh** — cụm "có đáp án" (~0.27-0.33) và "ngoài phạm vi" (~0.37-0.38) chỉ cách ~0.04, hiệu chỉnh mới trên 4 câu | Không vặn ngưỡng trước GATE 2; sau GATE 2 đo lại trên bộ ≥10 câu; đã giảm thin-coverage bằng data 11/08 |
 
 ## 12. Governance — quy trình đồng bộ liên vai trò
 

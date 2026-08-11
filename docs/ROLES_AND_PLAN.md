@@ -31,7 +31,7 @@
 Hiếu: Supabase project + key ──┬──► Thu: đăng nhập thật
                                └──► Hiếu: migration, seed
 
-Hiếu: tải PDF Thông tư 02/2016 ────► Hải: chunk + embed
+Hiếu: data/kb/ (TT 05/2024 + web) ─► Hải: chunk + embed
 
 Cả ba: chốt hợp đồng API + ChatState ──┬──► Thu: code UI theo contract
                                         └──► Hải: code node theo state
@@ -54,7 +54,7 @@ Hiếu: API thật xong ───────────────► Thu: b�
 |---|---|---|
 | Hiếu | Tạo Supabase project; lấy `DATABASE_URL`, `SUPABASE_URL`, `ANON_KEY`, `SERVICE_KEY`, `JWT_SECRET`; chia cho Thu và Hải | Thu đăng nhập được vào Supabase dashboard |
 | Hiếu | Cập nhật `src/config.py`: thêm biến Supabase, `chroma_persist_dir`, `rag_top_k`, LangSmith; đổi `database_url` mặc định khỏi SQLite | `get_settings()` đọc được `.env` mới |
-| Hiếu | Tải Thông tư 02/2016/TT-BXD (PDF) vào `data/kb/`, báo Hải | Hải có file trong tay |
+| Hiếu | ~~Tải Thông tư~~ **Xong 08/08:** `data/kb/legal/` + `data/kb/web/`, chạy `scripts/fetch_legal_kb.py` và `scripts/scrape_kb.py` | Hải có file trong tay |
 | **Cả ba** | **Họp 30 phút chốt hợp đồng API + `ChatState`**, ghi vào `docs/architecture_diagram.md` nếu có sửa | Ba người cùng xác nhận bằng văn bản |
 
 > Nếu chỉ làm được một việc tối nay thì làm **Supabase project + chia key**. Nó chặn nhiều nhất.
@@ -214,6 +214,46 @@ Giao diện cư dân ưu tiên điện thoại (chấm điểm UI/UX), giao di�
 
 ---
 
+## 7b. Kế hoạch sửa đổi — tối 11/08, đêm trước GATE 2
+
+Mục 5-7 ở trên viết ngày 07/08 và **đã lạc hậu**. Thực tế tới 11/08: RAG đã xong (AI), DB + API + đăng nhập tạm đã xong (BE), dữ liệu quy trình BQL đã sinh (BE). Còn lại đúng một đêm.
+
+### Ba việc bắt buộc, theo thứ tự chặn nhau
+
+| # | Việc | Ai | Ước | Vì sao xếp trước |
+|---|---|---|---|---|
+| 1 | **FE hiển thị `suggested_action`** — khai `SuggestedAction` type + hiện nút trong bong bóng chat + `/checklist?item=<id>` cuộn tới đúng mục | Thu | ~45' | **BE đã trả field này từ 10/08 nhưng FE không khai type nên bỏ qua hoàn toàn.** Không có bước này thì agent điều hướng vô hình, không demo được gì |
+| 2 | **BE đối chiếu tất định** — chạy `_match_checklist_item` trên mọi câu hỏi, tool LLM hạ thành tín hiệu bổ trợ | Hiếu + **Hải duyệt** | ~45' | Tool mới bắn 2/4 cách hỏi. **Phải hỏi Hải trước**: docstring tool cố ý không bắn cho câu hỏi thuần thông tin, sửa ẩu là phá thiết kế của anh ấy |
+| 3 | **Tổng duyệt demo trên URL đã deploy** + phương án dự phòng | Cả ba | ~1h | Mục 9 đã yêu cầu từ đầu, chưa làm |
+
+**Backend đã deploy 11/08:** `https://moveinmate-api-production.up.railway.app`
+
+Deploy bằng **Railway CLI**, không qua GitHub: repo là private thuộc org, mà Hiếu chỉ có quyền `push` (`admin=false`) nên không cài được Railway GitHub App — việc đó cần owner org. Hệ quả: **không tự deploy khi push**, mỗi lần cập nhật phải chạy lại `railway up` từ PowerShell (Git Bash dùng đường dẫn `/d/...` nên CLI không nhận ra liên kết).
+
+Biến môi trường đẩy bằng `python -m scripts.railway_env` (đọc từ `.env`, truyền qua stdin nên secret không vào lịch sử shell).
+
+### Đã loại khỏi tối nay — và lý do
+
+| Việc | Vì sao loại |
+|---|---|
+| **`APPLICATIONS` + form nộp hồ sơ online** | `architecture_diagram.md` mục 4.4 ghi rõ *"chỉ chuẩn bị tín hiệu, không kéo Phase 2 lên sớm"*. Thêm bảng DB + endpoint + form trong đêm cuối, **chưa có contract viết ra** giữa FE và BE, là vi phạm chính mục 12 Governance. Đích tạm `/checklist?item=<id>` đủ kể chuyện cho GATE 2 |
+| Ba mục UX của mentor (mang gì/bao lâu/ở đâu, huy hiệu, chat có cấu trúc) | Mentor góp ý cho sản phẩm, không ra hạn GATE 2. Dữ liệu đã sẵn trong `data/kb/bql/`, làm ở W4 rẻ hơn nhiều |
+| Đổi nguồn embedding sang OpenAI | Bắt buộc ingest lại + hiệu chỉnh lại ngưỡng. Không đụng trước demo |
+| Vặn `rag_max_distance` | Hai cụm cách nhau ~0.04, hiệu chỉnh mới trên 4 câu. Sửa mù = đánh bạc |
+
+### Việc chưa xong mà kế hoạch cũ coi là bắt buộc
+
+**US-01 Auth qua Supabase vẫn chưa làm** (~12h ước tính ban đầu). Đăng nhập hiện tra theo email, không kiểm mật khẩu. Đây là hạng mục `[GATE 2]` trong charter mục 4 — cần **quyết định rõ ràng của nhóm trưởng**, không để trôi:
+
+- **Hoãn có công bố:** nói thẳng với mentor ở GATE 2 rằng auth là hạng mục còn nợ, hạn W4. Đây là lựa chọn nhóm đã nghiêng về từ 08/08 (giữ RAG, hy sinh auth).
+- **Hoặc** làm tối nay, chấp nhận bỏ việc 1-3 ở trên.
+
+Không chọn = mặc định rơi vào phương án đầu nhưng không ai nói với mentor, và đó là cách tệ nhất.
+
+### Deliverable BTC còn nợ
+
+`eval/results/report.md` vẫn rỗng. Retrieval accuracy chưa đo trên bộ đủ lớn (ngưỡng hiện hiệu chỉnh trên 4 câu). Không kịp trước GATE 2 — xếp ngay sau, trước mốc 17/08.
+
 ## 8. Kịch bản demo GATE 2
 
 Viết ra để cả ba biết đích đến. Thứ tự này kể một câu chuyện liền mạch:
@@ -225,6 +265,10 @@ Viết ra để cả ba biết đích đến. Thứ tự này kể một câu ch
 5. **Tick vài mục** → phần trăm tiến độ tăng
 6. **Hỏi AI:** "Làm thẻ xe cần giấy tờ gì?" → trả lời **kèm nguồn trích dẫn**
 7. **Hỏi câu ngoài tài liệu** → hệ thống **từ chối và hướng dẫn liên hệ BQL**, không bịa
+8. **(Thêm 11/08) Hỏi "ai xử lý hồ sơ thẻ xe của tôi?"** → trả lời đúng bộ phận An ninh, nơi nộp, thời hạn, 5 bước xử lý — **đây là phần agent điều hướng mentor muốn thấy**
+9. **(Thêm 11/08, chỉ khi việc 1-2 mục 7b xong)** "Dẫn tôi đến chỗ nộp hồ sơ đăng ký thẻ xe" → hiện nút điều hướng, bấm vào nhảy sang đúng mục trong checklist
+
+> **Câu phải nói trong lời dẫn:** phần thủ tục nội bộ dùng **dữ liệu mô phỏng** có gắn nhãn; phần quy định pháp luật là văn bản thật (Quy chế kèm TT 05/2024/TT-BXD). Nói trước là minh bạch, bị hỏi mới nói là bị bắt lỗi.
 
 > **Bước 4 và bước 7 là hai chỗ ăn điểm nhất.**
 > Bước 4 chứng minh "cá nhân hóa theo tình huống từng hộ" — yêu cầu bắt buộc của đề bài.

@@ -28,14 +28,15 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatPage() {
-  const { userId } = useDemoUser();
+  const { userId, ready } = useDemoUser();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [sending, setSending] = useState(false);
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || sending) return;
+    // `ready` false = chưa có danh tính, đang trên đường chuyển về /login.
+    if (!question || sending || !ready) return;
 
     setMessages((prev) => [
       ...prev,
@@ -169,9 +170,17 @@ export default function ChatPage() {
   );
 }
 
+const SOURCE_LABELS: Record<Source["source_type"], string> = {
+  bql_internal: "Tài liệu Ban quản lý",
+  public_regulation: "Quy định pháp luật công khai",
+  unofficial_web: "Trang tham khảo (chưa xác minh với BQL)",
+  // Nói thẳng đây là dữ liệu mô phỏng. Trình bày số liệu tự dựng như thể là
+  // số thật trước mặt doanh nghiệp là mất uy tín ngay khi có người biết rõ.
+  synthetic_demo: "Quy trình mô phỏng (dữ liệu demo)",
+};
+
 function SourceCard({ source }: { source: Source }) {
-  const official = source.source_type === "bql_internal";
-  const Icon = official ? FileText : Scale;
+  const Icon = source.source_type === "bql_internal" ? FileText : Scale;
 
   return (
     <div className="rounded-xl border border-border bg-background px-3.5 py-2.5">
@@ -183,7 +192,7 @@ function SourceCard({ source }: { source: Source }) {
             {source.snippet}
           </p>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-muted">
-            {official ? "Tài liệu Ban quản lý" : "Quy định pháp luật công khai"}
+            {SOURCE_LABELS[source.source_type]}
           </p>
         </div>
       </div>

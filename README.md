@@ -2,7 +2,7 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-**Trạng thái:** đang phát triển (Phase 1). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc.
+**Trạng thái:** đang phát triển (Phase 1). **Backend đang chạy:** [moveinmate-api-production.up.railway.app](https://moveinmate-api-production.up.railway.app/health). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
 
 ## Vấn đề
 
@@ -54,6 +54,13 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env               # điền OPENAI_API_KEY, SUPABASE_*, ...
+
+python -m scripts.check_db         # kiểm tra DATABASE_URL trước khi migrate
+alembic upgrade head               # tạo bảng
+python -m scripts.seed_data        # 12 checklist item + 40 cư dân giả
+python -m scripts.provision_auth   # cấp tài khoản Supabase Auth cho từng hồ sơ
+
+cp web/.env.local.example web/.env.local   # điền NEXT_PUBLIC_SUPABASE_*
 uvicorn src.main:app --reload      # http://localhost:8000/docs
 
 # 3. Frontend (terminal khác)
@@ -112,7 +119,7 @@ Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architectu
 - [x] README.md
 - [x] Architecture Diagram (`docs/architecture_diagram.md`)
 - [x] AI Logs (tự động qua pre-push hook)
-- [ ] Live URL / Deploy
+- [x] Live URL / Deploy — backend: https://moveinmate-api-production.up.railway.app
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
 - [x] Weekly Journal (`JOURNAL.md`)
