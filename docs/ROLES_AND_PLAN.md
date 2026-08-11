@@ -297,3 +297,39 @@ Vẫn thuộc Phase 1, đã hoãn có chủ đích khỏi GATE 2:
 | PWA: manifest + service worker + icon | Thu | Kiểm tra tài liệu Next.js trong `node_modules/next/dist/docs/` trước khi code — bản trong repo có breaking change |
 | **Nạp toàn bộ KB thật — hạn 17/08** | Hiếu (soạn) + Hải (nạp) | **Mốc này không được trễ** |
 | Cổng quyết định nguồn dữ liệu — 13/08 | Cả nhóm | ≥3 bộ tài liệu thật → dùng nguồn thật; 1-2 bộ → làm khung; không có → dùng hẳn phương án dự phòng |
+
+## 11. Vận hành — bổ sung sau rà soát 11/08
+
+Rà soát hệ thống với góc nhìn sản phẩm chạy thật cho thấy **8 thành phần vận hành
+còn thiếu**. Chi tiết và lý do: [`OPERATIONS.md`](./OPERATIONS.md). Dưới đây là
+phân công.
+
+### Làm sớm — trước hoặc ngay sau GATE 2
+
+| # | Việc | Ai | Ước | Vì sao gấp |
+|---|---|---|---|---|
+| V1 | **Bật LangSmith tracing** — tạo tài khoản, đặt `LANGCHAIN_TRACING_V2` / `LANGCHAIN_API_KEY` / `LANGCHAIN_PROJECT` ở `.env` và trên Railway, xác minh trace hiện ra | **Hải** | 30' | Đang được khai là deliverable #4 của BTC ở 4 nơi trong tài liệu mà `src/` không có gì. Mentor hỏi "cho xem trace" là không có gì để mở |
+| V2 | **Giới hạn tần suất** `slowapi` — 20 lượt/phút/người cho `/chat`, 100 cho endpoint đọc | **Hiếu** | 1h | URL công khai, mỗi lượt chat tốn tiền thật trên key trả phí; hạn mức Google cạn là mất luôn khả năng demo |
+| V3 | **Sửa hiển thị khi guard trượt** — `generate` nhận ra câu trả lời mang nghĩa từ chối thì đổi `answer_source` thành `no_context` và bỏ `sources` | **Hải** | 1h | Đo được 0/3 ở nhóm "đúng lĩnh vực nhưng KB không có": hiện trích dẫn dưới câu "tôi không biết" là kiểu hiển thị gây hiểu nhầm nhất |
+
+### W4 (13-19/08)
+
+| # | Việc | Ai | Ước |
+|---|---|---|---|
+| V4 | **`/health/deep`** kiểm DB + Chroma + `collection.count()`, trả 503 khi có thành phần chết. Giữ `/health` nông cho Railway probe | Hiếu | 1h |
+| V5 | **Log có cấu trúc** thay `print()` — có mức, mốc thời gian, `request_id` xuyên suốt một request | Hiếu | 2h |
+| V6 | **Ghi token và chi phí** mỗi lượt chat vào `chat_history` (thêm cột), để đặt được ngân sách và phát hiện lượt bất thường | Hiếu + Hải | 2h |
+| V7 | **Nút 👍/👎** dưới mỗi câu trả lời, lưu vào DB | Thu + Hiếu | 2h |
+| V8 | **Che PII** (số CCCD, số điện thoại) trước khi ghi `chat_history` | Hiếu | 1h |
+| V9 | **Bắt lỗi tập trung** — exception handler trả lỗi có cấu trúc và ghi log đầy đủ | Hiếu | 1h |
+| V10 | **Chạy lại `run_eval` sau mỗi lần đổi KB hoặc ngưỡng**, lưu kết quả vào `eval/results/` | Hải | mỗi lần 10' |
+
+### Ai gánh gì
+
+- **Hiếu (BE):** V2, V4, V5, V6, V8, V9 — hạ tầng vận hành
+- **Hải (AI):** V1, V3, V6, V10 — quan sát và chất lượng mô hình
+- **Thu (FE):** V7 — thu thập phản hồi người dùng
+
+V1, V2, V3 nên xong trước khi công bố URL rộng rãi. V10 là thói quen, không phải
+việc một lần: **đổi KB hoặc đổi ngưỡng mà không đo lại thì không biết mình vừa
+làm tốt lên hay tệ đi.**
