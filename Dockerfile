@@ -34,12 +34,13 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT','8000') + '/health')" || exit 1
 
-# Dạng shell (không phải exec) để `${PORT}` được khai triển — dạng exec sẽ truyền
-# nguyên chuỗi "${PORT:-8000}" cho uvicorn và server không bao giờ bind đúng cổng,
-# health check của Railway trượt và deploy thất bại mà log không nói gì rõ ràng.
+# Chạy qua entrypoint thay vì `CMD alembic ... && uvicorn ...`:
+#   - `${PORT}` vẫn được khai triển (dạng exec của CMD thì không)
+#   - `exec` trong script cho uvicorn nhận thẳng SIGTERM, dừng sạch khi Railway
+#     restart. Dạng shell của CMD để uvicorn làm tiến trình con của sh và tín
+#     hiệu có thể không tới nơi.
+# Gọi qua `sh` nên không phụ thuộc bit thực thi của file — Windows không giữ nó.
 #
-# Migration chạy ngay trước khi start: Railway free tier không có release phase
-# riêng, nên nếu không làm ở đây thì container lên với DB rỗng. Đánh đổi: khi
-# scale nhiều instance, các instance sẽ cùng chạy `upgrade head` — Alembic có
-# khoá riêng nên an toàn, nhưng cần xem lại nếu sau này chạy nhiều bản sao.
-CMD alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Đánh đổi đã biết: nhiều instance cùng chạy `upgrade head` khi scale. Alembic
+# có khoá riêng nên an toàn, nhưng cần xem lại nếu sau này chạy nhiều bản sao.
+CMD ["sh", "/app/docker-entrypoint.sh"]
