@@ -1,0 +1,537 @@
+{
+  "ran_at": "2026-08-11T08:55:41+00:00",
+  "api": "https://moveinmate-api-production.up.railway.app/api/v1",
+  "total": 35,
+  "passed": 19,
+  "right_kind": 32,
+  "results": [
+    {
+      "id": "Q01",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Để làm thẻ cư dân cho chủ hộ, cần chuẩn bị các giấy tờ sau:\n\n- Giấy tờ tùy thân (CCCD/Hộ chiếu) bản gốc và bản sao.\n- Giấy tờ căn hộ (Biên bản bàn giao/Sổ hồng/Thông báo sở hữu).\n- 01 ảnh 3×4 (mỗi người đăng ký thẻ)."
+    },
+    {
+      "id": "Q02",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Khách thuê muốn làm thẻ cư dân cần chuẩn bị các giấy tờ sau:\n\n1. CCCD/Hộ chiếu.\n2. Hợp đồng thuê còn hiệu lực (ghi rõ căn hộ, thời hạn, chữ ký/đóng dấu hợp lệ).\n3. Giấy ủy quyền của chủ hộ (nếu quy định tòa yêu cầu) hoặc phụ lục xác nhận đồng ý cấp thẻ cho bên thuê.\n4. 01 ảnh 3×4."
+    },
+    {
+      "id": "Q03",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Khi mất thẻ cư dân, bạn cần thực hiện các bước sau:\n\n1. Báo Ban Quản Lý (BQL) ngay lập tức để khóa thẻ cũ, tránh bị lạm dụng.\n2. Chuẩn bị hồ sơ cấp lại bao gồm:\n   - Đơn đề nghị cấp lại thẻ (mẫu của BQL).\n   - CCCD/Hộ chiếu của người dùng thẻ (bản gốc).\n   - Ảnh 3×4 (nếu cần in lại).\n   - Nếu là khá"
+    },
+    {
+      "id": "Q04",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để đăng ký tạm trú, bạn cần chuẩn bị các giấy tờ sau:\n\n1. Phiếu báo thay đổi hộ khẩu, nhân khẩu – bản chính có chữ ký (có ý kiến Chủ sở hữu).\n2. Bản nhân khẩu (từ 14 tuổi trở lên, mỗi người 01 bản) – bản chính có chữ ký.\n3. CMND/CCCD – bản sao của từng thành viên.\n4. Phiếu thu thập thông tin dân cư "
+    },
+    {
+      "id": "Q05",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Người nước ngoài thuê căn hộ phải khai báo tạm trú trong 12 giờ kể từ thời điểm đến ở."
+    },
+    {
+      "id": "Q06",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Bạn cần nộp hồ sơ tạm trú tại Công an phường Tây Mỗ (khu căn hộ) hoặc Công an phường Đại Mỗ (khu biệt thự)."
+    },
+    {
+      "id": "Q07",
+      "procedure": "luu-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Thông báo lưu trú cho khách ở qua đêm phải được thực hiện trước 23:00 cùng ngày. Nếu khách đến sau 23:00, thông báo sẽ được thực hiện vào sáng hôm sau."
+    },
+    {
+      "id": "Q08",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "CT01"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để chuyển thường trú về căn hộ mới, bạn cần chuẩn bị các hồ sơ sau:\n\n1. Phiếu báo thay đổi hộ khẩu, nhân khẩu – bản chính có chữ ký (theo mẫu quy định).\n2. Bản nhân khẩu (từ 14 tuổi trở lên, mỗi người 01 bản) – bản chính có chữ ký (theo mẫu quy định).\n3. CMND/CCCD – bản sao của từng thành viên.\n4. P"
+    },
+    {
+      "id": "Q09",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "bàn giao"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc đăng ký thường trú khi chưa có sổ hồng trong tài liệu."
+    },
+    {
+      "id": "Q10",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc Ban quản lý có làm hộ thủ tục đăng ký thường trú hay không."
+    },
+    {
+      "id": "Q11",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "đăng ký xe"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc đăng ký thẻ xe trong tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q12",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe "
+      ],
+      "answer": "Phí gửi xe ô tô một tháng tại Vinhomes Smart City là 1.250.000đ nếu gửi tại cả hầm và nhà để xe nổi, và 1.000.000đ nếu chỉ gửi tại nhà để xe nổi."
+    },
+    {
+      "id": "Q13",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "An ninh"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về bộ phận xử lý hồ sơ thẻ xe trong tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q14",
+      "procedure": "cho-do-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/",
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe ",
+        "Phí dịch vụ Vinhomes Smart City 2026 - Bảng giá & cách tính"
+      ],
+      "answer": "Có, người mua chỗ đỗ xe cố định vẫn phải đóng phí gửi xe hàng tháng theo quy định của Ban quản lý khu đô thị."
+    },
+    {
+      "id": "Q15",
+      "procedure": "cho-do-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "danh sách chờ"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe ",
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/"
+      ],
+      "answer": "Tôi không tìm thấy thông tin cụ thể về cách đăng ký khi hết chỗ đỗ xe cố định. Bạn nên liên hệ với Ban quản lý để được hướng dẫn chi tiết."
+    },
+    {
+      "id": "Q16",
+      "procedure": "gym",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ cư dân"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về hồ sơ đăng ký thẻ phòng gym trong tài liệu."
+    },
+    {
+      "id": "Q17",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe ",
+        "Phí dịch vụ Vinhomes Smart City 2026 - Bảng giá & cách tính"
+      ],
+      "answer": "Phí bể bơi ngoài trời là 15.000đ/lần hoặc 400.000đ/người/tháng."
+    },
+    {
+      "id": "Q18",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "người lớn"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe "
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc trẻ em dưới 14 tuổi có được vào bể bơi một mình hay không trong tài liệu."
+    },
+    {
+      "id": "Q19",
+      "procedure": "noi-quy",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "lễ tân"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/"
+      ],
+      "answer": "Tôi không tìm thấy thông tin cụ thể về thủ tục ký nội quy tòa nhà trong các tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q20",
+      "procedure": "noi-quy",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc người thuê nhà có phải ký nội quy hay không trong các tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q21",
+      "procedure": "chuyen-do",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "24"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Phí dịch vụ Vinhomes Smart City 2026 - Bảng giá & cách tính",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc báo trước bao lâu khi chuyển đồ vào căn hộ."
+    },
+    {
+      "id": "Q22",
+      "procedure": "internet",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc đăng ký internet thuộc trách nhiệm của Ban quản lý hay nhà mạng trong các tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q23",
+      "procedure": "thang-may",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ cư dân"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về việc làm thẻ thang máy trong tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q24",
+      "procedure": "quy-trinh",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "tiếp nhận"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Hồ sơ của bạn sẽ đi qua những bước sau trước khi có kết quả:\n\n1. Lấy số & điền mẫu: Cung cấp thông tin căn hộ, số điện thoại, đối tượng đăng ký (chủ/thuê), số lượng thẻ.\n2. Nộp hồ sơ & đối chiếu: BQL kiểm tra quyền sử dụng căn hộ/ủy quyền; chụp/nhận ảnh 3×4.\n3. Thanh toán lệ phí: Phí phôi/mở thẻ/gắn"
+    },
+    {
+      "id": "Q25",
+      "procedure": "lien-he",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Hotline Ban quản lý Vinhomes Smart City mới nhất T5/2026",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Giờ làm việc của văn phòng Ban quản lý Vinhomes Smart City là từ 08h00 – 12h00 và 13h00 – 17h00 các ngày làm việc trong tuần."
+    },
+    {
+      "id": "Q26",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để làm thẻ xe tại Vinhomes Smart City, bạn cần chuẩn bị các giấy tờ sau:\n\n1. CCCD/Hộ chiếu.\n2. Hợp đồng thuê còn hiệu lực (ghi rõ căn hộ, thời hạn, chữ ký/đóng dấu hợp lệ).\n3. Giấy ủy quyền của chủ hộ (nếu quy định tòa yêu cầu) hoặc phụ lục xác nhận đồng ý cấp thẻ cho bên thuê.\n4. 01 ảnh 3×4.\n\nNếu b"
+    },
+    {
+      "id": "Q27",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ xe"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/",
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe ",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Bạn cần thực hiện các thủ tục sau với tòa nhà:\n\n1. **Đăng ký chỗ để xe**: Bạn có thể mua hoặc thuê chỗ để xe ô tô. Nếu bạn mua, bạn cần đóng kinh phí quản lý vận hành và phí trông giữ xe theo quy định. Nếu thuê, các khoản phí này sẽ được thỏa thuận trong hợp đồng thuê.\n\n2. **Đăng ký thẻ cư dân**: Bạ"
+    },
+    {
+      "id": "Q28",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [
+        "lễ tân"
+      ],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [
+        "Bảng phí gửi xe Vinhomes Smart City 2026 - Ô tô, xe máy, xe ",
+        "Hotline Ban quản lý Vinhomes Smart City mới nhất T5/2026",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Bạn có thể đăng ký sử dụng bể bơi qua ứng dụng Vinhomes Resident. Ứng dụng này cho phép cư dân đăng ký các tiện ích như hồ bơi, gym, BBQ… tại Vinhomes Smart City."
+    },
+    {
+      "id": "Q29",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "no_context",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [],
+      "answer": "Xin lỗi, tôi chưa tìm thấy thông tin này trong tài liệu hiện có. Bạn vui lòng liên hệ Ban quản lý toà nhà để được hỗ trợ chính xác."
+    },
+    {
+      "id": "Q30",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "no_context",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [],
+      "answer": "Xin lỗi, tôi chưa tìm thấy thông tin này trong tài liệu hiện có. Bạn vui lòng liên hệ Ban quản lý toà nhà để được hỗ trợ chính xác."
+    },
+    {
+      "id": "Q31",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "no_context",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [],
+      "answer": "Xin lỗi, tôi chưa tìm thấy thông tin này trong tài liệu hiện có. Bạn vui lòng liên hệ Ban quản lý toà nhà để được hỗ trợ chính xác."
+    },
+    {
+      "id": "Q32",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "no_context",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [],
+      "answer": "Xin lỗi, tôi chưa tìm thấy thông tin này trong tài liệu hiện có. Bạn vui lòng liên hệ Ban quản lý toà nhà để được hỗ trợ chính xác."
+    },
+    {
+      "id": "Q33",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "rag",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [
+        "Phí dịch vụ Vinhomes Smart City 2026 - Bảng giá & cách tính",
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về phí bảo trì 2% của căn hộ trong các tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q34",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "rag",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [
+        "Hotline Ban quản lý Vinhomes Smart City mới nhất T5/2026",
+        "Quy chế quản lý, sử dụng nhà chung cư (kèm Thông tư 05/2024/",
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Tôi không tìm thấy thông tin về số điện thoại trực tiếp của trưởng ban quản lý tòa S203 trong các tài liệu đã cung cấp."
+    },
+    {
+      "id": "Q35",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "rag",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Phí dịch vụ Vinhomes Smart City 2026 - Bảng giá & cách tính"
+      ],
+      "answer": "Tôi không thể tìm thấy thông tin về ai đứng tên căn hộ 2508 toà S101 trong các tài liệu đã cung cấp."
+    }
+  ]
+}
