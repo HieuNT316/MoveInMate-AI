@@ -28,14 +28,15 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatPage() {
-  const { userId } = useDemoUser();
+  const { userId, ready } = useDemoUser();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [sending, setSending] = useState(false);
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || sending) return;
+    // `ready` false = chưa có danh tính, đang trên đường chuyển về /login.
+    if (!question || sending || !ready) return;
 
     setMessages((prev) => [
       ...prev,

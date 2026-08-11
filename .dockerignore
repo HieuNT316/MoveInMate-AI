@@ -1,16 +1,36 @@
-.git
-.gitignore
-.env
-.venv
-__pycache__
+# Không có file này thì `COPY . .` nuốt cả .venv (binary Windows, vô dụng trong
+# container Linux), node_modules, .git — image phình ra và build chậm đi nhiều.
+#
+# LƯU Ý: KHÔNG loại `data/chroma/` và KHÔNG dùng mẫu rộng như `*.sqlite3`.
+# Index vector nằm ở `data/chroma/chroma.sqlite3`; loại nó đi thì container lên
+# với KB rỗng và mọi câu hỏi đều bị từ chối — hỏng đúng kiểu khó nhận ra vì
+# server vẫn chạy bình thường.
+
+.venv/
+venv/
+__pycache__/
 *.pyc
-.pytest_cache
-.ruff_cache
-docs/
-presentation/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+web/node_modules/
+web/.next/
+web/out/
+
+.git/
+.github/
+
+# Bí mật — tuyệt đối không đưa vào image
+.env
+.env.*
+!.env.example
+
+# DB ứng dụng dùng lúc dev; production trỏ sang Supabase
+data/app.db
+
+logs/
 eval/
-*.md
-!requirements.txt
-.dockerignore
-Dockerfile
-docker-compose.yml
+
+# Tài liệu nặng (có ảnh), không cần cho runtime
+docs/

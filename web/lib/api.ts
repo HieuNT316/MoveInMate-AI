@@ -115,13 +115,20 @@ export type DemoAccount = {
 };
 
 const STORAGE_KEY = "moveinmate.demo-user-id";
-export const DEFAULT_USER_ID = 2;
 
-export function readUserId(): number {
-  if (typeof window === "undefined") return DEFAULT_USER_ID;
+/**
+ * `null` = chưa đăng nhập. KHÔNG có id mặc định: đoán một id rồi gọi API là
+ * cách chắc chắn nhận 401 khi dữ liệu được seed lại và id đổi.
+ */
+export function readUserId(): number | null {
+  if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(STORAGE_KEY);
   const parsed = raw ? Number(raw) : NaN;
-  return Number.isFinite(parsed) ? parsed : DEFAULT_USER_ID;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function clearUserId(): void {
+  window.localStorage.removeItem(STORAGE_KEY);
 }
 
 export function writeUserId(id: number): void {

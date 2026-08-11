@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 
-import { api, type DemoAccount } from "../../lib/api";
+import { api, clearUserId, type DemoAccount } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 /**
@@ -15,6 +15,7 @@ import { useDemoUser } from "../../lib/useDemoUser";
  * seed lại dữ liệu là danh sách tự đúng theo.
  */
 export default function DemoUserSwitcher() {
+  const router = useRouter();
   const { userId, switchUser, ready } = useDemoUser();
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
 
@@ -44,13 +45,16 @@ export default function DemoUserSwitcher() {
         </button>
       ))}
 
-      <Link
-        href="/login"
-        title="Về màn đăng nhập"
+      <button
+        onClick={() => {
+          clearUserId();
+          router.push("/login");
+        }}
+        title="Đăng xuất"
         className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-muted transition hover:bg-white/60 hover:text-ink"
       >
         <LogOut className="h-3.5 w-3.5" strokeWidth={1.75} />
-      </Link>
+      </button>
     </div>
   );
 }
