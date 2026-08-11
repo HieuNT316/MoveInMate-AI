@@ -2,7 +2,7 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-**Trạng thái:** đang phát triển (Phase 1). **Backend đang chạy:** [moveinmate-api-production.up.railway.app](https://moveinmate-api-production.up.railway.app/health). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc.
+**Trạng thái:** đang phát triển (Phase 1). **Backend đang chạy:** [moveinmate-api-production.up.railway.app](https://moveinmate-api-production.up.railway.app/health). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
 
 ## Vấn đề
 

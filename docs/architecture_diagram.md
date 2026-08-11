@@ -411,11 +411,15 @@ graph LR
 | Nơi | Biến |
 |---|---|
 | Vercel | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| Railway | `OPENAI_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_SECRET`, `CHROMA_PERSIST_DIR`, `FAQ_SIMILARITY_THRESHOLD`, `RAG_TOP_K`, `CORS_ORIGINS`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT` |
+| Railway | `APP_ENV=production`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_SECRET`, `CHAT_PROVIDER`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `CORS_ORIGINS`. **KHÔNG đặt `PORT`** — Railway tự cấp |
 
 **Ràng buộc vận hành:** Chroma chạy trong cùng tiến trình FastAPI nên hệ thống chỉ chạy **một instance**. Scale ngang sẽ khiến mỗi instance có một bản vector store riêng biệt — không bật auto-scale.
 
 **CI/CD:** `.github/workflows/ci.yml` chạy ruff + pytest. Code không pass ruff bị reject.
+
+**Deploy thực tế (11/08):** backend chạy tại `https://moveinmate-api-production.up.railway.app`, deploy bằng **Railway CLI** chứ không qua GitHub — repo private thuộc org và **không thành viên nào có quyền admin** (`admin=false` cho cả ba), nên không cài được GitHub App. Hệ quả: không auto-deploy, mỗi lần cập nhật phải `railway up` từ PowerShell.
+
+Chi tiết từng bước cho cả hai phía: **[`DEPLOY.md`](./DEPLOY.md)**.
 
 ## 9. Security
 
