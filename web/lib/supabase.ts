@@ -24,6 +24,13 @@ export const supabase = createClient(url || "http://localhost", anonKey || "publ
   },
 });
 
+/**
+ * ⚠️ TẠM THỜI — mật khẩu dùng chung của toàn bộ tài khoản demo, do
+ * `scripts/provision_auth.py` đặt. Xoá cùng lúc với `/auth/demo-accounts`.
+ * Với cư dân thật, mỗi người có mật khẩu riêng do BQL bàn giao.
+ */
+export const DEMO_PASSWORD = "MoveInMate!2026";
+
 /** Access token của phiên hiện tại, `null` nếu chưa đăng nhập. */
 export async function currentAccessToken(): Promise<string | null> {
   if (!supabaseConfigured) return null;

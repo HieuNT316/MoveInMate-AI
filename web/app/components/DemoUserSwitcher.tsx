@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 
 import { api, clearUserId, type DemoAccount } from "../../lib/api";
-import { supabase } from "../../lib/supabase";
+import { DEMO_PASSWORD, supabase } from "../../lib/supabase";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 /**
@@ -19,10 +19,33 @@ export default function DemoUserSwitcher() {
   const router = useRouter();
   const { userId, switchUser, ready } = useDemoUser();
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.getDemoAccounts().then(setAccounts).catch(() => setAccounts([]));
   }, []);
+
+  /**
+   * Phải ĐĂNG NHẬP LẠI thật sự, không chỉ đổi id trong localStorage: kể từ khi
+   * có phiên Supabase, mọi request đều gắn Bearer token, nên đổi id suông
+   * không còn tác dụng gì — và ở production header `X-User-Id` bị chặn hẳn.
+   */
+  const pick = async (account: DemoAccount) => {
+    if (busy || account.user_id === userId) return;
+    setBusy(true);
+    try {
+      await supabase.auth.signOut().catch(() => undefined);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: account.email,
+        password: DEMO_PASSWORD,
+      });
+      if (error) throw error;
+      switchUser(account.user_id);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (accounts.length === 0) return null;
 
@@ -34,7 +57,8 @@ export default function DemoUserSwitcher() {
       {accounts.map((account) => (
         <button
           key={account.user_id}
-          onClick={() => switchUser(account.user_id)}
+          onClick={() => pick(account)}
+          disabled={busy}
           title={`${account.full_name} — ${account.summary}`}
           className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs transition ${
             ready && userId === account.user_id

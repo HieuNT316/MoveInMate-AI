@@ -5,10 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, ClipboardList, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 
 import { api, writeUserId, type DemoAccount } from "../../lib/api";
-import { supabase, supabaseConfigured } from "../../lib/supabase";
-
-/** Mật khẩu dùng chung của dữ liệu demo — xem scripts/provision_auth.py. */
-const DEMO_PASSWORD = "MoveInMate!2026";
+import { DEMO_PASSWORD, supabase, supabaseConfigured } from "../../lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
