@@ -8,6 +8,8 @@
  * Khi có auth thật, chỉ cần sửa `authHeaders()` bên dưới, phần còn lại giữ nguyên.
  */
 
+import { currentAccessToken } from "./supabase";
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -135,8 +137,16 @@ export function writeUserId(id: number): void {
   window.localStorage.setItem(STORAGE_KEY, String(id));
 }
 
-function authHeaders(userId: number): HeadersInit {
-  return { "X-User-Id": String(userId) };
+/**
+ * Ưu tiên JWT của Supabase; chưa có phiên thì rơi về `X-User-Id` để bộ đổi
+ * persona trong bản demo còn chạy. Backend cũng ưu tiên JWT và chặn hẳn header
+ * này ở production, nên đây chỉ là lối dev, không phải cửa sau.
+ */
+async function authHeaders(userId: number): Promise<HeadersInit> {
+  const token = await currentAccessToken();
+  return token
+    ? { Authorization: `Bearer ${token}` }
+    : { "X-User-Id": String(userId) };
 }
 
 export class ApiError extends Error {
@@ -157,7 +167,7 @@ async function request<T>(
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(userId),
+      ...(await authHeaders(userId)),
       ...init?.headers,
     },
   });

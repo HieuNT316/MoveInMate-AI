@@ -30,7 +30,10 @@ async def test_health(client):
 
 @pytest.mark.asyncio
 async def test_khong_co_header_thi_bi_tu_choi(client):
-    assert (await client.get("/api/v1/checklist")).status_code == 422
+    """401 chứ không phải 422: thiếu xác thực là chuyện quyền, không phải sai kiểu dữ liệu."""
+    response = await client.get("/api/v1/checklist")
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 @pytest.mark.asyncio
@@ -395,7 +398,7 @@ async def test_cu_dan_khong_vao_duoc_route_cua_bql(client):
 
 
 @pytest.mark.asyncio
-async def test_bql_tao_tai_khoan_cu_dan(client):
+async def test_bql_tao_tai_khoan_cu_dan(client, fake_auth_provisioning):
     payload = {
         "full_name": "Phạm Văn Cường",
         "email": "cuong.pham@demo.vn",
@@ -407,6 +410,29 @@ async def test_bql_tao_tai_khoan_cu_dan(client):
     created = response.json()
     assert created["role"] == "resident"
     assert created["onboarding_completed_at"] is None
+    # Mật khẩu tạm chỉ trả về đúng lần này để BQL bàn giao cho cư dân.
+    assert created["temporary_password"]
+
+
+@pytest.mark.asyncio
+async def test_khong_tao_ho_so_khi_supabase_tu_choi(client, monkeypatch):
+    """Email trùng bị Supabase chặn — không được để lại hồ sơ mồ côi trong DB."""
+
+    def _reject(_email, _password):
+        raise api_routes.SupabaseAdminError("email đã tồn tại")
+
+    monkeypatch.setattr(api_routes, "create_auth_user", _reject)
+    payload = {
+        "full_name": "Trùng Email",
+        "email": "an.tran@demo.vn",
+        "apartment": "S1.01-0101",
+        "building": "Sapphire 1",
+    }
+    response = await client.post("/api/v1/admin/users", json=payload, headers=ADMIN)
+    assert response.status_code == 502
+
+    listing = (await client.get("/api/v1/admin/dashboard", headers=ADMIN)).json()
+    assert not any(r["full_name"] == "Trùng Email" for r in listing["residents"])
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ FastAPI mở và đóng mỗi request qua `get_db`.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -74,6 +75,21 @@ def get_user(db: Session, user_id: int) -> dict[str, Any] | None:
 def get_user_by_email(db: Session, email: str) -> dict[str, Any] | None:
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
     return _user_dict(user) if user else None
+
+
+def get_user_by_auth_id(db: Session, auth_user_id: uuid.UUID) -> dict[str, Any] | None:
+    """Tra hồ sơ cư dân từ `sub` của JWT Supabase (US-01)."""
+    user = db.scalar(select(User).where(User.auth_user_id == auth_user_id))
+    return _user_dict(user) if user else None
+
+
+def link_auth_user(db: Session, user_id: int, auth_user_id: uuid.UUID) -> None:
+    """Gắn tài khoản Supabase Auth vào hồ sơ cư dân đã có."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise ValueError(f"Không có người dùng {user_id}")
+    user.auth_user_id = auth_user_id
+    db.commit()
 
 
 def get_admin(db: Session) -> dict[str, Any] | None:

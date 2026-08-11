@@ -21,6 +21,7 @@ from src.models.schemas import (
     ChecklistItemResponse,
     ChecklistResponse,
     CompletionRequest,
+    CreatedUserResponse,
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
@@ -31,6 +32,11 @@ from src.models.schemas import (
 )
 from src.services import store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
+from src.services.supabase_admin import (
+    SupabaseAdminError,
+    create_auth_user,
+    generate_password,
+)
 from src.services.vectorstore import RetrievalError
 
 router = APIRouter()
@@ -300,15 +306,31 @@ async def chat_history(
 
 
 @router.post(
-    "/admin/users", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED
+    "/admin/users",
+    response_model=CreatedUserResponse,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_resident(
     payload: CreateUserRequest,
     _admin: dict[str, Any] = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Any:
-    """US-00 — BQL tạo tài khoản cư dân. Cư dân không tự đăng ký được."""
-    return store.create_user(db, payload.model_dump())
+    """US-00 — BQL tạo tài khoản cư dân. Cư dân không tự đăng ký được.
+
+    Tạo tài khoản Supabase Auth TRƯỚC rồi mới ghi hồ sơ: email trùng sẽ bị
+    Supabase chặn ngay, thay vì để lại một hồ sơ không bao giờ đăng nhập được.
+    """
+    password = generate_password()
+    try:
+        auth_user_id = create_auth_user(payload.email, password)
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Không tạo được tài khoản đăng nhập: {exc}",
+        ) from exc
+
+    user = store.create_user(db, {**payload.model_dump(), "auth_user_id": auth_user_id})
+    return {**user, "temporary_password": password}
 
 
 @router.get("/admin/dashboard", response_model=DashboardResponse)

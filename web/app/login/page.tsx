@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, ClipboardList, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { Building2, ClipboardList, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 
 import { api, writeUserId, type DemoAccount } from "../../lib/api";
+import { supabase, supabaseConfigured } from "../../lib/supabase";
+
+/** Mật khẩu dùng chung của dữ liệu demo — xem scripts/provision_auth.py. */
+const DEMO_PASSWORD = "MoveInMate!2026";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,15 +27,32 @@ export default function LoginPage() {
       );
   }, []);
 
-  const signIn = async (value: string) => {
-    if (!value.trim() || busy) return;
+  const signIn = async (emailValue: string, passwordValue: string) => {
+    if (!emailValue.trim() || busy) return;
     setBusy(true);
+    setError(null);
     try {
-      const profile = await api.login(value);
+      if (!supabaseConfigured) {
+        throw new Error("Chưa cấu hình NEXT_PUBLIC_SUPABASE_URL / ANON_KEY");
+      }
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: emailValue.trim(),
+        password: passwordValue,
+      });
+      if (authError) throw authError;
+
+      // Lấy hồ sơ cư dân bằng chính token vừa nhận — `getProfile` tự gắn Bearer.
+      // `writeUserId` chỉ còn để bộ đổi persona của bản demo biết đang là ai.
+      const profile = await api.getProfile(0);
       writeUserId(profile.user_id);
       router.push(profile.onboarding_completed_at ? "/dashboard" : "/onboarding");
-    } catch {
-      setError("Email không có trong hệ thống. Tài khoản do Ban quản lý cấp.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setError(
+        message.toLowerCase().includes("credentials")
+          ? "Email hoặc mật khẩu không đúng. Tài khoản do Ban quản lý cấp."
+          : message || "Không đăng nhập được.",
+      );
       setBusy(false);
     }
   };
@@ -95,7 +117,7 @@ export default function LoginPage() {
             className="mt-7 space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              signIn(email);
+              signIn(email, password);
             }}
           >
             <div>
@@ -112,6 +134,20 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink">Mật khẩu</label>
+              <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface px-4 py-3 focus-within:border-gold/50 focus-within:ring-1 focus-within:ring-gold/30">
+                <Lock className="h-4 w-4 text-muted" strokeWidth={1.75} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
+                />
+              </div>
+            </div>
+
             {error && (
               <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -120,7 +156,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={busy || !email.trim()}
+              disabled={busy || !email.trim() || !password}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3.5 text-sm font-medium text-white transition hover:bg-ink-soft disabled:opacity-40"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -132,7 +168,8 @@ export default function LoginPage() {
             accounts={accounts}
             onPick={(account) => {
               setEmail(account.email);
-              signIn(account.email);
+              setPassword(DEMO_PASSWORD);
+              signIn(account.email, DEMO_PASSWORD);
             }}
           />
         </div>

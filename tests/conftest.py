@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -11,6 +12,11 @@ from scripts.seed_data import CHECKLIST_ITEMS
 from src.database import get_db
 from src.main import app
 from src.models.db import Base, ChecklistCompletion, ChecklistItem, User
+
+# `sub` giả cho các test nhánh JWT. Unit test không ký được token ES256 thật,
+# nên `verify_token` bị thay bằng bản giả trả thẳng UUID này — phần verify chữ
+# ký đã được kiểm chứng riêng bằng token thật từ Supabase.
+AUTH_UID_OWNER = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
 
 @pytest.fixture
@@ -44,6 +50,8 @@ def db_session():
             ),
             User(
                 user_id=2,
+                # Đã gắn tài khoản Supabase Auth — dùng cho test nhánh JWT.
+                auth_user_id=AUTH_UID_OWNER,
                 full_name="Trần Văn An",
                 email="an.tran@demo.vn",
                 apartment="S2.03-1512",
@@ -114,3 +122,17 @@ async def client(db_session):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def fake_auth_provisioning(monkeypatch):
+    """Chặn mọi lời gọi Supabase Admin API trong test.
+
+    Không có fixture này, test tạo tài khoản sẽ đẻ user thật trong project
+    Supabase — đã xảy ra ngày 11/08 và phải đi dọn tay.
+    """
+    from src.api import routes
+
+    monkeypatch.setattr(
+        routes, "create_auth_user", lambda _email, _password: uuid.uuid4()
+    )

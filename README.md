@@ -58,6 +58,9 @@ cp .env.example .env               # điền OPENAI_API_KEY, SUPABASE_*, ...
 python -m scripts.check_db         # kiểm tra DATABASE_URL trước khi migrate
 alembic upgrade head               # tạo bảng
 python -m scripts.seed_data        # 12 checklist item + 40 cư dân giả
+python -m scripts.provision_auth   # cấp tài khoản Supabase Auth cho từng hồ sơ
+
+cp web/.env.local.example web/.env.local   # điền NEXT_PUBLIC_SUPABASE_*
 uvicorn src.main:app --reload      # http://localhost:8000/docs
 
 # 3. Frontend (terminal khác)

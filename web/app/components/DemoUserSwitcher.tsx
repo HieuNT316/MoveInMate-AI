@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 
 import { api, clearUserId, type DemoAccount } from "../../lib/api";
+import { supabase } from "../../lib/supabase";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 /**
@@ -46,7 +47,10 @@ export default function DemoUserSwitcher() {
       ))}
 
       <button
-        onClick={() => {
+        onClick={async () => {
+          // Xoá cả phiên Supabase: chỉ xoá localStorage thì token vẫn còn và
+          // lần vào sau vẫn đăng nhập như cũ.
+          await supabase.auth.signOut().catch(() => undefined);
           clearUserId();
           router.push("/login");
         }}

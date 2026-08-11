@@ -68,6 +68,16 @@ class ProfileResponse(BaseModel):
     onboarding_completed_at: datetime | None = None
 
 
+class CreatedUserResponse(ProfileResponse):
+    """US-00 — hồ sơ vừa tạo, kèm mật khẩu tạm.
+
+    Mật khẩu chỉ xuất hiện đúng một lần ở phản hồi này để BQL bàn giao cho cư
+    dân; hệ thống không lưu lại và không có cách xem lại. Quên thì phải đặt lại.
+    """
+
+    temporary_password: str
+
+
 class LoginRequest(BaseModel):
     """⚠️ TẠM THỜI — đăng nhập chỉ bằng email, chưa có mật khẩu.
 
