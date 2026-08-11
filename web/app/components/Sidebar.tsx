@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -7,33 +8,53 @@ import {
   LayoutDashboard,
   Bot,
   ClipboardList,
+  Send,
+  FileBadge,
+  Megaphone,
   UserRound,
   Plus,
 } from "lucide-react";
+
+import { api, type Profile } from "../../lib/api";
+import { useDemoUser } from "../../lib/useDemoUser";
 
 const menus = [
   { title: "Tổng quan", icon: LayoutDashboard, href: "/dashboard" },
   { title: "AI Chat", icon: Bot, href: "/chat" },
   { title: "Checklist & Tiến độ", icon: ClipboardList, href: "/checklist" },
+  { title: "Yêu cầu", icon: Send, href: "/requests" },
+  { title: "Hồ sơ giấy tờ", icon: FileBadge, href: "/documents" },
+  { title: "Thông báo & Nội quy", icon: Megaphone, href: "/content" },
   { title: "Hồ sơ", icon: UserRound, href: "/profile" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { userId, ready } = useDemoUser();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!ready) return;
+    api
+      .getProfile(userId)
+      .then(setProfile)
+      .catch(() => setFailed(true));
+  }, [ready, userId]);
 
   return (
-    <aside className="w-72 shrink-0 bg-ink text-white/90 min-h-screen flex flex-col">
+    <aside className="w-72 shrink-0 bg-surface text-ink border-r border-border min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="px-7 py-8 border-b border-white/10">
+      <div className="px-7 py-8 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-gold/40 bg-gold/10">
-            <Building2 className="h-5 w-5 text-gold-soft" strokeWidth={1.5} />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold">
+            <Building2 className="h-5 w-5 text-white" strokeWidth={1.5} />
           </div>
           <div>
-            <h1 className="font-display text-lg font-semibold tracking-wide text-white">
+            <h1 className="font-display text-lg font-semibold tracking-wide text-ink">
               MoveInMate
             </h1>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-gold-soft/80">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-gold">
               AI Concierge
             </p>
           </div>
@@ -44,7 +65,7 @@ export default function Sidebar() {
       <div className="px-6 pt-6">
         <Link
           href="/chat"
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gold/50 bg-gradient-to-b from-gold to-gold/80 py-3 text-sm font-medium text-ink shadow-[0_8px_20px_-8px_rgba(176,141,79,0.6)] transition hover:shadow-[0_10px_24px_-6px_rgba(176,141,79,0.75)]"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold py-3 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(0,86,210,0.5)] transition hover:bg-ink-soft"
         >
           <Plus className="h-4 w-4" strokeWidth={2} />
           Cuộc trò chuyện mới
@@ -53,7 +74,7 @@ export default function Sidebar() {
 
       {/* Menu */}
       <nav className="flex-1 px-4 pt-8 space-y-1">
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-white/35">
+        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
           Điều hướng
         </p>
         {menus.map((item) => {
@@ -65,17 +86,17 @@ export default function Sidebar() {
               href={item.href}
               className={`group flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm transition-colors ${
                 active
-                  ? "bg-white/[0.07] text-white"
-                  : "text-white/60 hover:bg-white/[0.04] hover:text-white/90"
+                  ? "bg-gold-tint text-gold"
+                  : "text-ink/70 hover:bg-background hover:text-ink"
               }`}
             >
               <Icon
-                className={`h-[18px] w-[18px] ${active ? "text-gold-soft" : "text-white/40 group-hover:text-gold-soft/80"}`}
+                className={`h-[18px] w-[18px] ${active ? "text-gold" : "text-muted group-hover:text-gold/70"}`}
                 strokeWidth={1.75}
               />
               <span className={active ? "font-medium" : ""}>{item.title}</span>
               {active && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-gold-soft" />
+                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-gold" />
               )}
             </Link>
           );
@@ -83,17 +104,25 @@ export default function Sidebar() {
       </nav>
 
       {/* User */}
-      <div className="border-t border-white/10 p-5">
+      <div className="border-t border-border p-5">
         <Link
           href="/profile"
-          className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-white/[0.05]"
+          className="flex items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-background"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/40 bg-gold/15 font-display text-base text-gold-soft">
-            M
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-tint font-display text-base text-gold">
+            {profile ? profile.full_name.charAt(0).toUpperCase() : "?"}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-white">Minh Thu</p>
-            <p className="truncate text-xs text-white/40">Căn hộ A1 · 1208</p>
+            <p className="truncate text-sm font-medium text-ink">
+              {profile
+                ? profile.full_name
+                : failed
+                  ? "Chưa kết nối backend"
+                  : "Đang tải..."}
+            </p>
+            <p className="truncate text-xs text-muted">
+              {profile ? `${profile.building} · ${profile.apartment}` : "—"}
+            </p>
           </div>
         </Link>
       </div>

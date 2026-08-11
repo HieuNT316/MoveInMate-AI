@@ -31,7 +31,7 @@ export default function DashboardCard({
   return (
     <Link href={href} className="group block">
       <div
-        className={`relative overflow-hidden rounded-2xl border border-border bg-surface p-6 ring-1 ring-transparent transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-24px_rgba(13,19,33,0.35)] ${tone.ring}`}
+        className={`relative overflow-hidden rounded-2xl border border-border bg-surface p-6 ring-1 ring-transparent transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-24px_rgba(0,45,98,0.35)] ${tone.ring}`}
       >
         <div
           className={`flex h-14 w-14 items-center justify-center rounded-xl ${tone.bg}`}

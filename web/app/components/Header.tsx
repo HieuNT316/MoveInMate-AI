@@ -1,13 +1,38 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
+
+import DemoUserSwitcher from "./DemoUserSwitcher";
 
 const titles: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Tổng quan", subtitle: "Chào mừng bạn quay trở lại" },
   "/chat": { title: "AI Chat", subtitle: "Hỏi đáp thủ tục nhận nhà" },
-  "/checklist": { title: "Checklist & Tiến độ", subtitle: "Theo dõi hành trình bàn giao của bạn" },
+  "/checklist": {
+    title: "Checklist & Tiến độ",
+    subtitle: "Theo dõi hành trình bàn giao của bạn",
+  },
+  "/requests": {
+    title: "Yêu cầu",
+    subtitle: "Theo dõi các yêu cầu đã gửi tới BQL",
+  },
+  "/documents": {
+    title: "Hồ sơ & Giấy tờ",
+    subtitle: "Quản lý giấy tờ đã nộp",
+  },
+  "/content": {
+    title: "Thông báo & Nội quy",
+    subtitle: "Thông tin từ Ban Quản Lý",
+  },
   "/profile": { title: "Hồ sơ", subtitle: "Thông tin cư dân" },
+  "/onboarding": {
+    title: "Thiết lập hồ sơ",
+    subtitle: "Cho chúng tôi biết về căn hộ của bạn",
+  },
+  "/bql/dashboard": {
+    title: "Tổng quan Onboarding",
+    subtitle: "Vinhomes Smart City",
+  },
 };
 
 export default function Header() {
@@ -26,10 +51,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-5">
-        <div className="hidden items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm text-muted md:flex">
-          <Search className="h-4 w-4" strokeWidth={1.75} />
-          <span>Tìm kiếm...</span>
-        </div>
+        <DemoUserSwitcher />
 
         <button
           aria-label="Thông báo"
@@ -38,10 +60,6 @@ export default function Header() {
           <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
           <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-gold" />
         </button>
-
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-ink font-display text-sm text-gold-soft ring-1 ring-gold/30">
-          M
-        </div>
       </div>
     </header>
   );
