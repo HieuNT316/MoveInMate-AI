@@ -2,26 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
   BadgeCheck,
   Bot,
   ClipboardList,
-  ExternalLink,
   Gauge,
   Loader2,
-  Send,
-  Sparkles,
   UserRound,
-  Zap,
 } from "lucide-react";
 
 import Layout from "../components/Layout";
 import DashboardCard from "../components/DashboardCard";
-import { api, describeError, type Checklist, type Profile } from "../../lib/api";
+import {
+  api,
+  type Checklist,
+  type Dashboard,
+  type Profile,
+} from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
-import { REQUEST_STATUS_LABEL, mockRequests } from "../../lib/mockRequests";
 
 const cards = [
   {
@@ -48,26 +46,29 @@ const cards = [
 ];
 
 export default function DashboardPage() {
-  const router = useRouter();
   const { userId, ready } = useDemoUser();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checklist, setChecklist] = useState<Checklist | null>(null);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const me = await api.getProfile(userId);
-      if (me.role === "admin") {
-        router.replace("/bql/dashboard");
-        return;
-      }
       setProfile(me);
-      setChecklist(await api.getChecklist(userId));
       setError(null);
-    } catch (err) {
-      setError(describeError(err));
+
+      if (me.role === "admin") {
+        setDashboard(await api.getDashboard(userId));
+        setChecklist(null);
+      } else {
+        setChecklist(await api.getChecklist(userId));
+        setDashboard(null);
+      }
+    } catch {
+      setError("Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?");
     }
-  }, [userId, router]);
+  }, [userId]);
 
   useEffect(() => {
     if (ready) load();
@@ -90,6 +91,14 @@ export default function DashboardPage() {
           <Loader2 className="h-4 w-4 animate-spin" />
           Đang tải...
         </div>
+      </Layout>
+    );
+  }
+
+  if (profile.role === "admin") {
+    return (
+      <Layout>
+        <AdminView dashboard={dashboard} />
       </Layout>
     );
   }
@@ -146,19 +155,6 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {checklist && (
-        <section className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-          <div className="flex flex-col gap-6">
-            <ChecklistProgressCard checklist={checklist} />
-            <UrgentTasksCard checklist={checklist} />
-          </div>
-          <div className="flex flex-col gap-6">
-            <AiWelcomeCard name={profile.full_name} />
-            <RecentRequestsCard />
-          </div>
-        </section>
-      )}
-
       <section>
         <h2 className="font-display mb-6 text-2xl font-semibold text-ink">
           Chức năng
@@ -173,202 +169,80 @@ export default function DashboardPage() {
   );
 }
 
-function ChecklistProgressCard({ checklist }: { checklist: Checklist }) {
-  const { percent, completed, total } = checklist.overall;
-  const circumference = 2 * Math.PI * 40;
-  const offset = circumference - (percent / 100) * circumference;
-
-  const pending = checklist.items.filter((i) => !i.completed);
-  const groups = [
-    {
-      label: "Hoàn tất",
-      count: total - pending.length,
-      dot: "bg-emerald",
-    },
-    {
-      label: "Chờ thực hiện — Ban quản lý",
-      count: pending.filter((i) => i.item_type === "bql_actionable").length,
-      dot: "bg-gold",
-    },
-    {
-      label: "Chờ thực hiện — ngoài BQL",
-      count: pending.filter((i) => i.item_type === "third_party_info").length,
-      dot: "bg-ink/40",
-    },
-  ];
+function AdminView({ dashboard }: { dashboard: Dashboard | null }) {
+  if (!dashboard) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Đang tải danh sách cư dân...
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-display text-base font-semibold text-ink">
-            Checklist Onboarding
-          </h3>
-          <p className="mt-1 text-sm text-muted">
-            Theo dõi toàn bộ thủ tục nhận nhà
-          </p>
-        </div>
-        <Link
-          href="/checklist"
-          className="flex items-center gap-1 rounded-lg bg-gold-tint px-3 py-1.5 text-xs font-semibold text-gold"
-        >
-          Xem tất cả <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
-        </Link>
-      </div>
+    <>
+      <section className="mb-8 border-b border-border pb-6">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-gold">
+          Ban quản lý
+        </p>
+        <h1 className="font-display mt-2 text-3xl font-semibold text-ink">
+          Tiến độ onboarding cư dân
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          {dashboard.total_residents} cư dân · chỉ tính thủ tục thuộc phạm vi Ban
+          quản lý xử lý
+        </p>
+      </section>
 
-      <div className="mt-6 flex items-center gap-8">
-        <svg width={96} height={96} className="shrink-0">
-          <circle cx={48} cy={48} r={40} fill="none" stroke="var(--border)" strokeWidth={8} />
-          <circle
-            cx={48}
-            cy={48}
-            r={40}
-            fill="none"
-            stroke="var(--gold)"
-            strokeWidth={8}
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            transform="rotate(-90 48 48)"
-            className="transition-[stroke-dashoffset] duration-700"
-          />
-          <text
-            x={48}
-            y={53}
-            textAnchor="middle"
-            className="font-display fill-ink text-lg font-semibold"
-          >
-            {percent}%
-          </text>
-        </svg>
-
-        <div className="flex-1 space-y-2">
-          {groups.map((g) => (
-            <div key={g.label} className="flex items-center gap-2.5">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${g.dot}`} />
-              <span className="flex-1 text-sm text-muted">{g.label}</span>
-              <span className="text-sm font-semibold text-ink">{g.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <p className="mt-5 border-t border-border pt-4 text-xs text-muted">
-        {completed}/{total} thủ tục đã hoàn tất
-      </p>
-    </div>
-  );
-}
-
-function UrgentTasksCard({ checklist }: { checklist: Checklist }) {
-  const urgent = checklist.items
-    .filter((i) => !i.completed && i.item_type === "bql_actionable")
-    .slice(0, 3);
-
-  if (urgent.length === 0) return null;
-
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gold-tint">
-          <Zap className="h-3.5 w-3.5 text-gold" strokeWidth={2.25} />
-        </span>
-        <h3 className="font-display text-base font-semibold text-ink">
-          Việc cần làm ngay
-        </h3>
-      </div>
-
-      <ul>
-        {urgent.map((item, i) => (
-          <li
-            key={item.id}
-            className={`flex items-center gap-3 py-2.5 ${i !== urgent.length - 1 ? "border-b border-border" : ""}`}
-          >
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink">{item.task_name}</p>
-              <p className="text-xs text-muted">{item.category}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <Link
-        href="/chat"
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-ink py-2.5 text-sm font-medium text-white transition hover:bg-ink-soft"
-      >
-        <Sparkles className="h-3.5 w-3.5 text-gold-soft" strokeWidth={2} />
-        Nhờ AI hướng dẫn bước tiếp theo
-      </Link>
-    </div>
-  );
-}
-
-function AiWelcomeCard({ name }: { name: string }) {
-  const firstName = name.split(" ").slice(-1)[0] ?? name;
-  return (
-    <div className="rounded-2xl bg-ink p-5 text-white">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10">
-          <Sparkles className="h-4 w-4 text-gold-soft" strokeWidth={2} />
-        </span>
-        <p className="font-display text-sm font-semibold">MoveInMate AI</p>
-      </div>
-      <p className="mt-3 text-xs leading-relaxed text-white/75">
-        Chào mừng, {firstName}. Tôi đã chuẩn bị checklist onboarding cá nhân
-        hóa cho bạn. Sẵn sàng bắt đầu chưa?
-      </p>
-      <Link
-        href="/chat"
-        className="mt-3.5 flex items-center justify-center gap-2 rounded-lg bg-white py-2.5 text-xs font-semibold text-ink transition hover:bg-white/90"
-      >
-        <Send className="h-3.5 w-3.5" strokeWidth={2} />
-        Bắt đầu ngay
-      </Link>
-    </div>
-  );
-}
-
-function RecentRequestsCard() {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold text-ink">
-          Yêu cầu gần đây
-        </h3>
-        <Link
-          href="/requests"
-          className="flex items-center gap-1 text-xs font-medium text-gold"
-        >
-          Tất cả <ExternalLink className="h-3 w-3" strokeWidth={2} />
-        </Link>
-      </div>
-
-      <div className="space-y-2.5">
-        {mockRequests.slice(0, 3).map((req) => (
-          <div
-            key={req.id}
-            className="rounded-xl border border-border bg-background p-3"
-          >
-            <p className="text-xs font-medium text-ink">{req.title}</p>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-[11px] text-muted">{req.department}</span>
-              <span
-                className={`text-[11px] font-medium ${
-                  req.status === "in_review"
-                    ? "text-gold"
-                    : req.status === "submitted"
-                      ? "text-muted"
-                      : "text-emerald"
-                }`}
+      <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+            <tr>
+              <th className="px-6 py-4 font-medium">Cư dân</th>
+              <th className="px-6 py-4 font-medium">Căn hộ</th>
+              <th className="px-6 py-4 font-medium">Loại</th>
+              <th className="px-6 py-4 font-medium">Tiến độ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dashboard.residents.map((resident) => (
+              <tr
+                key={resident.user_id}
+                className="border-b border-border last:border-0"
               >
-                {REQUEST_STATUS_LABEL[req.status]}
-              </span>
-            </div>
-          </div>
-        ))}
+                <td className="px-6 py-4">
+                  <p className="font-medium text-ink">{resident.full_name}</p>
+                  {!resident.onboarded && (
+                    <p className="mt-0.5 text-xs text-gold">Chưa thiết lập hồ sơ</p>
+                  )}
+                </td>
+                <td className="px-6 py-4 text-muted">{resident.apartment}</td>
+                <td className="px-6 py-4 text-muted">
+                  {resident.ownership_type === "owner"
+                    ? "Chủ hộ"
+                    : resident.ownership_type === "renter"
+                      ? "Người thuê"
+                      : "—"}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 w-28 rounded-full bg-border">
+                      <div
+                        className="h-2 rounded-full bg-gradient-to-r from-gold to-gold-soft"
+                        style={{ width: `${resident.bql_scope.percent}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted">
+                      {resident.bql_scope.completed}/{resident.bql_scope.total}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </>
   );
 }
 

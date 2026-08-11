@@ -12,26 +12,10 @@ const titles: Record<string, { title: string; subtitle: string }> = {
     title: "Checklist & Tiến độ",
     subtitle: "Theo dõi hành trình bàn giao của bạn",
   },
-  "/requests": {
-    title: "Yêu cầu",
-    subtitle: "Theo dõi các yêu cầu đã gửi tới BQL",
-  },
-  "/documents": {
-    title: "Hồ sơ & Giấy tờ",
-    subtitle: "Quản lý giấy tờ đã nộp",
-  },
-  "/content": {
-    title: "Thông báo & Nội quy",
-    subtitle: "Thông tin từ Ban Quản Lý",
-  },
   "/profile": { title: "Hồ sơ", subtitle: "Thông tin cư dân" },
   "/onboarding": {
     title: "Thiết lập hồ sơ",
     subtitle: "Cho chúng tôi biết về căn hộ của bạn",
-  },
-  "/bql/dashboard": {
-    title: "Tổng quan Onboarding",
-    subtitle: "Vinhomes Smart City",
   },
 };
 

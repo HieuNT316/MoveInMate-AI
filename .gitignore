@@ -29,9 +29,31 @@ env/
 Thumbs.db
 
 # Data (never commit large data)
-data/
+data/*
+# ...trừ KB dạng text cào từ web: vài chục KB, và là input cố định để
+# đo lại retrieval accuracy. Nếu không commit thì mỗi máy một bản khác nhau.
+!data/kb/
+data/kb/*
+!data/kb/web/
+!data/kb/legal/
+!data/kb/bql/
 *.db
 *.sqlite3
+
+# ...và trừ Chroma đã embed sẵn (quyết định 10/08: chia sẻ thẳng vector qua
+# git để team khỏi phải gọi lại Google embeddings trên từng máy — free-tier
+# rate-limit khiến ingest lại khá chậm).
+#
+# ĐÁNH ĐỔI ĐÃ CHẤP NHẬN — đọc trước khi động vào data/chroma/:
+#   - Đây là DB nhị phân (sqlite + index HNSW). Mỗi lần re-ingest là một diff
+#     nhị phân toàn bộ, không xem được, không merge được.
+#   - Hai người cùng chạy scripts/ingest_kb.py rồi cùng push sẽ xung đột và
+#     KHÔNG có cách nào git merge tự động — phải chọn một bản, bản kia mất.
+#   - Quy ước: chỉ MỘT người cập nhật KB → chạy ingest_kb.py → commit
+#     data/chroma/. Người khác chỉ `git pull`, KHÔNG tự ingest lại trừ khi
+#     đang chủ động thay nội dung KB.
+!data/chroma/
+!data/chroma/**
 
 # Logs
 logs/

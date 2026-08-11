@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Check, Home, KeyRound, Sparkles } from "lucide-react";
+import { Car, Check, Home, KeyRound, Loader2, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
-import Button from "../components/Button";
 import {
   api,
   type AmenityPackage,
@@ -160,15 +159,14 @@ export default function OnboardingPage() {
           </p>
         )}
 
-        <Button
+        <button
           onClick={submit}
-          disabled={!complete || !ready}
-          loading={saving}
-          size="lg"
-          fullWidth
+          disabled={!complete || saving || !ready}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-4 text-sm font-medium text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-40"
         >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           {saving ? "Đang tạo checklist..." : "Tạo checklist của tôi"}
-        </Button>
+        </button>
       </div>
     </Layout>
   );

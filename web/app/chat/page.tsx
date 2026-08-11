@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Bot, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
-import Button from "../components/Button";
-import { api, describeError, type Source } from "../../lib/api";
+import { api, type Source } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 type Message = {
@@ -14,21 +13,12 @@ type Message = {
   text: string;
   sources?: Source[];
   refused?: boolean;
-  time: string;
 };
-
-function now(): string {
-  return new Date().toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 const GREETING: Message = {
   id: 0,
   role: "assistant",
   text: "Xin chào 👋 Tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
-  time: "",
 };
 
 const SUGGESTIONS = [
@@ -38,23 +28,19 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatPage() {
-  const { userId } = useDemoUser();
+  const { userId, ready } = useDemoUser();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, sending]);
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || sending) return;
+    // `ready` false = chưa có danh tính, đang trên đường chuyển về /login.
+    if (!question || sending || !ready) return;
 
     setMessages((prev) => [
       ...prev,
-      { id: prev.length + 1, role: "user", text: question, time: now() },
+      { id: prev.length + 1, role: "user", text: question },
     ]);
     setInput("");
     setSending(true);
@@ -69,18 +55,16 @@ export default function ChatPage() {
           text: reply.answer,
           sources: reply.sources,
           refused: reply.answer_source === "no_context",
-          time: now(),
         },
       ]);
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: prev.length + 1,
           role: "assistant",
-          text: describeError(err),
+          text: "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
           refused: true,
-          time: now(),
         },
       ]);
     } finally {
@@ -135,14 +119,6 @@ export default function ChatPage() {
                     ))}
                   </div>
                 )}
-
-                {message.time && (
-                  <p
-                    className={`mt-1 text-[11px] text-muted ${message.role === "user" ? "text-right" : ""}`}
-                  >
-                    {message.time}
-                  </p>
-                )}
               </div>
             </div>
           ))}
@@ -153,8 +129,6 @@ export default function ChatPage() {
               Đang tra cứu tài liệu...
             </div>
           )}
-
-          <div ref={bottomRef} />
 
           {messages.length === 1 && (
             <div className="flex flex-wrap gap-2 pt-2">
@@ -181,15 +155,14 @@ export default function ChatPage() {
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && send(input)}
             />
-            <Button
+            <button
               onClick={() => send(input)}
               disabled={sending}
-              size="icon"
-              className="rounded-xl"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
               aria-label="Gửi"
             >
               <Send className="h-4 w-4" strokeWidth={1.75} />
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -197,9 +170,17 @@ export default function ChatPage() {
   );
 }
 
+const SOURCE_LABELS: Record<Source["source_type"], string> = {
+  bql_internal: "Tài liệu Ban quản lý",
+  public_regulation: "Quy định pháp luật công khai",
+  unofficial_web: "Trang tham khảo (chưa xác minh với BQL)",
+  // Nói thẳng đây là dữ liệu mô phỏng. Trình bày số liệu tự dựng như thể là
+  // số thật trước mặt doanh nghiệp là mất uy tín ngay khi có người biết rõ.
+  synthetic_demo: "Quy trình mô phỏng (dữ liệu demo)",
+};
+
 function SourceCard({ source }: { source: Source }) {
-  const official = source.source_type === "bql_internal";
-  const Icon = official ? FileText : Scale;
+  const Icon = source.source_type === "bql_internal" ? FileText : Scale;
 
   return (
     <div className="rounded-xl border border-border bg-background px-3.5 py-2.5">
@@ -211,7 +192,7 @@ function SourceCard({ source }: { source: Source }) {
             {source.snippet}
           </p>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-muted">
-            {official ? "Tài liệu Ban quản lý" : "Quy định pháp luật công khai"}
+            {SOURCE_LABELS[source.source_type]}
           </p>
         </div>
       </div>

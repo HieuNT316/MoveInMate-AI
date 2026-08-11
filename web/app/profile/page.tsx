@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Building2, Car, Home, KeyRound, Loader2, Mail } from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, describeError, type Profile } from "../../lib/api";
+import { api, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 const AMENITY_LABELS: Record<string, string> = {
@@ -23,21 +23,18 @@ const APARTMENT_LABELS: Record<string, string> = {
   duplex: "Duplex",
 };
 
-type Tab = "info" | "apartment";
-
 export default function ProfilePage() {
   const { userId, ready } = useDemoUser();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<Tab>("info");
 
   const load = useCallback(async () => {
     try {
       setProfile(await api.getProfile(userId));
       setError(null);
-    } catch (err) {
-      setError(describeError(err));
+    } catch {
+      setError("Không kết nối được backend.");
     }
   }, [userId]);
 
@@ -116,104 +113,66 @@ export default function ProfilePage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-8">
-          <div className="mb-6 flex gap-2">
-            {(
-              [
-                { id: "info", label: "Thông tin" },
-                { id: "apartment", label: "Căn hộ" },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${
-                  tab === t.id
-                    ? "bg-ink text-white"
-                    : "border border-border text-muted hover:text-ink"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <h3 className="font-display mb-5 text-lg font-semibold text-ink">
+            Thông tin dùng để lập checklist
+          </h3>
+
+          <dl className="space-y-4 text-sm">
+            <Row
+              icon={KeyRound}
+              label="Hình thức sở hữu"
+              value={
+                profile.ownership_type
+                  ? isOwner
+                    ? "Chủ căn hộ"
+                    : "Người thuê"
+                  : "Chưa khai báo"
+              }
+            />
+            <Row
+              icon={Home}
+              label="Loại căn hộ"
+              value={
+                profile.apartment_type
+                  ? APARTMENT_LABELS[profile.apartment_type]
+                  : "Chưa khai báo"
+              }
+            />
+            <Row
+              icon={Car}
+              label="Có xe"
+              value={profile.has_car ? "Có" : "Không"}
+              action={
+                <button
+                  onClick={toggleCar}
+                  disabled={saving}
+                  className="rounded-full border border-border px-3 py-1 text-xs text-muted transition hover:border-gold/50 hover:text-gold disabled:opacity-40"
+                >
+                  {saving ? "Đang lưu..." : "Đổi"}
+                </button>
+              }
+            />
+          </dl>
+
+          <div className="mt-5 border-t border-border pt-5">
+            <p className="text-xs uppercase tracking-wide text-muted">
+              Gói tiện ích
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {profile.amenity_packages.length === 0 ? (
+                <span className="text-sm text-muted">Chưa đăng ký gói nào</span>
+              ) : (
+                profile.amenity_packages.map((amenity) => (
+                  <span
+                    key={amenity}
+                    className="rounded-full border border-gold/40 bg-gold-tint px-3 py-1 text-xs text-ink"
+                  >
+                    {AMENITY_LABELS[amenity] ?? amenity}
+                  </span>
+                ))
+              )}
+            </div>
           </div>
-
-          {tab === "info" ? (
-            <>
-              <dl className="space-y-4 text-sm">
-                <Row icon={Mail} label="Email" value={profile.email} />
-                <Row
-                  icon={KeyRound}
-                  label="Hình thức sở hữu"
-                  value={
-                    profile.ownership_type
-                      ? isOwner
-                        ? "Chủ căn hộ"
-                        : "Người thuê"
-                      : "Chưa khai báo"
-                  }
-                />
-                <Row
-                  icon={Car}
-                  label="Có xe"
-                  value={profile.has_car ? "Có" : "Không"}
-                  action={
-                    <button
-                      onClick={toggleCar}
-                      disabled={saving}
-                      className="rounded-full border border-border px-3 py-1 text-xs text-muted transition hover:border-gold/50 hover:text-gold disabled:opacity-40"
-                    >
-                      {saving ? "Đang lưu..." : "Đổi"}
-                    </button>
-                  }
-                />
-              </dl>
-
-              <div className="mt-5 border-t border-border pt-5">
-                <p className="text-xs uppercase tracking-wide text-muted">
-                  Gói tiện ích
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {profile.amenity_packages.length === 0 ? (
-                    <span className="text-sm text-muted">
-                      Chưa đăng ký gói nào
-                    </span>
-                  ) : (
-                    profile.amenity_packages.map((amenity) => (
-                      <span
-                        key={amenity}
-                        className="rounded-full border border-gold/40 bg-gold-tint px-3 py-1 text-xs text-ink"
-                      >
-                        {AMENITY_LABELS[amenity] ?? amenity}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <dl className="space-y-4 text-sm">
-              <Row icon={Building2} label="Toà nhà" value={profile.building} />
-              <Row icon={Home} label="Mã căn hộ" value={profile.apartment} />
-              <Row
-                icon={Home}
-                label="Loại căn hộ"
-                value={
-                  profile.apartment_type
-                    ? APARTMENT_LABELS[profile.apartment_type]
-                    : "Chưa khai báo"
-                }
-              />
-              <Row
-                icon={BadgeCheck}
-                label="Trạng thái onboarding"
-                value={
-                  profile.onboarding_completed_at
-                    ? `Hoàn tất lúc ${profile.onboarding_completed_at}`
-                    : "Chưa thiết lập"
-                }
-              />
-            </dl>
-          )}
 
           <p className="mt-5 text-xs leading-relaxed text-muted">
             Đổi thông tin ở đây thì checklist tự cập nhật ngay — danh sách được
