@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { readUserId, writeUserId } from "./api";
 
 /**
- * Danh tính người dùng cho bản demo.
+ * Người dùng nào đang đăng nhập, theo góc nhìn của UI.
  *
- * ⚠️ TẠM THỜI — thay cho phiên đăng nhập Supabase.
+ * Phiên thật nằm ở Supabase; hook này chỉ giữ `user_id` của hồ sơ cư dân để bộ
+ * đổi persona biết đang tô đậm nút nào. Mọi request đi kèm Bearer token, không
+ * kèm id này.
  *
  * KHÔNG có id mặc định. Trước đây hook này trả sẵn một id cứng, nên trình duyệt
  * chưa từng đăng nhập vẫn gọi API bằng id đó; trên SQLite thì tình cờ đúng, còn

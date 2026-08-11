@@ -4,8 +4,9 @@
  * Kiểu dữ liệu ở đây khớp 1-1 với `src/models/schemas.py`. Đổi contract phía
  * backend thì phải đổi cả file này — xem docs/architecture_diagram.md mục 4.3.
  *
- * ⚠️ Xác thực hiện là TẠM: gửi header `X-User-Id` thay vì JWT của Supabase.
- * Khi có auth thật, chỉ cần sửa `authHeaders()` bên dưới, phần còn lại giữ nguyên.
+ * Xác thực: JWT của Supabase, gắn ở `authHeaders()` bên dưới. Header `X-User-Id`
+ * chỉ còn là lối dự phòng khi chạy local chưa có phiên — backend từ chối hẳn nó
+ * khi `APP_ENV=production`.
  */
 
 import { currentAccessToken } from "./supabase";
@@ -194,13 +195,6 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  /** ⚠️ TẠM THỜI — không kiểm mật khẩu, chờ Supabase Auth. */
-  login: (email: string) =>
-    publicRequest<Profile>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-
   /** ⚠️ TẠM THỜI — persona mẫu để demo nhanh. */
   getDemoAccounts: () => publicRequest<DemoAccount[]>("/auth/demo-accounts"),
 

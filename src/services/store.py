@@ -72,11 +72,6 @@ def get_user(db: Session, user_id: int) -> dict[str, Any] | None:
     return _user_dict(user) if user else None
 
 
-def get_user_by_email(db: Session, email: str) -> dict[str, Any] | None:
-    user = db.scalar(select(User).where(User.email == email.strip().lower()))
-    return _user_dict(user) if user else None
-
-
 def get_user_by_auth_id(db: Session, auth_user_id: uuid.UUID) -> dict[str, Any] | None:
     """Tra hồ sơ cư dân từ `sub` của JWT Supabase (US-01)."""
     user = db.scalar(select(User).where(User.auth_user_id == auth_user_id))

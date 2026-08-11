@@ -25,7 +25,6 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
-    LoginRequest,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -43,22 +42,12 @@ router = APIRouter()
 
 
 # --- Đăng nhập ----------------------------------------------------------
-
-
-@router.post("/auth/login", response_model=ProfileResponse)
-async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Any:
-    """⚠️ TẠM THỜI — tra người dùng theo email, KHÔNG kiểm mật khẩu.
-
-    Đây không phải xác thực và không được để lên production. Nó tồn tại để
-    demo chạy được nhiều persona trước khi dựng Supabase Auth.
-    """
-    user = store.get_user_by_email(db, payload.email)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email không có trong hệ thống. Tài khoản do Ban quản lý cấp.",
-        )
-    return user
+#
+# Xác thực nằm ở Supabase, không ở đây: frontend gọi thẳng
+# `supabase.auth.signInWithPassword`, backend chỉ verify JWT (`src/api/deps.py`).
+# Endpoint `/auth/login` tra theo email và không kiểm mật khẩu đã bị xoá ngày
+# 11/08 — nó trả nguyên hồ sơ cư dân cho bất kỳ ai gọi, và từ lúc frontend
+# chuyển sang Supabase thì không còn ai dùng.
 
 
 def _describe(user: dict[str, Any]) -> str:
@@ -91,7 +80,7 @@ _DEMO_PATTERNS = [
 
 @router.get("/auth/demo-accounts", response_model=list[DemoAccount])
 async def demo_accounts(db: Session = Depends(get_db)) -> Any:
-    """⚠️ TẠM THỜI — các persona tương phản để demo, xoá cùng lúc với /auth/login.
+    """⚠️ TẠM THỜI — các persona tương phản để demo.
 
     Chọn theo hồ sơ chứ không hardcode id: seed lại dữ liệu vẫn ra danh sách
     hợp lệ. `checklist_total` tính bằng chính rule engine nên con số khác nhau

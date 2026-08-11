@@ -9,7 +9,8 @@ import { DEMO_PASSWORD, supabase } from "../../lib/supabase";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 /**
- * ⚠️ TẠM THỜI — chỉ dành cho demo, phải gỡ khi có đăng nhập Supabase thật.
+ * ⚠️ TẠM THỜI — gỡ cùng lúc với `/auth/demo-accounts`. Nó vẫn đăng nhập thật
+ * qua Supabase, chỉ là biết sẵn mật khẩu mẫu để bấm một nút là đổi được vai.
  *
  * Đổi vai ngay trên màn hình để so sánh checklist giữa các hồ sơ mà không phải
  * đăng xuất. Danh sách lấy từ `/auth/demo-accounts` chứ không hardcode id:

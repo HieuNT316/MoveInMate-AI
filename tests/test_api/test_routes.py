@@ -447,34 +447,7 @@ async def test_dashboard_bql_chi_bao_cao_pham_vi_cua_minh(client):
     assert owner_row["bql_scope"]["total"] < checklist["overall"]["total"]
 
 
-# --- Đăng nhập (tạm thời, xoá cùng lúc với /auth/login) -----------------
-
-
-@pytest.mark.asyncio
-async def test_dang_nhap_bang_email_tra_ve_dung_nguoi(client):
-    response = await client.post(
-        "/api/v1/auth/login", json={"email": "an.tran@demo.vn"}
-    )
-    assert response.status_code == 200
-    assert response.json()["user_id"] == 2
-
-
-@pytest.mark.asyncio
-async def test_email_khong_ton_tai_thi_401(client):
-    response = await client.post(
-        "/api/v1/auth/login", json={"email": "nguoi.la@demo.vn"}
-    )
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_email_khong_phan_biet_hoa_thuong_va_khoang_trang(client):
-    """Người demo gõ tay email nên phải chịu được viết hoa và khoảng trắng thừa."""
-    response = await client.post(
-        "/api/v1/auth/login", json={"email": "  AN.Tran@Demo.VN  "}
-    )
-    assert response.status_code == 200
-    assert response.json()["user_id"] == 2
+# --- Tài khoản demo (tạm thời, xoá cùng lúc với /auth/demo-accounts) ----
 
 
 @pytest.mark.asyncio
