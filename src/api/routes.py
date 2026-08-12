@@ -5,6 +5,7 @@ tách thành package `src/api/routes/` như mô tả ở docs/architecture_diagr
 mục 3.2.
 """
 
+import re
 import unicodedata
 from typing import Any
 
@@ -25,7 +26,6 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
-    LoginRequest,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -43,22 +43,12 @@ router = APIRouter()
 
 
 # --- Đăng nhập ----------------------------------------------------------
-
-
-@router.post("/auth/login", response_model=ProfileResponse)
-async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Any:
-    """⚠️ TẠM THỜI — tra người dùng theo email, KHÔNG kiểm mật khẩu.
-
-    Đây không phải xác thực và không được để lên production. Nó tồn tại để
-    demo chạy được nhiều persona trước khi dựng Supabase Auth.
-    """
-    user = store.get_user_by_email(db, payload.email)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email không có trong hệ thống. Tài khoản do Ban quản lý cấp.",
-        )
-    return user
+#
+# Xác thực nằm ở Supabase, không ở đây: frontend gọi thẳng
+# `supabase.auth.signInWithPassword`, backend chỉ verify JWT (`src/api/deps.py`).
+# Endpoint `/auth/login` tra theo email và không kiểm mật khẩu đã bị xoá ngày
+# 11/08 — nó trả nguyên hồ sơ cư dân cho bất kỳ ai gọi, và từ lúc frontend
+# chuyển sang Supabase thì không còn ai dùng.
 
 
 def _describe(user: dict[str, Any]) -> str:
@@ -91,7 +81,7 @@ _DEMO_PATTERNS = [
 
 @router.get("/auth/demo-accounts", response_model=list[DemoAccount])
 async def demo_accounts(db: Session = Depends(get_db)) -> Any:
-    """⚠️ TẠM THỜI — các persona tương phản để demo, xoá cùng lúc với /auth/login.
+    """⚠️ TẠM THỜI — các persona tương phản để demo.
 
     Chọn theo hồ sơ chứ không hardcode id: seed lại dữ liệu vẫn ra danh sách
     hợp lệ. `checklist_total` tính bằng chính rule engine nên con số khác nhau
@@ -238,24 +228,65 @@ def _strip_action_prefix(text: str) -> str:
     return text
 
 
-def _match_checklist_item(
-    procedure_name: str, items: list[dict[str, Any]]
-) -> dict[str, Any] | None:
-    """Đối chiếu tên thủ tục do LLM suy ra với đúng một mục checklist thật.
+# Ranh giới mà tool của vai AI cố ý giữ: "cần giấy tờ gì" là câu hỏi THÔNG TIN
+# (trả lời bằng chữ là đủ), "cho tôi nộp" là ý định HÀNH ĐỘNG (mới gắn nút).
+#
+# Phải có cả hai danh sách. Chỉ bắt động từ hành động là chưa đủ: "Làm thẻ xe
+# cần giấy tờ gì?" có "làm thẻ" nhưng đuôi câu cho thấy người ta chỉ đang hỏi.
+_ACTION_MARKERS = (
+    "nop ", "nop ho so", "dan toi", "dua toi", "cho toi nop", "giup toi nop",
+    "toi muon lam", "toi muon dang ky", "muon nop", "can nop", "toi nop",
+)
+_INFO_TAILS = (
+    "can giay to gi", "can gi", "gom nhung gi", "gom gi", "la gi",
+    "bao nhieu", "the nao", "ra sao", "mat bao lau", "khi nao", "thu tuc gi",
+)
 
-    `chat_graph` không chạm DB (docs mục 7) nên tool chỉ trả tên tự nhiên;
-    việc khớp ra `checklist_item_id` thật nằm ở đây. So trên phần lõi sau khi
-    bỏ động từ đầu câu, để "đăng ký thẻ cư dân" (AI nói) khớp được với "Làm
-    thẻ cư dân" (tên thật trong checklist) — hai bên chỉ khác động từ.
-    Không khớp được thì trả None, FE tự ẩn nút điều hướng thay vì điều hướng
-    sai chỗ (vd. "thẻ xe" so với "thẻ cư dân" phải KHÔNG khớp nhau).
+
+def _wants_to_act(question: str) -> bool:
+    """True khi câu hỏi là ý định LÀM thủ tục, không phải hỏi về nó."""
+    normalized = _normalize(question)
+    if any(tail in normalized for tail in _INFO_TAILS):
+        return False
+    return any(marker in normalized for marker in _ACTION_MARKERS)
+
+
+def _core_name(text: str) -> str:
+    """Phần lõi của tên thủ tục: bỏ dấu, bỏ động từ đầu, bỏ phần trong ngoặc.
+
+    `"Làm thẻ cư dân (chủ hộ)"` → `"the cu dan"`. Phần trong ngoặc phân biệt
+    nhánh chủ hộ/người thuê, nhưng hai nhánh đó loại trừ nhau qua `conditions`
+    nên trong checklist của MỘT người chỉ có tối đa một mục — bỏ đi để câu hỏi
+    tự nhiên vẫn khớp được.
     """
-    target = _strip_action_prefix(_normalize(procedure_name))
-    for item in items:
-        name = _strip_action_prefix(_normalize(item["task_name"]))
-        if name == target or name in target or target in name:
-            return item
-    return None
+    stripped = _strip_action_prefix(_normalize(text))
+    return re.sub(r"\s*\([^)]*\)", "", stripped).strip()
+
+
+def _match_checklist_item(
+    probe: str, items: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Đối chiếu ra ĐÚNG MỘT mục checklist thật, hoặc không gì cả.
+
+    `probe` là tên thủ tục LLM suy ra ("Đăng ký thẻ xe") HOẶC nguyên câu người
+    dùng gõ ("Cho tôi nộp hồ sơ làm thẻ cư dân") — cả hai đều đi qua đây kể từ
+    12/08, khi lớp đối chiếu thôi phụ thuộc vào việc LLM có gọi tool hay không.
+
+    Khớp từ hai mục trở lên thì trả None: thà không hiện nút còn hơn đưa cư dân
+    tới sai thủ tục. `items` đã là checklist RIÊNG của người dùng nên nhánh chủ
+    hộ và người thuê không bao giờ cùng xuất hiện.
+    """
+    probe_core = _core_name(probe)
+    if not probe_core:
+        return None
+
+    matches = [
+        item
+        for item in items
+        if (core := _core_name(item["task_name"]))
+        and (core == probe_core or core in probe_core or probe_core in core)
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -279,14 +310,50 @@ async def chat(
         "answer_source": state["answer_source"],
     }
 
+    # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
+    #
+    # Trước đây khối này chỉ chạy khi `state["suggested_action"]` có giá trị,
+    # tức khi LLM chủ động gọi tool. Đo trên bản deploy 12/08: cùng một câu
+    # "Dẫn tôi đến chỗ nộp hồ sơ đăng ký thẻ xe" bắn 0/5 lần — và càng bổ sung
+    # dữ liệu định tuyến vào KB thì LLM càng trả lời được bằng văn xuôi nên
+    # càng ít gọi tool. Tính năng tốt lên làm tính năng khác hỏng đi.
+    #
+    # Cùng lập luận đã áp cho `sources[]`: việc gì tính tất định được thì
+    # không giao cho LLM quyết. Tool hạ xuống thành tín hiệu bổ trợ — nó vẫn
+    # thắng khi bắn, vì tên thủ tục nó suy ra chính xác hơn nguyên câu hỏi.
+    # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
+    #
+    # Trước đây khối này chỉ chạy khi LLM chủ động gọi tool. Đo trên bản deploy
+    # 12/08: cùng câu "Dẫn tôi đến chỗ nộp hồ sơ đăng ký thẻ xe" bắn 0/5 lần —
+    # và càng bổ sung dữ liệu định tuyến vào KB thì LLM càng trả lời được bằng
+    # văn xuôi nên càng ít gọi tool. Dữ liệu tốt lên làm tính năng hỏng đi.
+    #
+    # Cùng lập luận đã áp cho `sources[]`: việc gì tính tất định được thì không
+    # giao cho LLM quyết. Tool hạ xuống thành tín hiệu bổ trợ — vẫn được ưu tiên
+    # khi bắn, vì tên thủ tục nó suy ra chính xác hơn nguyên câu hỏi.
     suggested = state.get("suggested_action")
-    if suggested:
-        items = generate_checklist(user, store.list_checklist_items(db))
-        match = _match_checklist_item(suggested["procedure_name"], items)
+    items = generate_checklist(user, store.list_checklist_items(db))
+
+    # Thử tên do tool suy ra trước (chính xác hơn), không khớp thì thử nguyên
+    # câu hỏi. Thiếu bước lùi này thì một lần tool bắn kèm tên lệch sẽ chặn
+    # luôn lớp tất định — quan sát được lúc kiểm chứng 12/08.
+    match = _match_checklist_item(suggested["procedure_name"], items) if suggested else None
+    if match is None and (suggested or _wants_to_act(payload.message)):
+        match = _match_checklist_item(payload.message, items)
+
+    if match:
+        result["suggested_action"] = {
+            "type": "navigate_to_submission",
+            "procedure_name": match["task_name"],
+            "checklist_item_id": match["id"],
+        }
+    elif suggested:
+        # Tool bắn nhưng không đối chiếu được: giữ hợp đồng ở docs mục 4.4 —
+        # vẫn trả về với `checklist_item_id` null để FE tự ẩn nút.
         result["suggested_action"] = {
             "type": suggested["type"],
             "procedure_name": suggested["procedure_name"],
-            "checklist_item_id": match["id"] if match else None,
+            "checklist_item_id": None,
         }
 
     store.add_chat(db, user["user_id"], {"question": payload.message, **result})

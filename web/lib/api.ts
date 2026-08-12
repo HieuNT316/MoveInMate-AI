@@ -4,8 +4,9 @@
  * Kiểu dữ liệu ở đây khớp 1-1 với `src/models/schemas.py`. Đổi contract phía
  * backend thì phải đổi cả file này — xem docs/architecture_diagram.md mục 4.3.
  *
- * ⚠️ Xác thực hiện là TẠM: gửi header `X-User-Id` thay vì JWT của Supabase.
- * Khi có auth thật, chỉ cần sửa `authHeaders()` bên dưới, phần còn lại giữ nguyên.
+ * Xác thực: JWT của Supabase, gắn ở `authHeaders()` bên dưới. Header `X-User-Id`
+ * chỉ còn là lối dự phòng khi chạy local chưa có phiên — backend từ chối hẳn nó
+ * khi `APP_ENV=production`.
  */
 
 import { currentAccessToken } from "./supabase";
@@ -72,10 +73,12 @@ export type Source = {
 };
 
 /**
- * Tín hiệu điều hướng — AI phát hiện câu hỏi kiểu "nộp hồ sơ ở đâu" và đối
- * chiếu được với đúng một mục checklist. `checklist_item_id` null nghĩa là
- * backend không đối chiếu chắc chắn được: chỉ hiện `procedure_name` dạng
- * chữ, không hiện nút điều hướng.
+ * Tín hiệu điều hướng do agent phát ra khi người dùng hỏi CÁCH NỘP hồ sơ
+ * (khác với hỏi "cần giấy tờ gì" — câu đó chỉ cần trả lời bằng chữ).
+ *
+ * `checklist_item_id` là `null` khi backend không đối chiếu được tên thủ tục
+ * AI suy ra với đúng một mục trong checklist thật của người dùng. Lúc đó FE
+ * **phải ẩn nút**, không điều hướng mù tới chỗ sai.
  */
 export type SuggestedAction = {
   type: "navigate_to_submission";
@@ -87,7 +90,7 @@ export type ChatAnswer = {
   answer: string;
   sources: Source[];
   answer_source: AnswerSource;
-  suggested_action: SuggestedAction | null;
+  suggested_action?: SuggestedAction | null;
 };
 
 export type OnboardingPayload = {
@@ -196,7 +199,7 @@ export class ApiError extends Error {
 }
 
 /**
- * Phân biệt "backend không chạy/không nối được mạng" (fetch tự throw) với
+ * Phân biệt "backend không chạy / không nối được mạng" (fetch tự throw) với
  * "backend có phản hồi nhưng trả lỗi" (ApiError, ví dụ 401/404/500) — hai
  * tình huống khác nhau, gộp chung một câu dễ chẩn đoán sai nguyên nhân.
  */
@@ -205,7 +208,7 @@ export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     return `Backend trả lỗi ${err.status}: ${err.message || "không rõ chi tiết"}`;
   }
-  return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` ở thư mục gốc repo (không phải trong web/) chưa.";
+  return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
 }
 
 async function request<T>(
@@ -244,13 +247,6 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  /** ⚠️ TẠM THỜI — không kiểm mật khẩu, chờ Supabase Auth. */
-  login: (email: string) =>
-    publicRequest<Profile>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-
   /** ⚠️ TẠM THỜI — persona mẫu để demo nhanh. */
   getDemoAccounts: () => publicRequest<DemoAccount[]>("/auth/demo-accounts"),
 

@@ -1,0 +1,265 @@
+# Bộ câu hỏi đánh giá chất lượng trợ lý (US-15 / deliverable BTC).
+#
+# Vì sao cần: charter đặt mục tiêu "≥7/10 retrieval accuracy" nhưng chưa từng có
+# bộ câu hỏi nào để đo. Ngưỡng `rag_max_distance` hiện cũng mới hiệu chỉnh trên
+# 4 câu — quá ít để tin.
+#
+# Cách chấm (xem scripts/run_eval.py):
+#   expect: answer  -> phải trả lời, answer_source = rag|faq
+#   expect: refuse  -> phải từ chối, answer_source = no_context
+#   must_mention    -> từ khoá BẮT BUỘC có trong câu trả lời (so khớp bỏ dấu)
+#   expect_source   -> tên file tài liệu mong đợi được trích dẫn
+#
+# Nguyên tắc soạn: mỗi câu phải trả lời được TỪ CORPUS HIỆN CÓ. Câu nào cần
+# thông tin chưa có trong KB thì xếp vào `expect: refuse`, không phải là câu sai.
+
+questions:
+  # ---------- Thẻ cư dân ----------
+  - id: Q01
+    question: "Làm thẻ cư dân cho chủ hộ cần giấy tờ gì?"
+    procedure: the-cu-dan
+    dimension: giay-to
+    expect: answer
+    must_mention: ["CCCD", "ảnh"]
+
+  - id: Q02
+    question: "Khách thuê muốn làm thẻ cư dân thì cần chuẩn bị những gì?"
+    procedure: the-cu-dan
+    dimension: giay-to
+    expect: answer
+    must_mention: ["hợp đồng thuê"]
+
+  - id: Q03
+    question: "Mất thẻ cư dân thì phải làm sao?"
+    procedure: the-cu-dan
+    dimension: loi-thuong-gap
+    expect: answer
+    must_mention: ["báo"]
+
+  # ---------- Tạm trú / cư trú ----------
+  - id: Q04
+    question: "Đăng ký tạm trú cần giấy tờ gì?"
+    procedure: tam-tru
+    dimension: giay-to
+    expect: answer
+    must_mention: ["CMND"]
+
+  - id: Q05
+    question: "Người nước ngoài thuê căn hộ phải khai báo tạm trú trong bao lâu?"
+    procedure: tam-tru
+    dimension: thoi-han
+    expect: answer
+    must_mention: ["12 giờ"]
+
+  - id: Q06
+    question: "Nộp hồ sơ tạm trú ở đâu?"
+    procedure: tam-tru
+    dimension: noi-nop
+    expect: answer
+    must_mention: ["Tây Mỗ"]
+
+  - id: Q07
+    question: "Thông báo lưu trú cho khách ở qua đêm phải làm trước mấy giờ?"
+    procedure: luu-tru
+    dimension: thoi-han
+    expect: answer
+    must_mention: ["23"]
+
+  - id: Q08
+    question: "Tôi là chủ hộ, muốn chuyển thường trú về căn hộ mới thì cần gì?"
+    procedure: thuong-tru
+    dimension: giay-to
+    expect: answer
+    must_mention: ["CT01"]
+
+  - id: Q09
+    question: "Chưa có sổ hồng thì đăng ký thường trú được không?"
+    procedure: thuong-tru
+    dimension: dieu-kien
+    expect: answer
+    must_mention: ["bàn giao"]
+
+  - id: Q10
+    question: "Ban quản lý có làm hộ thủ tục đăng ký thường trú không?"
+    procedure: thuong-tru
+    dimension: ai-xu-ly
+    expect: answer
+    must_mention: ["không"]
+
+  # ---------- Phương tiện ----------
+  - id: Q11
+    question: "Đăng ký thẻ xe cần mang theo những gì?"
+    procedure: the-xe
+    dimension: giay-to
+    expect: answer
+    must_mention: ["đăng ký xe"]
+
+  - id: Q12
+    question: "Phí gửi xe ô tô một tháng là bao nhiêu?"
+    procedure: the-xe
+    dimension: phi
+    expect: answer
+    must_mention: ["1.250.000"]
+
+  - id: Q13
+    question: "Bộ phận nào xử lý hồ sơ thẻ xe?"
+    procedure: the-xe
+    dimension: ai-xu-ly
+    expect: answer
+    must_mention: ["An ninh"]
+
+  - id: Q14
+    question: "Mua chỗ đỗ xe cố định rồi có phải đóng phí gửi xe hàng tháng nữa không?"
+    procedure: cho-do-xe
+    dimension: phi
+    expect: answer
+    must_mention: ["phí"]
+
+  - id: Q15
+    question: "Hết chỗ đỗ xe cố định thì đăng ký thế nào?"
+    procedure: cho-do-xe
+    dimension: dieu-kien
+    expect: answer
+    must_mention: ["danh sách chờ"]
+
+  # ---------- Tiện ích ----------
+  - id: Q16
+    question: "Hồ sơ đăng ký thẻ phòng gym gồm những gì?"
+    procedure: gym
+    dimension: giay-to
+    expect: answer
+    must_mention: ["thẻ cư dân"]
+
+  - id: Q17
+    question: "Phí bể bơi ngoài trời tính thế nào?"
+    procedure: be-boi
+    dimension: phi
+    expect: answer
+    must_mention: ["15.000"]
+
+  - id: Q18
+    question: "Trẻ em dưới 14 tuổi có được vào bể bơi một mình không?"
+    procedure: be-boi
+    dimension: dieu-kien
+    expect: answer
+    must_mention: ["người lớn"]
+
+  # ---------- Thủ tục nhận nhà ----------
+  - id: Q19
+    question: "Thủ tục ký nội quy toà nhà thế nào?"
+    procedure: noi-quy
+    dimension: trinh-tu
+    expect: answer
+    must_mention: ["lễ tân"]
+
+  - id: Q20
+    question: "Người thuê nhà có phải ký nội quy không?"
+    procedure: noi-quy
+    dimension: dieu-kien
+    expect: answer
+    must_mention: ["có"]
+
+  - id: Q21
+    question: "Muốn chuyển đồ vào căn hộ phải báo trước bao lâu?"
+    procedure: chuyen-do
+    dimension: thoi-han
+    expect: answer
+    must_mention: ["24"]
+
+  - id: Q22
+    question: "Đăng ký internet thì Ban quản lý hay nhà mạng làm?"
+    procedure: internet
+    dimension: ai-xu-ly
+    expect: answer
+    must_mention: ["nhà mạng"]
+
+  - id: Q23
+    question: "Làm thẻ thang máy cần gì?"
+    procedure: thang-may
+    dimension: giay-to
+    expect: answer
+    must_mention: ["thẻ cư dân"]
+
+  # ---------- Quy trình BQL ----------
+  - id: Q24
+    question: "Hồ sơ của tôi đi qua những bước nào trước khi có kết quả?"
+    procedure: quy-trinh
+    dimension: trinh-tu
+    expect: answer
+    must_mention: ["tiếp nhận"]
+
+  - id: Q25
+    question: "Giờ làm việc của văn phòng Ban quản lý là khi nào?"
+    procedure: lien-he
+    dimension: noi-nop
+    expect: answer
+    must_mention: ["08"]
+
+  # ---------- Bền vững: viết không dấu, viết tắt, diễn đạt khác ----------
+  - id: Q26
+    question: "lam the xe can giay to gi"
+    procedure: the-xe
+    dimension: bien-the-khong-dau
+    expect: answer
+    must_mention: ["CCCD"]
+
+  - id: Q27
+    question: "Tôi vừa mua ô tô, giờ phải làm thủ tục gì với toà nhà?"
+    procedure: the-xe
+    dimension: dien-dat-gian-tiep
+    expect: answer
+    must_mention: ["thẻ xe"]
+
+  - id: Q28
+    question: "Bọn trẻ nhà tôi muốn đi bơi thì đăng ký ở đâu?"
+    procedure: be-boi
+    dimension: dien-dat-gian-tiep
+    expect: answer
+    must_mention: ["lễ tân"]
+
+  # ---------- Phải TỪ CHỐI: ngoài phạm vi ----------
+  - id: Q29
+    question: "Giá vàng hôm nay bao nhiêu?"
+    procedure: ngoai-pham-vi
+    dimension: tu-choi
+    expect: refuse
+
+  - id: Q30
+    question: "Thời tiết Hà Nội ngày mai thế nào?"
+    procedure: ngoai-pham-vi
+    dimension: tu-choi
+    expect: refuse
+
+  - id: Q31
+    question: "Cho tôi công thức nấu phở bò."
+    procedure: ngoai-pham-vi
+    dimension: tu-choi
+    expect: refuse
+
+  - id: Q32
+    question: "Lãi suất vay mua nhà ngân hàng Vietcombank là bao nhiêu?"
+    procedure: ngoai-pham-vi
+    dimension: tu-choi
+    expect: refuse
+
+  # ---------- Phải TỪ CHỐI: đúng lĩnh vực nhưng KB không có ----------
+  # Đây là nhóm khó nhất và là nơi guard hay hỏng: câu hỏi nghe rất hợp lệ,
+  # từ vựng trùng KB, nhưng dữ liệu thật sự không có. Trả lời bừa ở đây tệ
+  # hơn nhiều so với từ chối.
+  - id: Q33
+    question: "Phí bảo trì 2% của căn hộ tôi là bao nhiêu tiền?"
+    procedure: ngoai-du-lieu
+    dimension: tu-choi
+    expect: refuse
+
+  - id: Q34
+    question: "Số điện thoại trực tiếp của trưởng ban quản lý toà S203 là gì?"
+    procedure: ngoai-du-lieu
+    dimension: tu-choi
+    expect: refuse
+
+  - id: Q35
+    question: "Căn hộ 2508 toà S101 hiện do ai đứng tên?"
+    procedure: ngoai-du-lieu
+    dimension: tu-choi
+    expect: refuse

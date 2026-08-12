@@ -92,7 +92,8 @@ Phần thưởng phải là thứ sản phẩm tự trao được: huy hiệu, c
 
 | Tính năng | Trạng thái thật | Thiếu gì |
 |---|---|---|
-| **Điều hướng nộp hồ sơ** | BE trả `suggested_action`; **FE chưa khai báo type nên đang bỏ qua hoàn toàn** | FE hiện nút; trang đích; lớp đối chiếu tất định ở BE (tool LLM mới bắn 2/4 cách hỏi) |
+| **Điều hướng trong app** (nghĩa a) | FE đã hiện nút (12/08), nhưng tool LLM đo được **0/5** nên nút gần như không xuất hiện | Lớp đối chiếu tất định ở BE — cần vai AI duyệt |
+| **Định tuyến hồ sơ tới bộ phận** (nghĩa c — US-13, đề bài mục Nâng cao) | **Chưa có gì**: không có bảng `APPLICATIONS`, không có endpoint nộp đơn. Dữ liệu định tuyến đã sẵn trong `data/kb/bql/` nhưng mới ở dạng văn bản cho chat đọc | Phase 2 theo charter — cần quyết định có kéo lên không |
 | **Form nộp hồ sơ online** | FE đang làm | Chưa có contract API viết ra giữa FE và BE — **phải chốt trước khi code song song** |
 
 ### 5.3 Xếp W4 — góp ý mentor 08/08, không bắt buộc cho GATE 2
@@ -103,6 +104,7 @@ Phần thưởng phải là thứ sản phẩm tự trao được: huy hiệu, c
 | Huy hiệu khi hoàn thành thủ tục | Hiện ngay tại chỗ tick, không cần trang riêng |
 | Câu trả lời chat có cấu trúc | Bước đánh số, tách khối "giấy tờ / thời gian / địa điểm" thành card |
 | Hình minh hoạ trong chat | **Không cào được ảnh trang nguồn** (placeholder lazy-load, và là ảnh bên thứ ba). Hướng khả thi: 4-5 ảnh theo `category` |
+| **Nút 👍/👎 dưới mỗi câu trả lời** | Nguồn duy nhất cho biết chất lượng thật ngoài 35 câu nhóm tự soạn; cũng là đầu vào mở rộng bộ đánh giá — xem [`OPERATIONS.md`](./OPERATIONS.md) |
 
 ### 5.4 Không làm
 
@@ -111,7 +113,7 @@ Phần thưởng phải là thứ sản phẩm tự trao được: huy hiệu, c
 ## 6. Ràng buộc ảnh hưởng tới trải nghiệm
 
 - **Hội thoại single-turn ở Phase 1.** Hỏi nối tiếp kiểu "còn thẻ xe thì sao?" sẽ mất ngữ cảnh. Kịch bản demo phải hỏi trọn câu.
-- **Đăng nhập hiện chưa kiểm mật khẩu** — tra theo email để demo nhiều persona. Tuyệt đối không lên production.
+- **Đăng nhập đã dùng Supabase Auth thật** (US-01, xong 11/08): mật khẩu qua `signInWithPassword`, backend verify JWT ES256. Header `X-User-Id` chỉ còn là lối dev và bị chặn khi `APP_ENV=production`.
 - **Ba mục checklist chưa có tài liệu BQL thật**; đang dùng dữ liệu mô phỏng có nhãn.
 
 ## 7. Đo cái gì
@@ -119,5 +121,5 @@ Phần thưởng phải là thứ sản phẩm tự trao được: huy hiệu, c
 | Chỉ số | Vì sao | Trạng thái |
 |---|---|---|
 | % cư dân hoàn thành onboarding trong X ngày đầu | Giá trị chính với BQL | Có mốc `onboarding_completed_at`, chưa có báo cáo |
-| Retrieval accuracy | Chất lượng trợ lý | Mục tiêu ≥7/10, **chưa đo trên bộ đủ lớn** |
-| Tỷ lệ câu bị từ chối | Từ chối quá nhiều = KB thiếu; quá ít = guard hỏng | Chưa đo |
+| Retrieval accuracy | Chất lượng trợ lý | **Đo 11/08: 19/35 trọn vẹn, 32/35 đúng loại.** 9/16 câu trượt chỉ vì KB chưa ingest — xem `eval/results/report.md` |
+| Tỷ lệ câu bị từ chối | Từ chối quá nhiều = KB thiếu; quá ít = guard hỏng | **Đo 11/08: 4/4 câu ngoài lĩnh vực bị chặn đúng, 0/3 câu đúng lĩnh vực nhưng thiếu dữ liệu** |

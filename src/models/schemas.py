@@ -78,17 +78,6 @@ class CreatedUserResponse(ProfileResponse):
     temporary_password: str
 
 
-class LoginRequest(BaseModel):
-    """⚠️ TẠM THỜI — đăng nhập chỉ bằng email, chưa có mật khẩu.
-
-    Supabase Auth là nguồn xác thực duy nhất đã chốt (charter mục 7), nhưng
-    project Supabase chưa dựng. Endpoint này tồn tại để demo được nhiều persona
-    thay vì hardcode user id ở frontend, và phải xoá khi có Supabase Auth.
-    """
-
-    email: str
-
-
 class DemoAccount(BaseModel):
     """Một tài khoản mẫu cho màn đăng nhập demo, kèm mô tả để chọn nhanh."""
 

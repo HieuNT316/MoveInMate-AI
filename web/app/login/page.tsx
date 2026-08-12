@@ -224,7 +224,8 @@ function DemoAccountList({
       </div>
 
       <p className="mt-4 text-[11px] leading-relaxed text-muted">
-        Mật khẩu demo dùng chung: <code className="text-ink">{DEMO_PASSWORD}</code>
+        Bấm để đăng nhập bằng Supabase Auth với tài khoản mẫu. Cư dân thật nhận
+        mật khẩu riêng do Ban quản lý bàn giao.
       </p>
     </div>
   );
