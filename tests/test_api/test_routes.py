@@ -459,3 +459,63 @@ async def test_danh_sach_demo_co_nguoi_thue_va_chu_ho_khac_checklist(client):
     residents = [a for a in accounts if a["role"] == "resident"]
     assert len(residents) >= 2
     assert len({a["checklist_total"] for a in residents}) > 1
+
+
+# --- Đối chiếu tất định khi LLM không gọi tool (12/08) -------------------
+
+
+@pytest.mark.asyncio
+async def test_khong_goi_tool_nhung_co_y_dinh_hanh_dong_van_gan_nut(
+    client, fake_chat_graph
+):
+    """Tool đo được 0/5 trên bản deploy — nút phải hiện được mà không cần nó."""
+    response = await client.post(
+        "/api/v1/chat",
+        json={"message": "Cho tôi nộp hồ sơ làm thẻ cư dân"},
+        headers=OWNER,
+    )
+    action = response.json()["suggested_action"]
+    assert action is not None
+    assert action["checklist_item_id"] is not None
+    # Trả về tên THẬT trong checklist, không phải chuỗi người dùng gõ.
+    assert action["procedure_name"] == "Làm thẻ cư dân (chủ hộ)"
+
+
+@pytest.mark.asyncio
+async def test_cau_hoi_thong_tin_khong_gan_nut(client, fake_chat_graph):
+    """Ranh giới vai AI cố ý giữ: hỏi giấy tờ là hỏi, không phải muốn đi nộp."""
+    for question in [
+        "Làm thẻ xe cần giấy tờ gì?",
+        "Hồ sơ làm thẻ cư dân gồm những gì?",
+        "Đăng ký thẻ xe mất bao lâu?",
+    ]:
+        response = await client.post(
+            "/api/v1/chat", json={"message": question}, headers=OWNER
+        )
+        assert response.json()["suggested_action"] is None, question
+
+
+@pytest.mark.asyncio
+async def test_y_dinh_hanh_dong_nhung_khong_khop_thu_tuc_nao(client, fake_chat_graph):
+    """Không khớp thì im lặng, không đoán bừa một mục gần đúng."""
+    response = await client.post(
+        "/api/v1/chat",
+        json={"message": "Cho tôi nộp hồ sơ xin nghỉ phép"},
+        headers=OWNER,
+    )
+    assert response.json()["suggested_action"] is None
+
+
+@pytest.mark.asyncio
+async def test_nguoi_thue_va_chu_ho_dieu_huong_toi_muc_khac_nhau(
+    client, fake_chat_graph
+):
+    """Đối chiếu chạy trên checklist RIÊNG của từng người, không phải bảng chung."""
+    await client.post("/api/v1/onboarding", json=RENTER_PROFILE, headers=RENTER)
+    payload = {"message": "Cho tôi nộp hồ sơ làm thẻ cư dân"}
+
+    owner = (await client.post("/api/v1/chat", json=payload, headers=OWNER)).json()
+    renter = (await client.post("/api/v1/chat", json=payload, headers=RENTER)).json()
+
+    assert owner["suggested_action"]["procedure_name"] == "Làm thẻ cư dân (chủ hộ)"
+    assert renter["suggested_action"]["procedure_name"] == "Làm thẻ cư dân (người thuê)"
