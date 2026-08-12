@@ -306,6 +306,12 @@ def main() -> None:
                 role="admin",
                 has_car=False,
                 amenity_packages=[],
+                # BQL không nhận nhà nên không có onboarding. Vẫn đặt mốc này
+                # vì frontend dùng `onboarding_completed_at is null` làm tín
+                # hiệu chuyển hướng: để trống thì đăng nhập BQL bị đẩy vào form
+                # onboarding của cư dân — mà form đó nay đã 403.
+                # Cách sạch hơn là frontend rẽ theo `role` (việc của vai FE).
+                onboarding_completed_at=datetime.now(UTC),
             )
         )
         residents = build_residents(rng, args.residents)

@@ -398,6 +398,31 @@ async def test_cu_dan_khong_vao_duoc_route_cua_bql(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("post", "/api/v1/onboarding", RENTER_PROFILE),
+        ("patch", "/api/v1/profile", {"has_car": True}),
+        ("get", "/api/v1/checklist", None),
+        ("patch", "/api/v1/checklist/1", {"completed": True}),
+    ],
+)
+async def test_bql_khong_vao_duoc_route_cua_cu_dan(client, method, path, body):
+    """Chiều đối xứng của test trên — thiếu nó thì BQL có checklist nhận nhà."""
+    kwargs = {"headers": ADMIN} | ({"json": body} if body is not None else {})
+    response = await getattr(client, method)(path, **kwargs)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_bql_van_xem_duoc_ho_so_cua_chinh_minh(client):
+    """`GET /profile` phải mở cho cả hai vai: frontend đọc `role` từ đây."""
+    response = await client.get("/api/v1/profile", headers=ADMIN)
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
+
+
+@pytest.mark.asyncio
 async def test_bql_tao_tai_khoan_cu_dan(client, fake_auth_provisioning):
     payload = {
         "full_name": "Phạm Văn Cường",
