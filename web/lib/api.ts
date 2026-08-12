@@ -159,6 +159,19 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Phân biệt "backend không chạy / không nối được mạng" (fetch tự throw) với
+ * "backend có phản hồi nhưng trả lỗi" (ApiError, ví dụ 401/404/500) — hai
+ * tình huống khác nhau, gộp chung một câu dễ chẩn đoán sai nguyên nhân.
+ */
+export function describeError(err: unknown): string {
+  console.error("[api] request thất bại:", err);
+  if (err instanceof ApiError) {
+    return `Backend trả lỗi ${err.status}: ${err.message || "không rõ chi tiết"}`;
+  }
+  return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
+}
+
 async function request<T>(
   path: string,
   userId: number,

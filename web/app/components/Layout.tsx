@@ -1,5 +1,6 @@
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import ChatWidget from "./ChatWidget";
 
 export default function Layout({
   children,
@@ -15,6 +16,8 @@ export default function Layout({
 
         <main className="mx-auto max-w-6xl px-8 py-10">{children}</main>
       </div>
+
+      <ChatWidget />
     </div>
   );
 }
