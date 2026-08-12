@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-08-12
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Thu | US-00 — Dialog BQL tạo tài khoản cư dân (form, gọi `POST /admin/users`, hiện mật khẩu tạm đúng một lần) | ✅ Done | `web/app/components/CreateResidentDialog.tsx`, `web/lib/api.ts` | |
+| Thu | Polish UI trạng thái "active" cho onboarding/checklist/sidebar/layout (BQL + cư dân) | ✅ Done | `web/app/onboarding/`, `web/app/checklist/`, `web/app/components/` | |
+| Thu | T13 — PWA: manifest, icon (favicon/apple-icon/192/512 sinh bằng `ImageResponse`, không cần asset thiết kế trước), service worker cache app shell (chỉ GET cùng-origin, bỏ qua API backend) | ✅ Done | `web/app/manifest.ts`, `web/app/icon.tsx`, `web/app/pwa/`, `web/public/sw.js` | |
+
+**Tổng kết ngày:** Đẩy sớm US-00 (đã có sẵn contract, không cần chờ) và T13 (PWA, không phụ thuộc backend). Chưa động vào US-09 (CRUD FAQ) và US-08 (upload tài liệu, `POST /admin/documents`) — cả hai đúng scope W4, backend hiện chưa có endpoint, và charter mục 12 yêu cầu chốt contract API bằng văn bản trước khi FE/BE code song song (bài học từ vụ lệch schema 07/08). Cần Hiếu chốt shape request/response trước khi code FE để tránh làm lại.
+
+---
+
 ## 2026-08-11
 
 | Member | Task | Status | Output | Time |
