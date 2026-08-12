@@ -152,7 +152,7 @@ export type DemoAccount = {
  * dấu hiệu "chưa hoàn tất" như với cư dân).
  */
 export function destinationFor(profile: Profile): string {
-  if (profile.role === "admin") return "/bql";
+  if (profile.role === "admin") return "/bql/dashboard";
   return profile.onboarding_completed_at ? "/dashboard" : "/onboarding";
 }
 
@@ -211,6 +211,22 @@ export function describeError(err: unknown): string {
   return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
 }
 
+/**
+ * FastAPI trả lỗi dạng `{"detail": "..."}` — lấy đúng field đó thay vì hiện
+ * cả JSON thô lên UI. Không phải mọi lỗi đều có dạng này (vd lỗi hạ tầng
+ * không qua FastAPI), nên rơi về text gốc khi parse thất bại.
+ */
+function parseErrorDetail(rawText: string, statusText: string): string {
+  if (!rawText) return statusText;
+  try {
+    const parsed = JSON.parse(rawText);
+    if (typeof parsed?.detail === "string") return parsed.detail;
+  } catch {
+    // Không phải JSON — dùng nguyên text.
+  }
+  return rawText;
+}
+
 async function request<T>(
   path: string,
   userId: number,
@@ -227,7 +243,7 @@ async function request<T>(
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new ApiError(response.status, detail || response.statusText);
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
   return response.json() as Promise<T>;
 }
@@ -241,7 +257,7 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new ApiError(response.status, detail || response.statusText);
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
   return response.json() as Promise<T>;
 }

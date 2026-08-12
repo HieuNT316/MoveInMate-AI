@@ -19,11 +19,15 @@
 
 | Member | Task | Status | Output | Time |
 |--------|------|--------|--------|------|
-| Thu | US-00 — Dialog BQL tạo tài khoản cư dân (form, gọi `POST /admin/users`, hiện mật khẩu tạm đúng một lần) | ✅ Done | `web/app/components/CreateResidentDialog.tsx`, `web/lib/api.ts` | |
-| Thu | Polish UI trạng thái "active" cho onboarding/checklist/sidebar/layout (BQL + cư dân) | ✅ Done | `web/app/onboarding/`, `web/app/checklist/`, `web/app/components/` | |
-| Thu | T13 — PWA: manifest, icon (favicon/apple-icon/192/512 sinh bằng `ImageResponse`, không cần asset thiết kế trước), service worker cache app shell (chỉ GET cùng-origin, bỏ qua API backend) | ✅ Done | `web/app/manifest.ts`, `web/app/icon.tsx`, `web/app/pwa/`, `web/public/sw.js` | |
+| Nguyễn Minh Thu | US-00 — Dialog BQL tạo tài khoản cư dân (form, gọi `POST /admin/users`, hiện mật khẩu tạm đúng một lần) | ✅ Done | `web/app/components/CreateResidentDialog.tsx`, `web/lib/api.ts` | |
+| Nguyễn Minh Thu | Polish UI trạng thái "active" cho onboarding/checklist/sidebar/layout (BQL + cư dân) | ✅ Done | `web/app/onboarding/`, `web/app/checklist/`, `web/app/components/` | |
+| Nguyễn Minh Thu | T13 — PWA: manifest, icon (favicon/apple-icon/192/512 sinh bằng `ImageResponse`, không cần asset thiết kế trước), service worker cache app shell (chỉ GET cùng-origin, bỏ qua API backend) | ✅ Done | `web/app/manifest.ts`, `web/app/icon.tsx`, `web/app/pwa/`, `web/public/sw.js` | |
+| Nguyễn Minh Thu | Merge nhánh `main` mới nhất (điều hướng AI trong chat, ingest thêm tài liệu BQL của Hiếu/Hải) vào `MinhThu`; xử lý 4 file xung đột tay từng dòng | ✅ Done | merge `ca2a397` | |
+| Nguyễn Minh Thu | Tự test toàn bộ luồng sau merge, phát hiện và sửa 4 lỗi thật: hiện nguyên JSON thô khi backend trả lỗi thay vì câu tiếng Việt; service worker cache đè code mới mỗi lần sửa (chỉ bật ở production); admin đăng nhập xong đi vòng qua redirect thừa; lỗi 403 (chưa được gán hồ sơ) rơi vào thông báo chung chung | ✅ Done | `web/lib/api.ts`, `web/app/register-service-worker.tsx`, `web/app/login/page.tsx` | |
+| Nguyễn Minh Thu | Redesign trang đăng nhập (mascot AI + dải 3 bước hành trình, ảnh nền) và dashboard BQL (giao diện enterprise sạch, ô tìm kiếm cư dân lọc dữ liệu thật); phần Phase 2 (duyệt HITL, cấu hình AI, biểu đồ phân bố) đánh dấu rõ "Sắp có" và khoá lại, không vẽ số liệu bịa | ✅ Done | `web/app/login/page.tsx`, `web/app/bql/dashboard/page.tsx`, `web/app/components/BQLSidebar.tsx` | |
+| Nguyễn Minh Thu | Viết `docs/QA_CHECKLIST.md` — 25 mục test thủ công end-to-end (cư dân + BQL), kèm ghi chú debug các lỗi hay gặp | ✅ Done | `docs/QA_CHECKLIST.md` | |
 
-**Tổng kết ngày:** Đẩy sớm US-00 (đã có sẵn contract, không cần chờ) và T13 (PWA, không phụ thuộc backend). Chưa động vào US-09 (CRUD FAQ) và US-08 (upload tài liệu, `POST /admin/documents`) — cả hai đúng scope W4, backend hiện chưa có endpoint, và charter mục 12 yêu cầu chốt contract API bằng văn bản trước khi FE/BE code song song (bài học từ vụ lệch schema 07/08). Cần Hiếu chốt shape request/response trước khi code FE để tránh làm lại.
+**Tổng kết ngày:** Đẩy sớm US-00 và T13 (không phụ thuộc backend, không cần chờ ai). Merge code mới nhất của Hiếu/Hải, tự chạy thử toàn bộ luồng để kiểm chứng thay vì tin build pass là đủ — nhờ đó bắt được 4 lỗi thật mà chỉ nhìn code không thấy (lỗi hiển thị, cache dev, routing, thông báo lỗi mù mờ). Redesign 2 màn hình chính nhưng giữ nguyên tắc minh bạch: phần chưa có API thật thì khoá lại và ghi rõ "Sắp có", không vẽ cho có vẻ đầy đủ. Chưa động vào US-09 (CRUD FAQ) và US-08 (upload tài liệu, `POST /admin/documents`) — cả hai đúng scope W4, backend hiện chưa có endpoint, và charter mục 12 yêu cầu chốt contract API bằng văn bản trước khi FE/BE code song song (bài học từ vụ lệch schema 07/08). Cần Hiếu chốt shape request/response trước khi code FE để tránh làm lại.
 
 ---
 
@@ -31,13 +35,13 @@
 
 | Member | Task | Status | Output | Time |
 |--------|------|--------|--------|------|
-| Thu | Sửa lỗi `API_BASE` rỗng khiến mọi request gọi nhầm vào chính Next.js thay vì backend (`??` không fallback trên chuỗi rỗng) | ✅ Done | `web/lib/api.ts` | |
-| Thu | Tích hợp Supabase Auth thật vào trang đăng nhập (form, session, lỗi hiển thị rõ nguyên nhân) | ✅ Done | `web/app/login/page.tsx`, `web/lib/session.ts`, `web/lib/supabase.ts` | |
-| Thu | Merge code US-01 (auth JWT thật + route guard) từ nhánh `main` của Hiếu vào `MinhThu`; vá lỗi build phát sinh sau merge (`describeError` bị mất khi gộp `api.ts`) | ✅ Done | merge `0c0a8ed`, `web/lib/api.ts` | |
-| Thu | Tạo `Button.tsx` dùng chung (variant primary/secondary/danger, touch-target 44px); chuẩn hoá màu + thang chữ qua Tailwind v4 `@theme`; bỏ font serif Playfair Display gây khó đọc số liệu | ✅ Done | `web/app/components/Button.tsx`, `web/app/globals.css`, `web/app/layout.tsx` | |
-| Thu | Nâng cấp UI checklist (nhóm theo category, filter tab), chat (citation nguồn, quick-suggestions, widget nổi), profile (tab), dashboard (số liệu thật) | ✅ Done | `web/app/checklist/`, `web/app/chat/`, `web/app/profile/`, `web/app/dashboard/` | |
-| Thu | Tách route `/bql/*` riêng cho Ban quản lý, gate theo `role` | ✅ Done | `web/app/bql/` | |
-| Thu | Deploy `web/` lên Vercel (T8): cài CLI, `vercel link`, đặt biến `NEXT_PUBLIC_*` production, `vercel --prod` | ✅ Done | `https://web-ten-ruby-48.vercel.app` | |
+| Nguyễn Minh Thu | Sửa lỗi `API_BASE` rỗng khiến mọi request gọi nhầm vào chính Next.js thay vì backend (`??` không fallback trên chuỗi rỗng) | ✅ Done | `web/lib/api.ts` | |
+| Nguyễn Minh Thu | Tích hợp Supabase Auth thật vào trang đăng nhập (form, session, lỗi hiển thị rõ nguyên nhân) | ✅ Done | `web/app/login/page.tsx`, `web/lib/session.ts`, `web/lib/supabase.ts` | |
+| Nguyễn Minh Thu | Merge code US-01 (auth JWT thật + route guard) từ nhánh `main` của Hiếu vào `MinhThu`; vá lỗi build phát sinh sau merge (`describeError` bị mất khi gộp `api.ts`) | ✅ Done | merge `0c0a8ed`, `web/lib/api.ts` | |
+| Nguyễn Minh Thu | Tạo `Button.tsx` dùng chung (variant primary/secondary/danger, touch-target 44px); chuẩn hoá màu + thang chữ qua Tailwind v4 `@theme`; bỏ font serif Playfair Display gây khó đọc số liệu | ✅ Done | `web/app/components/Button.tsx`, `web/app/globals.css`, `web/app/layout.tsx` | |
+| Nguyễn Minh Thu | Nâng cấp UI checklist (nhóm theo category, filter tab), chat (citation nguồn, quick-suggestions, widget nổi), profile (tab), dashboard (số liệu thật) | ✅ Done | `web/app/checklist/`, `web/app/chat/`, `web/app/profile/`, `web/app/dashboard/` | |
+| Nguyễn Minh Thu | Tách route `/bql/*` riêng cho Ban quản lý, gate theo `role` | ✅ Done | `web/app/bql/` | |
+| Nguyễn Minh Thu | Deploy `web/` lên Vercel (T8): cài CLI, `vercel link`, đặt biến `NEXT_PUBLIC_*` production, `vercel --prod` | ✅ Done | `https://web-ten-ruby-48.vercel.app` | |
 | Hiếu | Mở CORS backend Railway cho domain Vercel vừa deploy | ✅ Done | `CORS_ORIGINS` trên Railway | |
 
 **Tổng kết ngày:** T1/T2/T8 hoàn tất, T3 coi như có sẵn nhờ merge code auth thật của Hiếu (`useDemoUser` tự chặn route chưa đăng nhập). Kiểm chứng cuối ngày: `https://web-ten-ruby-48.vercel.app/login` gọi được backend thật, có danh sách 41 tài khoản demo, CORS đã mở. Còn thiếu: T13 (PWA), T10-T11 (upload tài liệu/CRUD FAQ, đúng scope W4 nên chưa gấp).
