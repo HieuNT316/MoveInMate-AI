@@ -217,7 +217,15 @@ def build_residents(rng: random.Random, count: int) -> list[User]:
             }
         )
         if profile["ownership_type"] is None:
-            profile = {**profile, "apartment_type": None, "amenity_packages": []}
+            # Chưa onboarding thì CHƯA khai gì cả — kể cả `has_car`. Thiếu dòng
+            # này thì cư dân chưa điền form vẫn nhận mục "đăng ký thẻ xe", và
+            # persona demo "chưa thiết lập hồ sơ" hiện 6 mục thay vì 4.
+            profile = {
+                **profile,
+                "apartment_type": None,
+                "amenity_packages": [],
+                "has_car": False,
+            }
 
         name = make_name(rng)
         residents.append(

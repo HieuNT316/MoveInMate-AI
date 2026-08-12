@@ -2,7 +2,14 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-**Trạng thái:** đang phát triển (Phase 1). **Backend đang chạy:** [moveinmate-api-production.up.railway.app](https://moveinmate-api-production.up.railway.app/health). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
+**Trạng thái:** đang phát triển (Phase 1).
+
+| | Đang chạy tại |
+|---|---|
+| **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
+| **API** | https://moveinmate-api-production.up.railway.app |
+
+Tài khoản demo có sẵn ở màn đăng nhập; mật khẩu dùng chung `MoveInMate!2026`. Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
 
 ## Vấn đề
 
@@ -33,13 +40,13 @@ Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục 
 | Layer | Technology |
 |-------|-----------|
 | AI Agent | LangGraph + GPT-4o-mini |
-| RAG | ChromaDB + OpenAI embeddings |
+| RAG | ChromaDB + Google `gemini-embedding-001` |
 | Backend | FastAPI + Python 3.11 |
 | Frontend | Next.js 16 + React 19 + TypeScript (PWA) |
 | Database | PostgreSQL qua Supabase |
 | Auth | Supabase Auth |
 | DevOps | Docker + GitHub Actions · Railway (backend) + Vercel (frontend) |
-| Observability | LangSmith |
+| Observability | LangSmith — *chưa triển khai, xem [`docs/OPERATIONS.md`](./docs/OPERATIONS.md)* |
 
 ## Quick Start
 
@@ -100,6 +107,7 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 | Method | Path | Mô tả | Giai đoạn |
 |--------|------|-------|-----------|
 | GET | `/health` | Health check | ✅ có |
+| GET | `/api/v1/auth/demo-accounts` | Persona mẫu để demo (⚠️ tạm thời) | ✅ có |
 | POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân | GATE 2 |
 | GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ | GATE 2 |
 | PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành | GATE 2 |
@@ -109,7 +117,7 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 | POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân | GATE 2 |
 | POST | `/api/v1/admin/documents` | BQL nạp tài liệu | W4 |
 | CRUD | `/api/v1/admin/faq` | BQL quản lý FAQ | W4 |
-| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | W4 |
+| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | ✅ có |
 
 Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
 
@@ -119,12 +127,12 @@ Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architectu
 - [x] README.md
 - [x] Architecture Diagram (`docs/architecture_diagram.md`)
 - [x] AI Logs (tự động qua pre-push hook)
-- [x] Live URL / Deploy — backend: https://moveinmate-api-production.up.railway.app
+- [x] Live URL / Deploy — [frontend](https://web-ten-ruby-48.vercel.app) · [backend](https://moveinmate-api-production.up.railway.app/health)
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
 - [x] Weekly Journal (`JOURNAL.md`)
 - [x] Worklog (`WORKLOG.md`)
-- [ ] Evaluation Evidence (`eval/results/`)
+- [x] Evaluation Evidence ([`eval/results/report.md`](./eval/results/report.md)) — 35 câu, **32/35 · 91%**
 
 ## Team
 
