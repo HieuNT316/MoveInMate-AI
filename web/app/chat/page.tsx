@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Bot, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, type Source } from "../../lib/api";
+import { api, type SuggestedAction, type Source } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 type Message = {
@@ -13,6 +14,7 @@ type Message = {
   text: string;
   sources?: Source[];
   refused?: boolean;
+  action?: SuggestedAction | null;
 };
 
 const GREETING: Message = {
@@ -55,6 +57,7 @@ export default function ChatPage() {
           text: reply.answer,
           sources: reply.sources,
           refused: reply.answer_source === "no_context",
+          action: reply.suggested_action ?? null,
         },
       ]);
     } catch {
@@ -108,6 +111,20 @@ export default function ChatPage() {
                 >
                   {message.text}
                 </div>
+
+                {message.action?.checklist_item_id != null && (
+                  <Link
+                    href={`/checklist?item=${message.action.checklist_item_id}`}
+                    className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-gold/50 bg-gold-tint px-4 py-2.5 text-sm text-ink transition hover:border-gold"
+                  >
+                    <span>
+                      Tới mục{" "}
+                      <span className="font-medium">{message.action.procedure_name}</span>{" "}
+                      trong checklist
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-gold" strokeWidth={2} />
+                  </Link>
+                )}
 
                 {message.sources && message.sources.length > 0 && (
                   <div className="mt-2 space-y-1.5">

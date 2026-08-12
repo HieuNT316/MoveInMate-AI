@@ -72,10 +72,25 @@ export type Source = {
   source_type: DocSourceType;
 };
 
+/**
+ * Tín hiệu điều hướng do agent phát ra khi người dùng hỏi CÁCH NỘP hồ sơ
+ * (khác với hỏi "cần giấy tờ gì" — câu đó chỉ cần trả lời bằng chữ).
+ *
+ * `checklist_item_id` là `null` khi backend không đối chiếu được tên thủ tục
+ * AI suy ra với đúng một mục trong checklist thật của người dùng. Lúc đó FE
+ * **phải ẩn nút**, không điều hướng mù tới chỗ sai.
+ */
+export type SuggestedAction = {
+  type: "navigate_to_submission";
+  procedure_name: string;
+  checklist_item_id: number | null;
+};
+
 export type ChatAnswer = {
   answer: string;
   sources: Source[];
   answer_source: AnswerSource;
+  suggested_action?: SuggestedAction | null;
 };
 
 export type OnboardingPayload = {

@@ -1,20 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 
 import Layout from "../components/Layout";
 import { api, type Checklist } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
-export default function ChecklistPage() {
+function ChecklistView() {
   const router = useRouter();
+  // Chat gui toi dang /checklist?item=<id> — cuon toi va lam noi bat muc do.
+  const highlightId = Number(useSearchParams().get("item")) || null;
   const { userId, ready } = useDemoUser();
 
   const [data, setData] = useState<Checklist | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLLIElement | null>(null);
+
+  // Cuộn tới mục được chat chỉ tới. Chạy sau khi `data` về, vì trước đó
+  // danh sách chưa render nên chưa có gì để cuộn.
+  useEffect(() => {
+    if (data && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [data]);
 
   const load = useCallback(async () => {
     try {
@@ -113,7 +124,16 @@ export default function ChecklistPage() {
             {items.map((item, index) => {
               const external = item.item_type === "third_party_info";
               return (
-                <li key={item.id} className="relative flex gap-4 pb-7 last:pb-0">
+                <li
+                  key={item.id}
+                  id={`item-${item.id}`}
+                  ref={item.id === highlightId ? highlightRef : undefined}
+                  className={`relative flex gap-4 pb-7 last:pb-0 ${
+                    item.id === highlightId
+                      ? "-mx-3 rounded-xl bg-gold-tint px-3 pt-3 ring-1 ring-gold/50"
+                      : ""
+                  }`}
+                >
                   {index !== items.length - 1 && (
                     <span
                       className={`absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-px ${
@@ -167,5 +187,17 @@ export default function ChecklistPage() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+/**
+ * `useSearchParams` phải nằm trong `Suspense` — Next 16 cho prerender tĩnh và
+ * sẽ dừng build nếu hook này chạy ngoài ranh giới đó.
+ */
+export default function ChecklistPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChecklistView />
+    </Suspense>
   );
 }
