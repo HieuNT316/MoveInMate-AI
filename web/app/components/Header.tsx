@@ -17,6 +17,10 @@ const titles: Record<string, { title: string; subtitle: string }> = {
     title: "Thiết lập hồ sơ",
     subtitle: "Cho chúng tôi biết về căn hộ của bạn",
   },
+  "/bql/dashboard": {
+    title: "MoveInMate AI — Bảng điều khiển Ban Quản Lý",
+    subtitle: "Theo dõi tiến độ onboarding toàn khu",
+  },
 };
 
 export default function Header() {

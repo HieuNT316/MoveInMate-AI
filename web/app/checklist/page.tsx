@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 
@@ -8,24 +8,29 @@ import Layout from "../components/Layout";
 import { api, type Checklist } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
-function ChecklistView() {
+export default function ChecklistPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChecklistContent />
+    </Suspense>
+  );
+}
+
+// `useSearchParams()` bắt buộc nằm trong <Suspense> (đọc `?item=` từ nút
+// "Đến mục này" trong chat) — thiếu boundary này thì `next build` fail.
+function ChecklistContent() {
   const router = useRouter();
-  // Chat gui toi dang /checklist?item=<id> — cuon toi va lam noi bat muc do.
-  const highlightId = Number(useSearchParams().get("item")) || null;
+  const searchParams = useSearchParams();
   const { userId, ready } = useDemoUser();
 
   const [data, setData] = useState<Checklist | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
-  const highlightRef = useRef<HTMLLIElement | null>(null);
 
-  // Cuộn tới mục được chat chỉ tới. Chạy sau khi `data` về, vì trước đó
-  // danh sách chưa render nên chưa có gì để cuộn.
-  useEffect(() => {
-    if (data && highlightRef.current) {
-      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [data]);
+  // Đích tới từ nút "Đến mục này" trong chat (SuggestedAction) — cuộn và
+  // đánh dấu đúng mục một lần sau khi checklist tải xong.
+  const highlightId = Number(searchParams.get("item")) || null;
+  const [highlighted, setHighlighted] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +49,16 @@ function ChecklistView() {
   useEffect(() => {
     if (ready) load();
   }, [ready, load]);
+
+  useEffect(() => {
+    if (!data || !highlightId) return;
+    const el = document.getElementById(`checklist-item-${highlightId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlighted(highlightId);
+    const timer = setTimeout(() => setHighlighted(null), 2500);
+    return () => clearTimeout(timer);
+  }, [data, highlightId]);
 
   const toggle = async (itemId: number, completed: boolean) => {
     setPending(itemId);
@@ -126,12 +141,9 @@ function ChecklistView() {
               return (
                 <li
                   key={item.id}
-                  id={`item-${item.id}`}
-                  ref={item.id === highlightId ? highlightRef : undefined}
-                  className={`relative flex gap-4 pb-7 last:pb-0 ${
-                    item.id === highlightId
-                      ? "-mx-3 rounded-xl bg-gold-tint px-3 pt-3 ring-1 ring-gold/50"
-                      : ""
+                  id={`checklist-item-${item.id}`}
+                  className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
+                    highlighted === item.id ? "bg-gold-tint/60 ring-1 ring-gold/40" : ""
                   }`}
                 >
                   {index !== items.length - 1 && (
@@ -187,17 +199,5 @@ function ChecklistView() {
         </div>
       </div>
     </Layout>
-  );
-}
-
-/**
- * `useSearchParams` phải nằm trong `Suspense` — Next 16 cho prerender tĩnh và
- * sẽ dừng build nếu hook này chạy ngoài ranh giới đó.
- */
-export default function ChecklistPage() {
-  return (
-    <Suspense fallback={null}>
-      <ChecklistView />
-    </Suspense>
   );
 }
