@@ -17,7 +17,7 @@
 | ↳ câu trả lời được | — | **28/28 · 100%** | ✅ |
 | ↳ câu phải từ chối | — | **4/7 · 57%** | ⚠️ |
 | **Đạt trọn vẹn** (đúng loại + đủ ý + có nguồn) | ≥7/10 | **32/35 · 91%** | ✅ |
-| Test coverage (pytest) | >60% | **80%** (748 dòng, 150 chưa phủ) | ✅ |
+| Test coverage (pytest) | >60% | **80%** (766 dòng, 151 chưa phủ) | ✅ |
 | Latency | <3s | chưa đo | ⏳ |
 
 ## 2. Ba câu trượt còn lại — đều cùng một nguyên nhân
@@ -71,7 +71,7 @@ dẫn** — sửa phần hiển thị gây hiểu nhầm trước, hiệu chỉn
 ## 4. Test tự động
 
 ```
-pytest -q                  →  80 passed
+pytest -q                  →  89 passed
 ruff check src/ tests/     →  All checks passed
 pytest --cov=src           →  80%
 ```

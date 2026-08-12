@@ -15,6 +15,29 @@
 
 ---
 
+## 2026-08-12
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Hải | Ingest nốt 3 tài liệu BQL mới + nạp lại 2 file đã viết dày nhưng chưa embed | ✅ Done | `data/chroma/` — KB đủ **412 chunk** | |
+| Hiếu | Merge ingest của Hải và frontend của Thu; xác minh cả 4 tài liệu BQL đã vào index | ✅ Done | `dae7c83` | |
+| Hiếu | Thay lớp điều hướng phụ thuộc LLM gọi tool (đo **0/5** trên deploy) bằng đối chiếu tất định ở backend — so tên thủ tục với checklist riêng của từng cư dân, khớp đúng một mục mới gắn nút | ✅ Done | `src/api/routes.py`, đo lại **6/6** | |
+| Hiếu | Đo lại toàn bộ 35 câu sau khi KB đủ | ✅ Done | **32/35 · 91%** (11/08: 19/35) — `eval/results/report.md` | |
+| Hiếu | Sửa nhầm lẫn về nghĩa "agent điều hướng" trong charter: US-13 (nộp hồ sơ trực tuyến, agent định tuyến tới đúng bộ phận BQL) đã có từ 07/08 nhưng bị bỏ sót | ✅ Done | Charter mục 12 | |
+| Hiếu | Viết `CLAUDE.md` — sáu cái bẫy đã gây thiệt hại thật và các bất biến thiết kế | ✅ Done | `CLAUDE.md` | |
+| Hiếu | **Phân quyền hai chiều**: trước chỉ có `require_admin`, tài khoản BQL vẫn onboarding được và có checklist nhận nhà riêng. Thêm `require_resident`; giữ mở `GET /profile` (frontend đọc `role` từ đây) và `POST /chat` | ✅ Done | `src/api/deps.py`, `src/api/routes.py`, `6304bc5` | |
+| Hiếu | Deploy lại Railway và kiểm chứng phân quyền bằng **JWT Supabase thật** trên bản chạy thật, không chỉ unit test | ✅ Done | BQL nhận 403 ở 4 route cư dân, 200 ở `GET /profile` | |
+| Hiếu | Vá 2 vết lệch dữ liệu demo (persona "chưa thiết lập" hiện sai số mục; một hồ sơ còn sót mốc onboarding sau đợt test trước) | ✅ Done | Sửa cả generator lẫn dữ liệu đang có | |
+| Hiếu | Cập nhật README: 2 URL đang chạy, bảng tài khoản dùng thử, sửa 4 chỗ ghi sai (embeddings là Google chứ không phải OpenAI; LangSmith ghi rõ chưa triển khai) | ✅ Done | `README.md` | |
+| Hiếu | Cấp tài khoản trắng cho mentor tự thử luồng onboarding, qua đúng luồng US-00 | ✅ Done | `mentor@moveinmate.demo` | |
+| Thu | Deploy lại Vercel kèm nút điều hướng đọc `suggested_action` từ backend | ✅ Done | nút "Đến mục này" trên `/chat` | |
+
+**Tổng kết ngày:** Sản phẩm đã chạy thật đầu-cuối trên URL công khai và đo được: eval **32/35 · 91%**, 89 test, coverage 80%. Hai lỗi thiết kế bị phát hiện **bằng phép đo chứ không bằng cảm giác** — nút điều hướng 0/5 và phân quyền một chiều. Còn nợ: guard hỏng ở vùng biên (3 câu "đúng lĩnh vực nhưng KB không có" vẫn đính trích dẫn dưới câu "tôi không biết"), LangSmith chưa triển khai, chưa có rate limiting.
+
+⚠️ **Hai việc cần xử lý:** (1) code frontend đang chạy trên Vercel **chưa được commit/push** — chuỗi "Đến mục này" không tồn tại trong bất kỳ commit nào, bản build lấy từ máy Thu; (2) CI GitHub Actions đỏ ở mọi nhánh vì **tài khoản tổ chức vướng thanh toán** (job chết sau 2 giây, chưa từng khởi động), không phải lỗi code — nhóm không có quyền admin để sửa.
+
+---
+
 ## 2026-08-11
 
 | Member | Task | Status | Output | Time |

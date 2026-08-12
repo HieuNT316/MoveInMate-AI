@@ -9,7 +9,27 @@
 | **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
 | **API** | https://moveinmate-api-production.up.railway.app |
 
-Tài khoản demo có sẵn ở màn đăng nhập; mật khẩu dùng chung `MoveInMate!2026`. Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
+Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
+
+## Tài khoản dùng thử
+
+Tài khoản do Ban quản lý cấp — cư dân không tự đăng ký. Mật khẩu **dùng chung cho mọi tài khoản demo**: `MoveInMate!2026`
+
+| Email | Vai | Checklist |
+|---|---|---|
+| `mentor@moveinmate.demo` | **hồ sơ trắng — dành cho người thử lần đầu** | 4 mục nền |
+| `bql@moveinmate.demo` | Ban quản lý | — |
+| `tran.hong.tuan1@moveinmate.demo` | chủ hộ · có ô tô · 2 gói tiện ích | 10 mục |
+| `dang.ngoc.lan5@moveinmate.demo` | người thuê · có xe | 9 mục |
+| `duong.ngoc.mai3@moveinmate.demo` | chủ hộ · không xe | 6 mục |
+| `pham.thi.dung4@moveinmate.demo` | người thuê · không xe | 6 mục |
+| `phan.quang.trang8@moveinmate.demo` | chưa thiết lập hồ sơ | 4 mục |
+
+Hai dòng **6 mục** là cặp đáng xem nhất: cùng số lượng nhưng khác nội dung — chủ hộ được hướng dẫn *cập nhật thông tin cư trú*, người thuê được hướng dẫn *đăng ký tạm trú tại công an phường*. Cá nhân hóa nằm ở nội dung, không ở số lượng.
+
+Muốn tự trải nghiệm từ đầu thì đăng nhập bằng `mentor@moveinmate.demo`, tự điền form onboarding và xem checklist sinh ra theo lựa chọn của mình. **Tài khoản này chỉ trắng một lần** — điền xong là hết. Cần một hồ sơ trắng nữa thì cấp thêm bằng chính chức năng của Ban quản lý (`POST /api/v1/admin/users`), đừng chạy `seed_data`: script đó xoá và dựng lại toàn bộ dữ liệu chứ không khôi phục riêng một tài khoản.
+
+⚠️ `mentor@moveinmate.demo` **phải gõ tay** — màn đăng nhập chỉ liệt kê sáu tài khoản mẫu còn lại, chọn theo hồ sơ tương phản để demo. Các dòng khác trong bảng đều bấm chọn được.
 
 ## Vấn đề
 
