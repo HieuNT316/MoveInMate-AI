@@ -16,7 +16,7 @@
 | ↳ câu trả lời được | — | 28/28 · 100% | ✅ |
 | ↳ câu phải từ chối | — | **4/7 · 57%** | ⚠️ |
 | **Đạt trọn vẹn** (đúng loại + đủ ý + có nguồn) | ≥7/10 | **19/35 · 54%** | ❌ |
-| Test coverage (pytest) | >60% | xem mục 4 | |
+| Test coverage (pytest) | >60% | **80%** (748 dòng, 150 chưa phủ) | ✅ |
 | Latency | <3s | chưa đo | ⏳ |
 
 ## 2. Phân tích 16 câu trượt — hai nguyên nhân khác hẳn nhau
@@ -82,11 +82,15 @@ Cần nới `must_mention` cho nhóm này, hoặc chấp nhận đây là sàn t
 ## 4. Test tự động
 
 ```
-pytest -q        →  83 passed
-ruff check src/ tests/  →  All checks passed
+pytest -q                  →  80 passed
+ruff check src/ tests/     →  All checks passed
+pytest --cov=src           →  80%
 ```
 
-Coverage chưa đo — chạy `pytest --cov=src --cov-report=term`.
+Phủ thấp nhất ở những chỗ test không chạm được nếu không gọi dịch vụ ngoài —
+`ingest.py` 0% (cần Google API), `llm.py` 31%, `supabase_admin.py` 46%,
+`auth.py` 47% (phần verify chữ ký ES256 đã kiểm chứng riêng bằng token thật).
+Tầng API và rule engine — nơi logic nghiệp vụ nằm — đều **100%**.
 
 ## 5. Giới hạn của phép đo này
 
