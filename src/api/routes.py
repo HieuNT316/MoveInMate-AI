@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
-from src.api.deps import get_current_user, require_admin
+from src.api.deps import get_current_user, require_admin, require_resident
 from src.database import get_db
 from src.models.schemas import (
     ChatHistoryEntry,
@@ -115,11 +115,14 @@ async def demo_accounts(db: Session = Depends(get_db)) -> Any:
 
 
 # --- Cư dân -------------------------------------------------------------
+#
+# Các endpoint dưới đây dùng `require_resident`, trừ `GET /profile`: đó là
+# endpoint frontend gọi để BIẾT mình là cư dân hay BQL, nên phải mở cho cả hai.
 
 
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(user: dict[str, Any] = Depends(get_current_user)) -> Any:
-    """US-06 — hồ sơ cư dân.
+    """US-06 — hồ sơ người đang đăng nhập, cư dân hoặc BQL.
 
     `onboarding_completed_at = null` là tín hiệu để frontend chuyển hướng
     sang trang onboarding.
@@ -130,7 +133,7 @@ async def get_profile(user: dict[str, Any] = Depends(get_current_user)) -> Any:
 @router.post("/onboarding", response_model=ProfileResponse)
 async def submit_onboarding(
     payload: OnboardingRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> Any:
     """US-02 — lưu hồ sơ. Checklist không sinh ở đây mà lọc trực tiếp khi xem."""
@@ -140,7 +143,7 @@ async def submit_onboarding(
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(
     payload: ProfileUpdateRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> Any:
     """US-06 — sửa hồ sơ. Chỉ gửi field muốn đổi; checklist tự cập nhật theo."""
@@ -177,7 +180,7 @@ def _build_checklist(db: Session, user: dict[str, Any]) -> ChecklistResponse:
 
 @router.get("/checklist", response_model=ChecklistResponse)
 async def get_checklist(
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> ChecklistResponse:
     """US-04 — checklist cá nhân hóa, tính lại mỗi lần gọi."""
@@ -188,7 +191,7 @@ async def get_checklist(
 async def set_checklist_item(
     item_id: int,
     payload: CompletionRequest,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> ChecklistResponse:
     """US-04 — đánh dấu hoàn thành.

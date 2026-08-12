@@ -2,7 +2,34 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-**Trạng thái:** đang phát triển (Phase 1). **Backend đang chạy:** [moveinmate-api-production.up.railway.app](https://moveinmate-api-production.up.railway.app/health). Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
+**Trạng thái:** đang phát triển (Phase 1).
+
+| | Đang chạy tại |
+|---|---|
+| **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
+| **API** | https://moveinmate-api-production.up.railway.app |
+
+Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope và quyết định, [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) để biết kiến trúc, [`docs/DEPLOY.md`](./docs/DEPLOY.md) để deploy.
+
+## Tài khoản dùng thử
+
+Tài khoản do Ban quản lý cấp — cư dân không tự đăng ký. Mật khẩu **dùng chung cho mọi tài khoản demo**: `MoveInMate!2026`
+
+| Email | Vai | Checklist |
+|---|---|---|
+| `mentor@moveinmate.demo` | **hồ sơ trắng — dành cho người thử lần đầu** | 4 mục nền |
+| `bql@moveinmate.demo` | Ban quản lý | — |
+| `tran.hong.tuan1@moveinmate.demo` | chủ hộ · có ô tô · 2 gói tiện ích | 10 mục |
+| `dang.ngoc.lan5@moveinmate.demo` | người thuê · có xe | 9 mục |
+| `duong.ngoc.mai3@moveinmate.demo` | chủ hộ · không xe | 6 mục |
+| `pham.thi.dung4@moveinmate.demo` | người thuê · không xe | 6 mục |
+| `phan.quang.trang8@moveinmate.demo` | chưa thiết lập hồ sơ | 4 mục |
+
+Hai dòng **6 mục** là cặp đáng xem nhất: cùng số lượng nhưng khác nội dung — chủ hộ được hướng dẫn *cập nhật thông tin cư trú*, người thuê được hướng dẫn *đăng ký tạm trú tại công an phường*. Cá nhân hóa nằm ở nội dung, không ở số lượng.
+
+Muốn tự trải nghiệm từ đầu thì đăng nhập bằng `mentor@moveinmate.demo`, tự điền form onboarding và xem checklist sinh ra theo lựa chọn của mình. **Tài khoản này chỉ trắng một lần** — điền xong là hết. Cần một hồ sơ trắng nữa thì cấp thêm bằng chính chức năng của Ban quản lý (`POST /api/v1/admin/users`), đừng chạy `seed_data`: script đó xoá và dựng lại toàn bộ dữ liệu chứ không khôi phục riêng một tài khoản.
+
+⚠️ `mentor@moveinmate.demo` **phải gõ tay** — màn đăng nhập chỉ liệt kê sáu tài khoản mẫu còn lại, chọn theo hồ sơ tương phản để demo. Các dòng khác trong bảng đều bấm chọn được.
 
 ## Vấn đề
 
@@ -33,13 +60,13 @@ Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục 
 | Layer | Technology |
 |-------|-----------|
 | AI Agent | LangGraph + GPT-4o-mini |
-| RAG | ChromaDB + OpenAI embeddings |
+| RAG | ChromaDB + Google `gemini-embedding-001` |
 | Backend | FastAPI + Python 3.11 |
 | Frontend | Next.js 16 + React 19 + TypeScript (PWA) |
 | Database | PostgreSQL qua Supabase |
 | Auth | Supabase Auth |
 | DevOps | Docker + GitHub Actions · Railway (backend) + Vercel (frontend) |
-| Observability | LangSmith |
+| Observability | LangSmith — *chưa triển khai, xem [`docs/OPERATIONS.md`](./docs/OPERATIONS.md)* |
 
 ## Quick Start
 
@@ -100,6 +127,7 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 | Method | Path | Mô tả | Giai đoạn |
 |--------|------|-------|-----------|
 | GET | `/health` | Health check | ✅ có |
+| GET | `/api/v1/auth/demo-accounts` | Persona mẫu để demo (⚠️ tạm thời) | ✅ có |
 | POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân | GATE 2 |
 | GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ | GATE 2 |
 | PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành | GATE 2 |
@@ -109,7 +137,7 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 | POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân | GATE 2 |
 | POST | `/api/v1/admin/documents` | BQL nạp tài liệu | W4 |
 | CRUD | `/api/v1/admin/faq` | BQL quản lý FAQ | W4 |
-| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | W4 |
+| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | ✅ có |
 
 Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
 
@@ -119,12 +147,12 @@ Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architectu
 - [x] README.md
 - [x] Architecture Diagram (`docs/architecture_diagram.md`)
 - [x] AI Logs (tự động qua pre-push hook)
-- [x] Live URL / Deploy — backend: https://moveinmate-api-production.up.railway.app
+- [x] Live URL / Deploy — [frontend](https://web-ten-ruby-48.vercel.app) · [backend](https://moveinmate-api-production.up.railway.app/health)
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
 - [x] Weekly Journal (`JOURNAL.md`)
 - [x] Worklog (`WORKLOG.md`)
-- [ ] Evaluation Evidence (`eval/results/`)
+- [x] Evaluation Evidence ([`eval/results/report.md`](./eval/results/report.md)) — 35 câu, **32/35 · 91%**
 
 ## Team
 
