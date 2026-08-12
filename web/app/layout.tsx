@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const display = Playfair_Display({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
+// Chỉ dùng một font (Inter, có subset "vietnamese" cho dấu tiếng Việt).
+// Trước đây có thêm Playfair Display (serif) cho heading/số liệu, nhưng
+// nét serif cong khiến chữ trông "quăn" và số trông "nùn nùn" ở size lớn
+// — bỏ hẳn, `.font-display`/`font-serif` trong globals.css giờ trỏ về
+// cùng font Inter này (xem --font-display trong globals.css).
 const body = Inter({
   variable: "--font-body",
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
@@ -24,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${display.variable} ${body.variable}`}>
+    <html lang="vi" className={body.variable}>
       <body>{children}</body>
     </html>
   );

@@ -4,8 +4,9 @@
  * Kiểu dữ liệu ở đây khớp 1-1 với `src/models/schemas.py`. Đổi contract phía
  * backend thì phải đổi cả file này — xem docs/architecture_diagram.md mục 4.3.
  *
- * ⚠️ Xác thực hiện là TẠM: gửi header `X-User-Id` thay vì JWT của Supabase.
- * Khi có auth thật, chỉ cần sửa `authHeaders()` bên dưới, phần còn lại giữ nguyên.
+ * Xác thực: JWT của Supabase, gắn ở `authHeaders()` bên dưới. Header `X-User-Id`
+ * chỉ còn là lối dự phòng khi chạy local chưa có phiên — backend từ chối hẳn nó
+ * khi `APP_ENV=production`.
  */
 
 import { currentAccessToken } from "./supabase";
@@ -158,6 +159,19 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Phân biệt "backend không chạy / không nối được mạng" (fetch tự throw) với
+ * "backend có phản hồi nhưng trả lỗi" (ApiError, ví dụ 401/404/500) — hai
+ * tình huống khác nhau, gộp chung một câu dễ chẩn đoán sai nguyên nhân.
+ */
+export function describeError(err: unknown): string {
+  console.error("[api] request thất bại:", err);
+  if (err instanceof ApiError) {
+    return `Backend trả lỗi ${err.status}: ${err.message || "không rõ chi tiết"}`;
+  }
+  return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
+}
+
 async function request<T>(
   path: string,
   userId: number,
@@ -194,13 +208,6 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  /** ⚠️ TẠM THỜI — không kiểm mật khẩu, chờ Supabase Auth. */
-  login: (email: string) =>
-    publicRequest<Profile>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-
   /** ⚠️ TẠM THỜI — persona mẫu để demo nhanh. */
   getDemoAccounts: () => publicRequest<DemoAccount[]>("/auth/demo-accounts"),
 

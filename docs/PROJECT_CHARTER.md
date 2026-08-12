@@ -262,6 +262,10 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **"Agent điều hướng" có HAI nghĩa, phải gọi tách bạch:** (a) điều hướng trong app tới form/màn hình — v0 đã có (tool `request_submission_navigation`, 10/08); (b) điều hướng trong quy trình hành chính: đúng bộ phận, bước kế tiếp, thời hạn — data nền đã sinh 11/08 (`data/kb/bql/`) | **Đã chốt 11/08** | Mentor muốn demo được một phần ở GATE 2. Tool LLM bắn không ổn định (2/4 cách hỏi) → cần lớp đối chiếu tất định ở BE, LLM chỉ là tín hiệu gợi ý | — | GATE 2 demo (b) qua chat; (a) hoàn thiện khi có form |
 | **`data/chroma/` commit vào git** (index đã embed, ~7.3MB nhị phân) | **Quyết định AI 10/08** — đã ghi đánh đổi trong `.gitignore` | Quy ước bắt buộc: CHỈ MỘT người chạy `ingest_kb` rồi commit; người khác chỉ pull. Bằng chứng rủi ro: 11/08 chính BE đã lỡ `git checkout -- data/chroma/` sau khi ingest → mất kết quả, phải chạy lại | — | Đã chốt, xem lại khi lên Railway Volume |
 | Góp ý UX của mentor (08/08): gamification khi hoàn thành thủ tục (huy hiệu/trang trí hồ sơ — KHÔNG hứa ưu đãi tiền thay BQL), câu trả lời chat có cấu trúc + hình minh hoạ | Ghi nhận — xếp W4, không bắt buộc GATE 2 | Ảnh trang nguồn là placeholder lazy-load không cào được; hướng đi: ảnh theo `category`, card có cấu trúc | Team | W4 |
+| **LangSmith đang được KHAI mà chưa làm** — README, `requirements.txt` và sơ đồ kiến trúc đều ghi, `src/` không có dòng nào | **Phát hiện 11/08 — phải xử lý** | Đây là deliverable #4 của BTC. Bật bằng biến môi trường, không phải sửa code (~30 phút) | Hải | Trước GATE 2 nếu kịp, chậm nhất W4 |
+| **Không có giới hạn tần suất trên URL công khai** | **Phát hiện 11/08 — rủi ro tiền thật** | Mỗi lượt `/chat` tốn 1 embedding + 1 LLM call trên key trả phí. Đề xuất `slowapi`, 20 lượt/phút/người | Hiếu | Trước khi công bố URL rộng rãi |
+| **`/health` không kiểm thành phần phụ thuộc** | **Phát hiện 11/08** | Trả `ok` kể cả khi DB/Chroma chết → Railway giữ instance hỏng trong vòng phục vụ. Tiền lệ: index Chroma hỏng 11/08 mà mọi chỉ báo vẫn xanh | Hiếu | W4 |
+| **Chưa có: log có cấu trúc, theo dõi chi phí, vòng phản hồi người dùng, che PII trong `chat_history`** | Ghi nhận 11/08 — xếp W4 | Chi tiết và mức ưu tiên: [`OPERATIONS.md`](./OPERATIONS.md) | Cả nhóm | W4-W5 |
 
 ## 8. Ràng buộc kỹ thuật
 
@@ -308,6 +312,7 @@ Cố định theo chương trình: GATE 1 (05/08, đã qua) → báo cáo lần 
 | **Dữ liệu mô phỏng bị trình bày như dữ liệu thật trước doanh nghiệp** — mất uy tín ngay khi trong phòng có người biết số thật | Nhãn `synthetic_demo` xuyên suốt (frontmatter → Chroma metadata → badge UI "Quy trình mô phỏng") + một câu minh bạch trong lời dẫn demo |
 | **Tool điều hướng của LLM bắn không ổn định** (đo 11/08: 2/4 cách hỏi; thêm data càng ít bắn vì LLM tự trả lời được bằng chữ) | Lớp đối chiếu tất định ở BE (`_match_checklist_item` chạy luôn, tool LLM hạ thành gợi ý); demo dùng câu đã kiểm chứng |
 | **Ngưỡng `rag_max_distance=0.35` mong manh** — cụm "có đáp án" (~0.27-0.33) và "ngoài phạm vi" (~0.37-0.38) chỉ cách ~0.04, hiệu chỉnh mới trên 4 câu | Không vặn ngưỡng trước GATE 2; sau GATE 2 đo lại trên bộ ≥10 câu; đã giảm thin-coverage bằng data 11/08 |
+| **Guard chống bịa hỏng ở vùng biên** — đo 11/08: chặn 4/4 câu ngoài lĩnh vực nhưng **0/3** câu "đúng lĩnh vực, KB không có dữ liệu"; câu trả lời nói "không tìm thấy" mà vẫn gắn `answer_source: rag` kèm trích dẫn | Cao — người dùng không có cách nào biết hệ thống đang không biết | Sửa hiển thị trước (phát hiện câu từ chối → đổi `no_context`, bỏ nguồn), hiệu chỉnh ngưỡng sau khi có đủ dữ liệu. Xem `eval/results/report.md` mục 2.2 |
 
 ## 12. Governance — quy trình đồng bộ liên vai trò
 

@@ -43,6 +43,72 @@ trường, văn hoá ứng xử, an ninh trật tự trong nhà chung cư.
 **Lưu ý:** người thuê cũng phải ký, không thể dùng chữ ký của chủ hộ thay. Chủ hộ
 cho thuê có trách nhiệm thông báo nội quy cho người thuê trước khi bàn giao căn hộ.
 
+### Ai phải ký
+
+| Đối tượng | Có phải ký? |
+|---|---|
+| Chủ sở hữu dọn về ở | Có |
+| Chủ sở hữu mua để cho thuê | Có — với tư cách chủ sở hữu |
+| Người thuê | Có — bản riêng, không dùng chữ ký chủ hộ thay |
+| Thành viên trong hộ từ 18 tuổi | Có, nếu Ban quản lý yêu cầu cấp thẻ riêng |
+| Người giúp việc ở lại thường xuyên | Không ký, nhưng chủ hộ chịu trách nhiệm phổ biến |
+| Khách vãng lai | Không |
+
+Điều 6 khoản 2 điểm a của Quy chế nêu rõ bản nội quy áp dụng cả với **người tạm
+trú và khách ra vào** — nghĩa là chủ hộ có nghĩa vụ phổ biến cho những người này,
+dù họ không ký.
+
+### Sáu nhóm nội dung chính trong bản nội quy
+
+Đọc lướt cũng nên nắm sáu nhóm này, vì phần lớn tranh chấp giữa cư dân với Ban
+quản lý về sau đều rơi vào đây:
+
+1. **Giờ giấc gây ồn** — khung giờ cấm khoan đục, sửa chữa, di chuyển đồ nặng.
+2. **Sửa chữa và cải tạo căn hộ** — hạng mục nào phải xin phép, hạng mục nào cấm
+   tuyệt đối (đục tường chịu lực, thay đổi mặt ngoài, lấn ban công).
+3. **Vật nuôi** — loài được phép, quy định rọ mõm và dây dắt ở khu vực chung,
+   trách nhiệm dọn vệ sinh.
+4. **Sử dụng khu vực chung** — hành lang, sảnh, tầng hầm không được để đồ riêng;
+   lối thoát hiểm phải thông thoáng.
+5. **Phòng cháy chữa cháy** — cấm để vật cản ở lối thoát nạn, cấm câu mắc điện
+   tuỳ tiện, cấm sạc xe điện sai khu vực quy định.
+6. **Ứng xử và an ninh** — quy định về tiếng ồn sinh hoạt, khách ra vào, và việc
+   cho thuê ngắn ngày.
+
+### Xử lý khi vi phạm
+
+Điều 45 của Quy chế quy định việc xử lý vi phạm trong quản lý, sử dụng nhà chung
+cư. Trên thực tế Ban quản lý xử lý theo trình tự tăng dần:
+
+1. **Nhắc nhở** trực tiếp hoặc qua ứng dụng.
+2. **Lập biên bản** nếu tái phạm, có chữ ký của cư dân và đại diện Ban quản lý.
+3. **Tạm ngừng một số dịch vụ tiện ích** với vi phạm kéo dài, theo nội dung bản
+   nội quy đã ký.
+4. **Chuyển cơ quan chức năng** với vi phạm về phòng cháy chữa cháy hoặc an ninh
+   trật tự — những việc vượt thẩm quyền Ban quản lý.
+
+Điều 44 quy định tranh chấp giữa cư dân với Ban quản lý được giải quyết thông qua
+thương lượng; không thoả thuận được thì đưa ra Uỷ ban nhân dân cấp huyện hoặc Toà án.
+
+### Hỏi đáp
+
+**Không ký nội quy có được nhận nhà không?**
+Nhận nhà là việc giữa bạn và chủ đầu tư, không phụ thuộc chữ ký nội quy. Nhưng
+Ban quản lý thường yêu cầu ký trước khi cấp thẻ cư dân và thẻ thang máy, nên
+không ký thì các thủ tục sau bị chặn.
+
+**Tôi ký rồi, sau này nội quy sửa thì sao?**
+Bản nội quy do Hội nghị nhà chung cư thông qua. Khi sửa đổi, Ban quản lý thông
+báo tới toàn bộ cư dân; bạn không phải ký lại từng lần trừ khi có yêu cầu riêng.
+
+**Tôi cho thuê căn hộ, người thuê vi phạm thì ai chịu?**
+Người thuê chịu trách nhiệm trực tiếp về hành vi của mình. Nhưng theo Điều 42 của
+Quy chế, chủ sở hữu vẫn có trách nhiệm với phần sở hữu riêng của mình, nên Ban
+quản lý sẽ liên hệ cả hai.
+
+**Mất bản nội quy đã ký thì xin lại được không?**
+Được. Quầy lễ tân lưu một bản, xin sao lại được trong ngày.
+
 ## Đăng ký chuyển đồ vào căn hộ
 
 Chuyển đồ dùng thang tải hàng, không dùng thang máy khách, nên phải đặt lịch trước

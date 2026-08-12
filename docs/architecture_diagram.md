@@ -145,7 +145,9 @@ Tên model khác nhau giữa hai đường: OpenRouter cần tiền tố `openai
 
 **Embeddings lệch stack BTC** (BTC nêu GPT-4o-mini, không nêu model embedding). Lý do lịch sử: quyết định gốc gọi chat qua OpenRouter, mà OpenRouter không có endpoint embeddings. **Cần mentor xác nhận trước mốc 17/08.**
 
-**Trace:** LangSmith bật qua biến môi trường (deliverable #4 của BTC).
+**Trace:** LangSmith — **CHƯA TRIỂN KHAI tính đến 11/08**. Khối `LangSmith` trong sơ đồ mục 2 và dòng `Observability | LangSmith` trong README mô tả trạng thái mong muốn, không phải hiện trạng: `grep -rn langsmith src/` không ra kết quả. Bật bằng `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT` — LangChain tự đẩy trace, không phải sửa code.
+
+Tình trạng đầy đủ của quan sát, guardrail và độ tin cậy: **[`OPERATIONS.md`](./OPERATIONS.md)**.
 
 ### 3.5 Vector Store — Chroma (`src/services/vectorstore.py`, `ingest.py`)
 

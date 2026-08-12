@@ -1,20 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f5f1;
+  --background: #f0f8ff;
   --surface: #ffffff;
-  --foreground: #14181f;
-  --muted: #6b7280;
-  --border: #e7e2d8;
+  --foreground: #002d62;
+  --muted: #4a6d97;
+  --border: #d6e9fb;
 
-  --ink: #0d1321;
-  --ink-soft: #1b2436;
-  --gold: #b08d4f;
-  --gold-soft: #d9c08f;
-  --gold-tint: #f4ecd8;
+  /* Trước đây --font-display trỏ vào Playfair Display (serif) — bỏ vì
+     nét serif khiến chữ "quăn", số "nùn nùn" ở size lớn. Trỏ về cùng
+     Inter (--font-body, xem app/layout.tsx) để .font-display/font-serif
+     dùng ở khắp app tự động đổi theo mà không phải sửa từng file. */
+  --font-display: var(--font-body);
+
+  --ink: #002d62;
+  --ink-soft: #073d80;
+  --gold: #0056d2;
+  --gold-soft: #1a73e8;
+  --gold-tint: #e3f2fd;
   --emerald: #1f5c4d;
 
-  --shadow-color: 222 33% 12%;
+  /* Nút "danger" (xoá/từ chối...) — #c62828 trên nền trắng đạt ~5.6:1,
+     qua ngưỡng AA (4.5:1) cho chữ thường. Chưa trang nào dùng, để sẵn
+     cho Button.tsx variant="danger". */
+  --danger: #c62828;
+  --danger-hover: #a31f1f;
+
+  --shadow-color: 213 100% 19%;
 }
 
 @theme inline {
@@ -30,9 +42,35 @@
   --color-gold-soft: var(--gold-soft);
   --color-gold-tint: var(--gold-tint);
   --color-emerald: var(--emerald);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
 
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
+
+  /* Thang chữ dùng chung — hỗ trợ tiếng Việt qua Inter/Playfair Display
+     (subsets "vietnamese", xem app/layout.tsx). Sinh utility text-h1,
+     text-h2, text-h3, text-body, text-small (font-size + line-height +
+     font-weight trong một class, cú pháp cặp khoá của Tailwind v4). */
+  --text-h1: 2rem;
+  --text-h1--line-height: 2.5rem;
+  --text-h1--font-weight: 700;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 2rem;
+  --text-h2--font-weight: 600;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.75rem;
+  --text-h3--font-weight: 600;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-body--font-weight: 400;
+
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.125rem;
+  --text-small--font-weight: 400;
 }
 
 * {
@@ -47,7 +85,7 @@ body {
 }
 
 .font-display {
-  font-family: var(--font-display), Georgia, serif;
+  font-family: var(--font-display), Arial, Helvetica, sans-serif;
 }
 
 ::selection {
