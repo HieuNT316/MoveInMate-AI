@@ -6,11 +6,13 @@ import {
   CircleUserRound,
   Gauge,
   Loader2,
+  UserPlus,
   UserRoundX,
 } from "lucide-react";
 
 import { api, describeError, type Dashboard } from "../../../lib/api";
 import { useDemoUser } from "../../../lib/useDemoUser";
+import CreateResidentDialog from "../../components/CreateResidentDialog";
 
 const ATTENTION_THRESHOLD = 30;
 
@@ -18,6 +20,7 @@ export default function BQLDashboardPage() {
   const { userId, ready } = useDemoUser();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +66,27 @@ export default function BQLDashboardPage() {
 
   return (
     <>
+      <div className="mb-6 flex items-center justify-end">
+        <button
+          onClick={() => setCreating(true)}
+          className="flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white transition hover:bg-ink-soft"
+        >
+          <UserPlus className="h-4 w-4" strokeWidth={1.75} />
+          Tạo tài khoản cư dân
+        </button>
+      </div>
+
+      {creating && (
+        <CreateResidentDialog
+          userId={userId}
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            load();
+          }}
+        />
+      )}
+
       <section className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Stat
           label="Tổng cư dân"

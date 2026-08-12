@@ -71,10 +71,23 @@ export type Source = {
   source_type: DocSourceType;
 };
 
+/**
+ * Tín hiệu điều hướng — AI phát hiện câu hỏi kiểu "nộp hồ sơ ở đâu" và đối
+ * chiếu được với đúng một mục checklist. `checklist_item_id` null nghĩa là
+ * backend không đối chiếu chắc chắn được: chỉ hiện `procedure_name` dạng
+ * chữ, không hiện nút điều hướng.
+ */
+export type SuggestedAction = {
+  type: "navigate_to_submission";
+  procedure_name: string;
+  checklist_item_id: number | null;
+};
+
 export type ChatAnswer = {
   answer: string;
   sources: Source[];
   answer_source: AnswerSource;
+  suggested_action: SuggestedAction | null;
 };
 
 export type OnboardingPayload = {
@@ -101,6 +114,19 @@ export type Dashboard = {
   total_residents: number;
 };
 
+export type CreateUserPayload = {
+  full_name: string;
+  email: string;
+  apartment: string;
+  building: string;
+};
+
+/**
+ * Mật khẩu tạm chỉ xuất hiện đúng một lần ở đây — backend không lưu lại,
+ * không có cách xem lại. BQL phải chép ngay để bàn giao cho cư dân.
+ */
+export type CreatedUser = Profile & { temporary_password: string };
+
 /**
  * ⚠️ TẠM THỜI — tài khoản mẫu cho màn đăng nhập demo.
  * Xoá cùng lúc với `/auth/demo-accounts` khi có Supabase Auth.
@@ -115,6 +141,17 @@ export type DemoAccount = {
   /** Số mục rule engine sinh ra cho hồ sơ này — khác nhau giữa các persona. */
   checklist_total: number;
 };
+
+/**
+ * Đích tới sau khi đăng nhập/đổi persona — dùng chung giữa `login/page.tsx`
+ * và `DemoUserSwitcher`. BQL luôn vào `/bql`, kể cả khi `onboarding_completed_at`
+ * null (BQL không có checklist nên trường này vốn không áp dụng, không phải
+ * dấu hiệu "chưa hoàn tất" như với cư dân).
+ */
+export function destinationFor(profile: Profile): string {
+  if (profile.role === "admin") return "/bql";
+  return profile.onboarding_completed_at ? "/dashboard" : "/onboarding";
+}
 
 const STORAGE_KEY = "moveinmate.demo-user-id";
 
@@ -247,4 +284,10 @@ export const api = {
 
   getDashboard: (userId: number) =>
     request<Dashboard>("/admin/dashboard", userId),
+
+  createResident: (userId: number, payload: CreateUserPayload) =>
+    request<CreatedUser>("/admin/users", userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

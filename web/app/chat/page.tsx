@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Bot, Compass, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, type Source } from "../../lib/api";
+import { api, type Source, type SuggestedAction } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 type Message = {
@@ -13,6 +14,7 @@ type Message = {
   text: string;
   sources?: Source[];
   refused?: boolean;
+  suggestedAction?: SuggestedAction | null;
 };
 
 const GREETING: Message = {
@@ -55,6 +57,7 @@ export default function ChatPage() {
           text: reply.answer,
           sources: reply.sources,
           refused: reply.answer_source === "no_context",
+          suggestedAction: reply.suggested_action,
         },
       ]);
     } catch {
@@ -119,6 +122,10 @@ export default function ChatPage() {
                     ))}
                   </div>
                 )}
+
+                {message.suggestedAction && (
+                  <SuggestedActionCard action={message.suggestedAction} />
+                )}
               </div>
             </div>
           ))}
@@ -178,6 +185,29 @@ const SOURCE_LABELS: Record<Source["source_type"], string> = {
   // số thật trước mặt doanh nghiệp là mất uy tín ngay khi có người biết rõ.
   synthetic_demo: "Quy trình mô phỏng (dữ liệu demo)",
 };
+
+/**
+ * `checklist_item_id` null = backend không đối chiếu chắc chắn được mục nào
+ * (xem docstring `SuggestedAction` phía backend) — khi đó chỉ hiện chữ, ẩn nút.
+ */
+function SuggestedActionCard({ action }: { action: SuggestedAction }) {
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <Compass className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
+        <p className="truncate text-xs text-ink">{action.procedure_name}</p>
+      </div>
+      {action.checklist_item_id !== null && (
+        <Link
+          href={`/checklist?item=${action.checklist_item_id}`}
+          className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-soft"
+        >
+          Đến mục này
+        </Link>
+      )}
+    </div>
+  );
+}
 
 function SourceCard({ source }: { source: Source }) {
   const Icon = source.source_type === "bql_internal" ? FileText : Scale;

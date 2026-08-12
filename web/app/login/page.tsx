@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, ClipboardList, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 
-import { api, writeUserId, type DemoAccount } from "../../lib/api";
+import { api, destinationFor, writeUserId, type DemoAccount } from "../../lib/api";
 import { DEMO_PASSWORD, supabase, supabaseConfigured } from "../../lib/supabase";
 
 export default function LoginPage() {
@@ -42,7 +42,7 @@ export default function LoginPage() {
       // `writeUserId` chỉ còn để bộ đổi persona của bản demo biết đang là ai.
       const profile = await api.getProfile(0);
       writeUserId(profile.user_id);
-      router.push(profile.onboarding_completed_at ? "/dashboard" : "/onboarding");
+      router.push(destinationFor(profile));
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       setError(
@@ -55,9 +55,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-ink px-14 py-12 text-white lg:flex">
+    <main className="grid min-h-screen grid-cols-1 lg:h-screen lg:grid-cols-2">
+      {/* Brand panel — cố định, không cuộn theo form bên phải */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-ink px-14 py-12 text-white lg:flex lg:h-screen">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
@@ -93,8 +93,8 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Form panel */}
-      <div className="flex items-center justify-center bg-background px-6 py-12">
+      {/* Form panel — cuộn riêng khi danh sách tài khoản demo dài hơn màn hình */}
+      <div className="flex items-center justify-center overflow-y-auto bg-background px-6 py-12 lg:h-screen">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center text-center lg:hidden">
             <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-gold/40 bg-gold-tint">
@@ -224,8 +224,7 @@ function DemoAccountList({
       </div>
 
       <p className="mt-4 text-[11px] leading-relaxed text-muted">
-        Bản demo chưa kiểm mật khẩu — đăng nhập chỉ tra theo email. Supabase Auth
-        sẽ thay phần này.
+        Mật khẩu demo dùng chung: <code className="text-ink">{DEMO_PASSWORD}</code>
       </p>
     </div>
   );

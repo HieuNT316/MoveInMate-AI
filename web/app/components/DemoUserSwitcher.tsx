@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 
-import { api, clearUserId, type DemoAccount } from "../../lib/api";
+import { api, clearUserId, destinationFor, type DemoAccount } from "../../lib/api";
 import { DEMO_PASSWORD, supabase } from "../../lib/supabase";
 import { useDemoUser } from "../../lib/useDemoUser";
 
@@ -29,6 +29,11 @@ export default function DemoUserSwitcher() {
    * Phải ĐĂNG NHẬP LẠI thật sự, không chỉ đổi id trong localStorage: kể từ khi
    * có phiên Supabase, mọi request đều gắn Bearer token, nên đổi id suông
    * không còn tác dụng gì — và ở production header `X-User-Id` bị chặn hẳn.
+   *
+   * Điều hướng theo `destinationFor()` sau khi đổi persona, giống hệt luồng
+   * đăng nhập — không dùng `router.refresh()`: nó chỉ tải lại dữ liệu của
+   * route hiện tại, nên đổi sang persona BQL trong lúc đang đứng ở trang
+   * `/chat` sẽ để nguyên URL cư dân và hiện sai layout.
    */
   const pick = async (account: DemoAccount) => {
     if (busy || account.user_id === userId) return;
@@ -41,7 +46,8 @@ export default function DemoUserSwitcher() {
       });
       if (error) throw error;
       switchUser(account.user_id);
-      router.refresh();
+      const profile = await api.getProfile(account.user_id);
+      router.push(destinationFor(profile));
     } finally {
       setBusy(false);
     }
