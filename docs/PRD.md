@@ -92,7 +92,8 @@ Phần thưởng phải là thứ sản phẩm tự trao được: huy hiệu, c
 
 | Tính năng | Trạng thái thật | Thiếu gì |
 |---|---|---|
-| **Điều hướng nộp hồ sơ** | BE trả `suggested_action`; **FE chưa khai báo type nên đang bỏ qua hoàn toàn** | FE hiện nút; trang đích; lớp đối chiếu tất định ở BE (tool LLM mới bắn 2/4 cách hỏi) |
+| **Điều hướng trong app** (nghĩa a) | FE đã hiện nút (12/08), nhưng tool LLM đo được **0/5** nên nút gần như không xuất hiện | Lớp đối chiếu tất định ở BE — cần vai AI duyệt |
+| **Định tuyến hồ sơ tới bộ phận** (nghĩa c — US-13, đề bài mục Nâng cao) | **Chưa có gì**: không có bảng `APPLICATIONS`, không có endpoint nộp đơn. Dữ liệu định tuyến đã sẵn trong `data/kb/bql/` nhưng mới ở dạng văn bản cho chat đọc | Phase 2 theo charter — cần quyết định có kéo lên không |
 | **Form nộp hồ sơ online** | FE đang làm | Chưa có contract API viết ra giữa FE và BE — **phải chốt trước khi code song song** |
 
 ### 5.3 Xếp W4 — góp ý mentor 08/08, không bắt buộc cho GATE 2
