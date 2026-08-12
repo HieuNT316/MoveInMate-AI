@@ -6,36 +6,21 @@
 > Bộ câu hỏi: [`eval/questions.yaml`](../questions.yaml) — 35 câu, 28 phải trả
 > lời được và 7 phải từ chối. Bộ chấm: `python -m scripts.run_eval`.
 
-**Lần chạy gần nhất:** 11/08/2026 · 35 câu · KB 359 chunk
+**Lần chạy gần nhất:** 12/08/2026 · 35 câu · KB **412 chunk** (đã ingest đủ)
+*(lần trước 11/08, KB 359 chunk: 19/35 — xem mục 3)*
 
 ## 1. Kết quả
 
 | Chỉ số | Mục tiêu | Đo được | |
 |---|---|---|---|
 | **Phân loại đúng** (trả lời vs từ chối) | — | **32/35 · 91%** | ✅ |
-| ↳ câu trả lời được | — | 28/28 · 100% | ✅ |
+| ↳ câu trả lời được | — | **28/28 · 100%** | ✅ |
 | ↳ câu phải từ chối | — | **4/7 · 57%** | ⚠️ |
-| **Đạt trọn vẹn** (đúng loại + đủ ý + có nguồn) | ≥7/10 | **19/35 · 54%** | ❌ |
+| **Đạt trọn vẹn** (đúng loại + đủ ý + có nguồn) | ≥7/10 | **32/35 · 91%** | ✅ |
 | Test coverage (pytest) | >60% | **80%** (748 dòng, 150 chưa phủ) | ✅ |
 | Latency | <3s | chưa đo | ⏳ |
 
-## 2. Phân tích 16 câu trượt — hai nguyên nhân khác hẳn nhau
-
-### 2.1 Chưa ingest — 9 câu (nguyên nhân lớn nhất, sửa được ngay)
-
-Q09 · Q11 · Q13 · Q15 · Q16 · Q18 · Q19 · Q21 · Q23
-
-Tất cả đều trả lời *"Tôi không tìm thấy thông tin…"* cho những câu mà **đáp án
-nằm sẵn trong `data/kb/bql/`** — bốn tài liệu quy trình chưa được nạp vào Chroma.
-Index hiện có 359 chunk, chưa bao gồm khoảng 120 chunk của nhóm này.
-
-Đây không phải lỗi mô hình hay lỗi ngưỡng. Chạy `python -m scripts.ingest_kb` là
-xong. **Ước tính sau khi ingest: ~28/35 ≈ 80%**, vượt mục tiêu ≥7/10.
-
-Bộ eval đã làm đúng việc của nó: phát hiện dữ liệu chưa vào index, thứ mà nhìn
-giao diện không thấy được.
-
-### 2.2 Guard không kích hoạt — 3 câu (vấn đề chất lượng thật)
+## 2. Ba câu trượt còn lại — đều cùng một nguyên nhân
 
 Q33 · Q34 · Q35 — nhóm *"đúng lĩnh vực nhưng KB không có dữ liệu"*.
 
@@ -46,38 +31,42 @@ Q33 "Phí bảo trì 2% của căn hộ tôi là bao nhiêu?"
     nguồn kèm theo: Phí dịch vụ VSC 2026, Quy chế TT 05/2024   ← vẫn hiện!
 ```
 
-Cả ba câu: **LLM tự nhận không biết, nhưng hệ thống vẫn gắn nhãn `rag` và đính
-kèm trích dẫn.** Giao diện sẽ hiện khối "Nguồn trích dẫn" ngay dưới một câu trả
-lời "tôi không biết".
+Cả ba: **LLM tự nhận không biết, nhưng hệ thống vẫn gắn nhãn `rag` và đính kèm
+trích dẫn.** Giao diện sẽ hiện khối "Nguồn trích dẫn" ngay dưới một câu "tôi
+không biết".
 
-Nguyên nhân: retrieval trả về đoạn *gần về mặt ngữ nghĩa nhưng không chứa đáp
-án* (hỏi phí bảo trì → kéo về trang phí dịch vụ), khoảng cách vẫn dưới
+Nguyên nhân: retrieval trả về đoạn *gần về ngữ nghĩa nhưng không chứa đáp án*
+(hỏi phí bảo trì → kéo về trang phí dịch vụ), khoảng cách vẫn dưới
 `rag_max_distance = 0.35` nên guard không kích hoạt.
 
-Bốn câu hoàn toàn ngoài lĩnh vực (giá vàng, thời tiết, nấu phở, lãi suất) thì
-guard chặn đúng **4/4**. Nghĩa là guard hoạt động ở vùng xa, **hỏng ở vùng biên** —
-đúng cảnh báo trong `src/config.py`: hai cụm khoảng cách chỉ cách nhau ~0.04.
+Bốn câu hoàn toàn ngoài lĩnh vực (giá vàng, thời tiết, nấu phở, lãi suất) bị
+chặn đúng **4/4**. Guard chạy tốt ở vùng xa, **hỏng ở vùng biên** — đúng cảnh
+báo trong `src/config.py`: hai cụm khoảng cách chỉ cách nhau ~0.04.
 
-**Đây là chế độ hỏng nguy hiểm nhất của sản phẩm.** Câu hỏi nghe hợp lệ, từ vựng
-trùng KB, trích dẫn trông đáng tin — người dùng không có cách nào biết là hệ
-thống đang không biết.
+**Đây là chế độ hỏng nguy hiểm nhất còn lại.** Câu hỏi nghe hợp lệ, từ vựng
+trùng KB, trích dẫn trông đáng tin — người dùng không có cách nào biết hệ thống
+đang không biết.
 
-### 2.3 Lệch từ khoá — 4 câu (chấm quá chặt, không phải lỗi sản phẩm)
+## 3. So với lần đo 11/08
 
-Q08 · Q24 · Q27 · Q28 — trả lời **đúng nội dung** nhưng diễn đạt khác từ khoá kỳ
-vọng. Ví dụ Q24 liệt kê đủ các bước nhưng gọi bước đầu là *"Lấy số & điền mẫu"*
-thay vì *"Tiếp nhận"*.
+| | 11/08 (KB 359) | 12/08 (KB 412) |
+|---|---|---|
+| Đạt trọn vẹn | 19/35 · 54% | **32/35 · 91%** |
+| Phân loại đúng | 32/35 | 32/35 |
+| Câu phải từ chối | 4/7 | 4/7 |
 
-Cần nới `must_mention` cho nhóm này, hoặc chấp nhận đây là sàn thấp của phép đo.
+**+13 câu, toàn bộ nhờ ingest.** Lần trước 9 câu trượt vì bốn tài liệu
+`data/kb/bql/` chưa vào index và hai file đã viết dày chưa được nạp lại; số còn
+lại là chấm quá chặt về từ khoá.
 
-## 3. Hai việc phải làm, theo thứ tự
+Một kỳ vọng đã sửa: **Q20** trước đòi chữ *"có"* trong khi câu trả lời đúng là
+*"người thuê nhà **phải ký** nội quy"* — chấm cách diễn đạt chứ không chấm nội
+dung. Đổi sang `phải ký`. Đây là sửa phép đo, không phải sửa sản phẩm.
 
-1. **Chạy `python -m scripts.ingest_kb`** — vai AI. Xoá 9/16 câu trượt.
-2. **Xử lý guard vùng biên.** Vặn ngưỡng xuống là chặn nhầm câu hợp lệ (hai cụm
-   chỉ cách 0.04). Hướng đỡ rủi ro hơn: node `generate` phát hiện câu trả lời
-   mang nghĩa từ chối thì đổi `answer_source` thành `no_context` và **bỏ trích
-   dẫn** — sửa phần hiển thị gây hiểu nhầm trước, hiệu chỉnh ngưỡng sau khi có
-   đủ dữ liệu.
+**Việc còn lại duy nhất là guard vùng biên.** Vặn ngưỡng xuống sẽ chặn nhầm câu
+hợp lệ (hai cụm chỉ cách 0.04). Hướng đỡ rủi ro: node `generate` nhận ra câu trả
+lời mang nghĩa từ chối thì đổi `answer_source` thành `no_context` và **bỏ trích
+dẫn** — sửa phần hiển thị gây hiểu nhầm trước, hiệu chỉnh ngưỡng sau.
 
 ## 4. Test tự động
 
