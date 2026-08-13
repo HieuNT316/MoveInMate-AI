@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     # thiếu (vd. "thẻ xe" hiện không có tài liệu riêng, dễ bị trả lời lạc đề).
     rag_max_distance: float = Field(default=0.35, ge=0.0, le=2.0)
 
+    # Số lượt hỏi-đáp gần nhất (cùng cuộc hội thoại) đưa vào node `rewrite_query`
+    # để viết lại câu hỏi mới thành độc lập ngữ cảnh. Chỉ dùng cho bước viết
+    # lại — KHÔNG đưa vào `generate` (xem rewrite_query.py). Lấy ít vì mục
+    # đích chỉ là giải quyết đại từ/tỉnh lược ("nó", "còn X thì sao"), không
+    # phải tóm tắt cả cuộc hội thoại — lấy nhiều vừa tốn token vừa dễ khiến
+    # model bám nhầm vào chủ đề cũ đã hết liên quan.
+    rag_history_turns: int = Field(default=3, ge=0, le=10)
+
 
 @lru_cache
 def get_settings() -> Settings:

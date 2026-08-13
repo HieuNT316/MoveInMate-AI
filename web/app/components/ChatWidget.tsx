@@ -30,6 +30,10 @@ export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
+  // Giữ trong state của widget — mở/đóng bong bóng không mất, nhưng KHÔNG
+  // lưu localStorage: đóng tab hay bấm "Mở toàn màn hình" (sang /chat) đều
+  // nên bắt đầu hội thoại mới, tránh nhầm ngữ cảnh giữa hai nơi hỏi khác nhau.
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +55,7 @@ export default function ChatWidget() {
     setSending(true);
 
     try {
-      const reply = await api.sendChat(userId, question);
+      const reply = await api.sendChat(userId, question, conversationId ?? undefined);
       setMessages((prev) => [
         ...prev,
         {
@@ -62,6 +66,7 @@ export default function ChatWidget() {
           refused: reply.answer_source === "no_context",
         },
       ]);
+      setConversationId(reply.conversation_id);
     } catch (err) {
       setMessages((prev) => [
         ...prev,

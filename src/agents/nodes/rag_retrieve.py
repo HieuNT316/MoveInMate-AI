@@ -25,12 +25,15 @@ async def rag_retrieve_node(state: ChatState) -> dict[str, Any]:
     """
     settings = get_settings()
     store = get_vectorstore()
+    # Ưu tiên câu đã viết lại độc lập ngữ cảnh (rewrite_query) — rơi về câu
+    # gốc khi không có lịch sử hội thoại (rewrite_query bỏ qua bước viết lại).
+    query = state.get("standalone_query") or state["query"]
 
     try:
         # Client Chroma là sync; bọc run_in_threadpool để không chẹn event
         # loop của FastAPI khi có nhiều request /chat đồng thời.
         results = await run_in_threadpool(
-            store.similarity_search_with_score, state["query"], k=settings.rag_top_k
+            store.similarity_search_with_score, query, k=settings.rag_top_k
         )
     except Exception as exc:
         # Lỗi hạ tầng (embeddings/Chroma), khác với "không tìm thấy tài liệu
