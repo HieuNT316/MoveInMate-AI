@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Check, Home, KeyRound, Loader2, Sparkles } from "lucide-react";
+import { Car, Check, CheckCircle2, Home, KeyRound, Loader2, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
 import {
@@ -93,20 +93,33 @@ export default function OnboardingPage() {
 
         <Section icon={KeyRound} title="Bạn là chủ hộ hay người thuê?">
           <div className="grid gap-3 sm:grid-cols-2">
-            {OWNERSHIP.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setOwnership(option.value)}
-                className={`rounded-xl border p-4 text-left transition ${
-                  ownership === option.value
-                    ? "border-gold bg-gold-tint"
-                    : "border-border bg-background hover:border-gold/40"
-                }`}
-              >
-                <p className="text-sm font-medium text-ink">{option.label}</p>
-                <p className="mt-1 text-xs text-muted">{option.hint}</p>
-              </button>
-            ))}
+            {OWNERSHIP.map((option) => {
+              const active = ownership === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => setOwnership(option.value)}
+                  className={`relative rounded-xl border-2 p-4 text-left transition ${
+                    active
+                      ? "border-ink bg-ink text-white shadow-md"
+                      : "border-border bg-background hover:border-gold/40"
+                  }`}
+                >
+                  {active && (
+                    <CheckCircle2
+                      className="absolute right-3 top-3 h-4 w-4 text-gold-soft"
+                      strokeWidth={2}
+                    />
+                  )}
+                  <p className={`text-sm font-medium ${active ? "text-white" : "text-ink"}`}>
+                    {option.label}
+                  </p>
+                  <p className={`mt-1 text-xs ${active ? "text-white/70" : "text-muted"}`}>
+                    {option.hint}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </Section>
 
@@ -143,9 +156,6 @@ export default function OnboardingPage() {
                 active={amenities.includes(option.value)}
                 onClick={() => toggleAmenity(option.value)}
               >
-                {amenities.includes(option.value) && (
-                  <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
-                )}
                 {option.label}
               </Chip>
             ))}
@@ -204,12 +214,13 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm transition ${
+      className={`flex items-center gap-1.5 rounded-full border-2 px-4 py-2 text-sm transition ${
         active
-          ? "border-gold bg-gold-tint font-medium text-ink"
+          ? "border-ink bg-ink font-medium text-white shadow-sm"
           : "border-border bg-background text-muted hover:border-gold/40 hover:text-ink"
       }`}
     >
+      {active && <Check className="h-3.5 w-3.5" strokeWidth={2.5} />}
       {children}
     </button>
   );

@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import RegisterServiceWorker from "./register-service-worker";
 
 // Chỉ dùng một font (Inter, có subset "vietnamese" cho dấu tiếng Việt).
 // Trước đây có thêm Playfair Display (serif) cho heading/số liệu, nhưng
@@ -17,6 +18,10 @@ export const metadata: Metadata = {
   description: "Nền tảng AI hỗ trợ cư dân nhận nhà chuyên nghiệp, chỉn chu và đẳng cấp.",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#002d62",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -24,7 +29,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" className={body.variable}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <RegisterServiceWorker />
+      </body>
     </html>
   );
 }

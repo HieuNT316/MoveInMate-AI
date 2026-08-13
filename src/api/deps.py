@@ -73,3 +73,25 @@ async def require_admin(
             detail="Chức năng này chỉ dành cho Ban quản lý",
         )
     return user
+
+
+async def require_resident(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Chiều ngược lại của `require_admin`: chức năng cư dân, BQL không dùng.
+
+    Cần cả hai chiều thì mới gọi là phân quyền. Trước 12/08 chỉ có chiều đầu,
+    nên tài khoản BQL vẫn onboarding được và vẫn có checklist nhận nhà của
+    riêng mình — hồ sơ BQL không khai `ownership_type` nên rule engine trả về
+    đúng các mục điều kiện rỗng, trông như một cư dân chưa thiết lập hồ sơ.
+
+    KHÔNG gắn dependency này lên `GET /profile`: frontend gọi đúng endpoint đó
+    để biết mình là ai trước khi rẽ giao diện. Chặn nó là BQL không vào được
+    màn hình nào cả.
+    """
+    if user["role"] != "resident":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chức năng này dành cho cư dân",
+        )
+    return user

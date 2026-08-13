@@ -217,7 +217,15 @@ def build_residents(rng: random.Random, count: int) -> list[User]:
             }
         )
         if profile["ownership_type"] is None:
-            profile = {**profile, "apartment_type": None, "amenity_packages": []}
+            # Chưa onboarding thì CHƯA khai gì cả — kể cả `has_car`. Thiếu dòng
+            # này thì cư dân chưa điền form vẫn nhận mục "đăng ký thẻ xe", và
+            # persona demo "chưa thiết lập hồ sơ" hiện 6 mục thay vì 4.
+            profile = {
+                **profile,
+                "apartment_type": None,
+                "amenity_packages": [],
+                "has_car": False,
+            }
 
         name = make_name(rng)
         residents.append(
@@ -298,6 +306,12 @@ def main() -> None:
                 role="admin",
                 has_car=False,
                 amenity_packages=[],
+                # BQL không nhận nhà nên không có onboarding. Vẫn đặt mốc này
+                # vì frontend dùng `onboarding_completed_at is null` làm tín
+                # hiệu chuyển hướng: để trống thì đăng nhập BQL bị đẩy vào form
+                # onboarding của cư dân — mà form đó nay đã 403.
+                # Cách sạch hơn là frontend rẽ theo `role` (việc của vai FE).
+                onboarding_completed_at=datetime.now(UTC),
             )
         )
         residents = build_residents(rng, args.residents)

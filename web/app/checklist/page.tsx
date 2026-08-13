@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 
 import Layout from "../components/Layout";
@@ -9,12 +9,28 @@ import { api, type Checklist } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 export default function ChecklistPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChecklistContent />
+    </Suspense>
+  );
+}
+
+// `useSearchParams()` bắt buộc nằm trong <Suspense> (đọc `?item=` từ nút
+// "Đến mục này" trong chat) — thiếu boundary này thì `next build` fail.
+function ChecklistContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { userId, ready } = useDemoUser();
 
   const [data, setData] = useState<Checklist | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+
+  // Đích tới từ nút "Đến mục này" trong chat (SuggestedAction) — cuộn và
+  // đánh dấu đúng mục một lần sau khi checklist tải xong.
+  const highlightId = Number(searchParams.get("item")) || null;
+  const [highlighted, setHighlighted] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +49,16 @@ export default function ChecklistPage() {
   useEffect(() => {
     if (ready) load();
   }, [ready, load]);
+
+  useEffect(() => {
+    if (!data || !highlightId) return;
+    const el = document.getElementById(`checklist-item-${highlightId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlighted(highlightId);
+    const timer = setTimeout(() => setHighlighted(null), 2500);
+    return () => clearTimeout(timer);
+  }, [data, highlightId]);
 
   const toggle = async (itemId: number, completed: boolean) => {
     setPending(itemId);
@@ -113,7 +139,13 @@ export default function ChecklistPage() {
             {items.map((item, index) => {
               const external = item.item_type === "third_party_info";
               return (
-                <li key={item.id} className="relative flex gap-4 pb-7 last:pb-0">
+                <li
+                  key={item.id}
+                  id={`checklist-item-${item.id}`}
+                  className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
+                    highlighted === item.id ? "bg-gold-tint/60 ring-1 ring-gold/40" : ""
+                  }`}
+                >
                   {index !== items.length - 1 && (
                     <span
                       className={`absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-px ${

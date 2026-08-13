@@ -72,6 +72,14 @@ export type Source = {
   source_type: DocSourceType;
 };
 
+/**
+ * Tín hiệu điều hướng do agent phát ra khi người dùng hỏi CÁCH NỘP hồ sơ
+ * (khác với hỏi "cần giấy tờ gì" — câu đó chỉ cần trả lời bằng chữ).
+ *
+ * `checklist_item_id` là `null` khi backend không đối chiếu được tên thủ tục
+ * AI suy ra với đúng một mục trong checklist thật của người dùng. Lúc đó FE
+ * **phải ẩn nút**, không điều hướng mù tới chỗ sai.
+ */
 export type SuggestedAction = {
   type: "navigate_to_submission";
   procedure_name: string;
@@ -82,7 +90,7 @@ export type ChatAnswer = {
   answer: string;
   sources: Source[];
   answer_source: AnswerSource;
-  suggested_action: SuggestedAction | null;
+  suggested_action?: SuggestedAction | null;
 };
 
 /** US-07 — một lượt hỏi đáp đã lưu, trả về theo thứ tự thời gian tăng dần. */
@@ -119,6 +127,19 @@ export type Dashboard = {
   total_residents: number;
 };
 
+export type CreateUserPayload = {
+  full_name: string;
+  email: string;
+  apartment: string;
+  building: string;
+};
+
+/**
+ * Mật khẩu tạm chỉ xuất hiện đúng một lần ở đây — backend không lưu lại,
+ * không có cách xem lại. BQL phải chép ngay để bàn giao cho cư dân.
+ */
+export type CreatedUser = Profile & { temporary_password: string };
+
 /**
  * ⚠️ TẠM THỜI — tài khoản mẫu cho màn đăng nhập demo.
  * Xoá cùng lúc với `/auth/demo-accounts` khi có Supabase Auth.
@@ -133,6 +154,17 @@ export type DemoAccount = {
   /** Số mục rule engine sinh ra cho hồ sơ này — khác nhau giữa các persona. */
   checklist_total: number;
 };
+
+/**
+ * Đích tới sau khi đăng nhập/đổi persona — dùng chung giữa `login/page.tsx`
+ * và `DemoUserSwitcher`. BQL luôn vào `/bql`, kể cả khi `onboarding_completed_at`
+ * null (BQL không có checklist nên trường này vốn không áp dụng, không phải
+ * dấu hiệu "chưa hoàn tất" như với cư dân).
+ */
+export function destinationFor(profile: Profile): string {
+  if (profile.role === "admin") return "/bql/dashboard";
+  return profile.onboarding_completed_at ? "/dashboard" : "/onboarding";
+}
 
 const STORAGE_KEY = "moveinmate.demo-user-id";
 
@@ -189,6 +221,22 @@ export function describeError(err: unknown): string {
   return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
 }
 
+/**
+ * FastAPI trả lỗi dạng `{"detail": "..."}` — lấy đúng field đó thay vì hiện
+ * cả JSON thô lên UI. Không phải mọi lỗi đều có dạng này (vd lỗi hạ tầng
+ * không qua FastAPI), nên rơi về text gốc khi parse thất bại.
+ */
+function parseErrorDetail(rawText: string, statusText: string): string {
+  if (!rawText) return statusText;
+  try {
+    const parsed = JSON.parse(rawText);
+    if (typeof parsed?.detail === "string") return parsed.detail;
+  } catch {
+    // Không phải JSON — dùng nguyên text.
+  }
+  return rawText;
+}
+
 async function request<T>(
   path: string,
   userId: number,
@@ -205,7 +253,7 @@ async function request<T>(
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new ApiError(response.status, detail || response.statusText);
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
   return response.json() as Promise<T>;
 }
@@ -219,7 +267,7 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new ApiError(response.status, detail || response.statusText);
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
   return response.json() as Promise<T>;
 }
@@ -264,4 +312,10 @@ export const api = {
 
   getDashboard: (userId: number) =>
     request<Dashboard>("/admin/dashboard", userId),
+
+  createResident: (userId: number, payload: CreateUserPayload) =>
+    request<CreatedUser>("/admin/users", userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

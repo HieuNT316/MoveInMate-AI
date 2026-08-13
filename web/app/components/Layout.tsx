@@ -8,10 +8,10 @@ export default function Layout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-y-auto">
         <Header />
 
         <main className="mx-auto max-w-6xl px-8 py-10">{children}</main>

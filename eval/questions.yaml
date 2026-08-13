@@ -157,7 +157,9 @@ questions:
     procedure: noi-quy
     dimension: dieu-kien
     expect: answer
-    must_mention: ["có"]
+    # Kỳ vọng cũ là chữ "có" — chấm cách diễn đạt chứ không chấm nội dung.
+    # Câu trả lời "người thuê phải ký" đúng hoàn toàn mà vẫn bị tính trượt.
+    must_mention: ["phải ký"]
 
   - id: Q21
     question: "Muốn chuyển đồ vào căn hộ phải báo trước bao lâu?"
