@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bot, FileText, Loader2, Scale, Send, Sparkles } from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, type Source } from "../../lib/api";
+import { api, type ChatHistoryEntry, type Source } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 type Message = {
@@ -27,16 +27,54 @@ const SUGGESTIONS = [
   "Đăng ký tạm trú thế nào?",
 ];
 
+/** Mỗi lượt hỏi đáp đã lưu tách thành 2 bong bóng (hỏi + đáp) để dùng chung
+ * cách render với tin nhắn trong phiên hiện tại. `entries` đã sắp theo thời
+ * gian tăng dần từ backend nên chỉ cần map tuần tự, không cần sort lại. */
+function historyToMessages(entries: ChatHistoryEntry[]): Message[] {
+  return entries.flatMap((entry, index) => [
+    { id: index * 2, role: "user" as const, text: entry.question },
+    {
+      id: index * 2 + 1,
+      role: "assistant" as const,
+      text: entry.answer,
+      sources: entry.sources,
+      refused: entry.answer_source === "no_context",
+    },
+  ]);
+}
+
 export default function ChatPage() {
   const { userId, ready } = useDemoUser();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const entries = await api.getChatHistory(userId);
+      // Có lịch sử thật thì bỏ lời chào, coi như nối tiếp cuộc trò chuyện cũ
+      // — chưa từng hỏi gì thì vẫn giữ lời chào cho người dùng lần đầu.
+      setMessages(entries.length > 0 ? historyToMessages(entries) : [GREETING]);
+    } catch (err) {
+      // Không chặn cả trang chỉ vì không tải được lịch sử cũ — cư dân vẫn
+      // phải hỏi được câu mới ngay cả khi backend đang chập chờn lúc này.
+      console.error("[chat] không tải được lịch sử:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (ready) loadHistory();
+  }, [ready, loadHistory]);
 
   const send = async (text: string) => {
     const question = text.trim();
     // `ready` false = chưa có danh tính, đang trên đường chuyển về /login.
-    if (!question || sending || !ready) return;
+    // `loadingHistory` true = lịch sử cũ chưa nạp xong; gửi sớm hơn thì lúc
+    // nạp xong sẽ ghi đè cả tin nhắn vừa gửi (setMessages thay nguyên mảng).
+    if (!question || sending || !ready || loadingHistory) return;
 
     setMessages((prev) => [
       ...prev,
@@ -91,7 +129,14 @@ export default function ChatPage() {
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-          {messages.map((message) => (
+          {loadingHistory && (
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Đang tải lịch sử trò chuyện...
+            </div>
+          )}
+
+          {!loadingHistory && messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
@@ -130,7 +175,7 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.length === 1 && (
+          {!loadingHistory && messages.length === 1 && (
             <div className="flex flex-wrap gap-2 pt-2">
               {SUGGESTIONS.map((suggestion) => (
                 <button
@@ -149,15 +194,16 @@ export default function ChatPage() {
         <div className="border-t border-border bg-surface p-4">
           <div className="flex items-center gap-3">
             <input
-              className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
+              className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-60"
               placeholder="Nhập câu hỏi của bạn..."
               value={input}
+              disabled={loadingHistory}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && send(input)}
             />
             <button
               onClick={() => send(input)}
-              disabled={sending}
+              disabled={sending || loadingHistory}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
               aria-label="Gửi"
             >

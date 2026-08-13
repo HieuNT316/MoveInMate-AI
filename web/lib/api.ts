@@ -72,10 +72,27 @@ export type Source = {
   source_type: DocSourceType;
 };
 
+export type SuggestedAction = {
+  type: "navigate_to_submission";
+  procedure_name: string;
+  checklist_item_id: number | null;
+};
+
 export type ChatAnswer = {
   answer: string;
   sources: Source[];
   answer_source: AnswerSource;
+  suggested_action: SuggestedAction | null;
+};
+
+/** US-07 — một lượt hỏi đáp đã lưu, trả về theo thứ tự thời gian tăng dần. */
+export type ChatHistoryEntry = {
+  id: number;
+  question: string;
+  answer: string;
+  answer_source: AnswerSource;
+  sources: Source[];
+  created_at: string;
 };
 
 export type OnboardingPayload = {
@@ -238,6 +255,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
+
+  /** US-07 — lịch sử hội thoại. Backend lọc theo `user_id` xác thực, không
+   * theo tham số nào FE gửi lên — mỗi người chỉ nhận được đúng lịch sử của
+   * chính mình dù có cố ý truyền `userId` của người khác. */
+  getChatHistory: (userId: number) =>
+    request<ChatHistoryEntry[]>("/chat/history", userId),
 
   getDashboard: (userId: number) =>
     request<Dashboard>("/admin/dashboard", userId),
