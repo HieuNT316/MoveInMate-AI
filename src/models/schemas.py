@@ -6,6 +6,7 @@ theo file này; đổi field ở đây là đổi hợp đồng, phải báo c�
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -145,6 +146,14 @@ class CompletionRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Tiếp tục một hội thoại đã có — AI sẽ dùng vài lượt gần nhất của "
+            "đúng hội thoại này để hiểu câu hỏi tiếp nối (vd 'còn phí thì "
+            "sao?'). Bỏ trống để bắt đầu hội thoại mới."
+        ),
+    )
 
 
 class Source(BaseModel):
@@ -186,10 +195,14 @@ class ChatResponse(BaseModel):
     sources: list[Source] = Field(default_factory=list)
     answer_source: AnswerSource
     suggested_action: SuggestedAction | None = None
+    conversation_id: UUID = Field(
+        description="Hội thoại vừa hỏi thuộc về — FE cần lưu lại để gửi kèm "
+        "cho câu hỏi tiếp theo nếu muốn AI hiểu ngữ cảnh."
+    )
 
 
 class ChatHistoryEntry(BaseModel):
-    """US-07 — một lượt hỏi đáp đã lưu."""
+    """Một lượt hỏi đáp đã lưu, thuộc về đúng một hội thoại."""
 
     id: int
     question: str
@@ -197,6 +210,16 @@ class ChatHistoryEntry(BaseModel):
     answer_source: AnswerSource
     sources: list[Source] = Field(default_factory=list)
     created_at: datetime
+
+
+class ConversationSummary(BaseModel):
+    """US-07 — một cuộc hội thoại đã lưu, hiển thị trong danh sách để bấm vào
+    xem lại/hỏi tiếp. `preview` lấy nguyên câu hỏi đầu tiên làm tiêu đề."""
+
+    conversation_id: UUID
+    preview: str
+    message_count: int
+    last_message_at: datetime
 
 
 class CreateUserRequest(BaseModel):

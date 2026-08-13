@@ -7,6 +7,7 @@ mục 3.2.
 
 import re
 import unicodedata
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
 from src.api.deps import get_current_user, require_admin, require_resident
+from src.config import get_settings
 from src.database import get_db
 from src.models.schemas import (
     ChatHistoryEntry,
@@ -22,6 +24,7 @@ from src.models.schemas import (
     ChecklistItemResponse,
     ChecklistResponse,
     CompletionRequest,
+    ConversationSummary,
     CreatedUserResponse,
     CreateUserRequest,
     DashboardResponse,
@@ -298,9 +301,36 @@ async def chat(
     user: dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Any:
-    """US-05 — hỏi đáp thủ tục qua `chat_graph` (RAG). Luôn kèm nguồn, hoặc từ chối."""
+    """US-05 — hỏi đáp thủ tục qua `chat_graph` (RAG). Luôn kèm nguồn, hoặc từ chối.
+
+    Multi-turn (đã chốt với team 13/08, đảo quyết định single-turn ở
+    PROJECT_CHARTER.md mục 7): `conversation_id` có giá trị thì tiếp tục hội
+    thoại cũ, `chat_graph` được cấp thêm vài lượt gần nhất để viết lại câu hỏi
+    mơ hồ ("còn phí thì sao?") thành độc lập ngữ cảnh trước khi truy xuất.
+    """
+    if payload.conversation_id is not None:
+        history = store.get_conversation_messages(db, user["user_id"], payload.conversation_id)
+        if not history:
+            # Không tồn tại HOẶC không thuộc về người này — cố tình không
+            # phân biệt hai trường hợp trong thông báo lỗi (store.py đã ghi
+            # rõ lý do), tránh lộ "UUID này có tồn tại" cho người không sở hữu.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Không tìm thấy hội thoại này.",
+            )
+        conversation_id = payload.conversation_id
+    else:
+        history = []
+        conversation_id = uuid.uuid4()
+
+    settings = get_settings()
+    recent_turns = [
+        {"question": turn["question"], "answer": turn["answer"]}
+        for turn in history[-settings.rag_history_turns :]
+    ]
+
     try:
-        state = await chat_graph.ainvoke({"query": payload.message})
+        state = await chat_graph.ainvoke({"query": payload.message, "chat_history": recent_turns})
     except RetrievalError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -311,19 +341,9 @@ async def chat(
         "answer": state["answer"],
         "sources": state.get("sources", []),
         "answer_source": state["answer_source"],
+        "conversation_id": conversation_id,
     }
 
-    # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
-    #
-    # Trước đây khối này chỉ chạy khi `state["suggested_action"]` có giá trị,
-    # tức khi LLM chủ động gọi tool. Đo trên bản deploy 12/08: cùng một câu
-    # "Dẫn tôi đến chỗ nộp hồ sơ đăng ký thẻ xe" bắn 0/5 lần — và càng bổ sung
-    # dữ liệu định tuyến vào KB thì LLM càng trả lời được bằng văn xuôi nên
-    # càng ít gọi tool. Tính năng tốt lên làm tính năng khác hỏng đi.
-    #
-    # Cùng lập luận đã áp cho `sources[]`: việc gì tính tất định được thì
-    # không giao cho LLM quyết. Tool hạ xuống thành tín hiệu bổ trợ — nó vẫn
-    # thắng khi bắn, vì tên thủ tục nó suy ra chính xác hơn nguyên câu hỏi.
     # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
     #
     # Trước đây khối này chỉ chạy khi LLM chủ động gọi tool. Đo trên bản deploy
@@ -359,17 +379,33 @@ async def chat(
             "checklist_item_id": None,
         }
 
-    store.add_chat(db, user["user_id"], {"question": payload.message, **result})
+    store.add_chat(db, user["user_id"], conversation_id, {"question": payload.message, **result})
     return result
 
 
-@router.get("/chat/history", response_model=list[ChatHistoryEntry])
-async def chat_history(
+@router.get("/chat/conversations", response_model=list[ConversationSummary])
+async def list_conversations(
     user: dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Any:
-    """US-07 — lịch sử hội thoại của chính người dùng."""
-    return store.list_chat(db, user["user_id"])
+    """US-07 — danh sách hội thoại đã lưu của chính người dùng, mới nhất trước."""
+    return store.list_conversations(db, user["user_id"])
+
+
+@router.get("/chat/conversations/{conversation_id}/messages", response_model=list[ChatHistoryEntry])
+async def get_conversation_messages(
+    conversation_id: uuid.UUID,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-07 — toàn bộ lượt hỏi đáp của một hội thoại, để mở lại và hỏi tiếp."""
+    messages = store.get_conversation_messages(db, user["user_id"], conversation_id)
+    if not messages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy hội thoại này.",
+        )
+    return messages
 
 
 # --- Ban quản lý --------------------------------------------------------

@@ -134,6 +134,13 @@ class ChatHistory(Base):
 
     chat_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"))
+
+    # Gom các lượt hỏi đáp thuộc cùng một cuộc hội thoại multi-turn — để "bấm
+    # vào hỏi tiếp" biết lấy đúng lịch sử nào làm ngữ cảnh viết lại câu hỏi
+    # (`rewrite_query`). Mỗi cuộc hội thoại mới sinh một UUID mới ở backend;
+    # tiếp tục hội thoại cũ thì client gửi lại đúng id này.
+    conversation_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+
     question: Mapped[str] = mapped_column(Text)
     answer: Mapped[str] = mapped_column(Text)
 

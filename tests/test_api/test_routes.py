@@ -272,8 +272,12 @@ class _FakeChatGraph:
             "answer_source": "rag",
         }
         self.error = error
+        # Ghi lại state nhận được mỗi lần gọi — để test kiểm tra route có
+        # truyền đúng `chat_history` (lịch sử hội thoại) vào graph hay không.
+        self.received_states: list[dict] = []
 
     async def ainvoke(self, state: dict) -> dict:
+        self.received_states.append(state)
         if self.error:
             raise self.error
         return {"query": state["query"], **self.result}
@@ -373,19 +377,102 @@ async def test_loi_ha_tang_rag_tra_503_khong_ghi_lich_su(client, monkeypatch):
     )
     assert response.status_code == 503
 
-    history = (await client.get("/api/v1/chat/history", headers=OWNER)).json()
-    assert history == []
+    conversations = (await client.get("/api/v1/chat/conversations", headers=OWNER)).json()
+    assert conversations == []
 
 
 @pytest.mark.asyncio
 async def test_lich_su_chat_chi_cua_chinh_minh(client, fake_chat_graph):
-    await client.post("/api/v1/chat", json={"message": "thẻ cư dân"}, headers=OWNER)
+    reply = (
+        await client.post("/api/v1/chat", json={"message": "thẻ cư dân"}, headers=OWNER)
+    ).json()
 
-    mine = (await client.get("/api/v1/chat/history", headers=OWNER)).json()
-    others = (await client.get("/api/v1/chat/history", headers=RENTER)).json()
+    mine = (await client.get("/api/v1/chat/conversations", headers=OWNER)).json()
+    others = (await client.get("/api/v1/chat/conversations", headers=RENTER)).json()
 
     assert len(mine) == 1
+    assert mine[0]["preview"] == "thẻ cư dân"
     assert others == []
+
+    # Xem chi tiết đúng hội thoại mình vừa tạo.
+    conversation_id = reply["conversation_id"]
+    messages = (
+        await client.get(f"/api/v1/chat/conversations/{conversation_id}/messages", headers=OWNER)
+    ).json()
+    assert len(messages) == 1
+
+    # Người khác đoán đúng UUID cũng không xem/tiếp tục được — cách ly ở tầng DB.
+    forbidden = await client.get(
+        f"/api/v1/chat/conversations/{conversation_id}/messages", headers=RENTER
+    )
+    assert forbidden.status_code == 404
+
+
+# --- Hội thoại nhiều lượt (multi-turn) -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_gui_tiep_dung_conversation_id_thi_gop_vao_cung_hoi_thoai(client, fake_chat_graph):
+    first = (
+        await client.post("/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER)
+    ).json()
+    conversation_id = first["conversation_id"]
+
+    second = await client.post(
+        "/api/v1/chat",
+        json={"message": "Còn phí thì sao?", "conversation_id": conversation_id},
+        headers=OWNER,
+    )
+    assert second.status_code == 200
+    assert second.json()["conversation_id"] == conversation_id
+
+    conversations = (await client.get("/api/v1/chat/conversations", headers=OWNER)).json()
+    assert len(conversations) == 1
+    assert conversations[0]["message_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_gui_tiep_thi_chat_graph_nhan_duoc_lich_su_gan_nhat(client, fake_chat_graph):
+    """Xác nhận route thật sự truyền `chat_history` vào graph, không chỉ gộp DB."""
+    first = (
+        await client.post("/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER)
+    ).json()
+
+    await client.post(
+        "/api/v1/chat",
+        json={"message": "Còn phí thì sao?", "conversation_id": first["conversation_id"]},
+        headers=OWNER,
+    )
+
+    first_call, second_call = fake_chat_graph.received_states
+    assert first_call["chat_history"] == []
+    assert second_call["chat_history"] == [
+        {"question": "Thẻ xe cần gì?", "answer": "Câu trả lời giả lập."}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gui_tiep_conversation_id_khong_ton_tai_tra_404(client, fake_chat_graph):
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    response = await client.post(
+        "/api/v1/chat", json={"message": "Còn gì nữa?", "conversation_id": fake_id}, headers=OWNER
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_gui_tiep_conversation_id_cua_nguoi_khac_tra_404(client, fake_chat_graph):
+    """Không cho user A 'hỏi tiếp' vào hội thoại của user B dù đoán đúng UUID."""
+    owner_reply = (
+        await client.post("/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER)
+    ).json()
+
+    response = await client.post(
+        "/api/v1/chat",
+        json={"message": "Chen ngang", "conversation_id": owner_reply["conversation_id"]},
+        headers=RENTER,
+    )
+    assert response.status_code == 404
 
 
 # --- Ban quản lý --------------------------------------------------------

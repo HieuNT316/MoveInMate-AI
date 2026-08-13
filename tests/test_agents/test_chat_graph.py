@@ -13,6 +13,7 @@ from langchain_core.documents import Document as LCDocument
 from src.agents import graph as graph_module
 from src.agents.nodes import generate as generate_module
 from src.agents.nodes import rag_retrieve as rag_retrieve_module
+from src.agents.nodes import rewrite_query as rewrite_query_module
 from src.services.vectorstore import RetrievalError
 
 
@@ -53,8 +54,12 @@ class _FakeLLM:
 class _FakeStore:
     def __init__(self, results: list[tuple[LCDocument, float]]):
         self._results = results
+        # Ghi lại câu truy vấn thật sự gửi tới Chroma — dùng để xác nhận
+        # rag_retrieve có ưu tiên `standalone_query` đã viết lại hay không.
+        self.received_queries: list[str] = []
 
-    def similarity_search_with_score(self, _query: str, k: int):
+    def similarity_search_with_score(self, query: str, k: int):
+        self.received_queries.append(query)
         return self._results[:k]
 
 
@@ -71,11 +76,21 @@ def _fresh_graph():
     yield
 
 
-async def _run(monkeypatch, store: _FakeStore, llm: _FakeLLM, query: str = "Làm thẻ xe cần gì?"):
+async def _run(
+    monkeypatch,
+    store: _FakeStore,
+    llm: _FakeLLM,
+    query: str = "Làm thẻ xe cần gì?",
+    chat_history: list[dict[str, str]] | None = None,
+    rewrite_llm: _FakeLLM | None = None,
+):
     monkeypatch.setattr(rag_retrieve_module, "get_vectorstore", lambda: store)
     monkeypatch.setattr(generate_module, "get_chat_llm", lambda: llm)
+    # Không có lịch sử thì rewrite_query bỏ qua, không gọi LLM — mặc định
+    # dùng chung fake với generate cho gọn, chỉ tách riêng khi test cần.
+    monkeypatch.setattr(rewrite_query_module, "get_chat_llm", lambda: rewrite_llm or llm)
     chat_graph = graph_module.build_chat_graph()
-    return await chat_graph.ainvoke({"query": query})
+    return await chat_graph.ainvoke({"query": query, "chat_history": chat_history or []})
 
 
 @pytest.mark.asyncio
@@ -208,3 +223,57 @@ async def test_loi_o_luot_hai_van_giu_duoc_suggested_action(monkeypatch):
 
     assert result["answer_source"] == "rag"
     assert result["suggested_action"]["procedure_name"] == "Đăng ký thẻ cư dân"
+
+
+# --- Viết lại câu hỏi có ngữ cảnh (multi-turn) ----------------------------
+
+
+@pytest.mark.asyncio
+async def test_khong_co_lich_su_thi_khong_viet_lai_cau_hoi(monkeypatch):
+    """Câu hỏi đầu tiên của hội thoại luôn tự đủ nghĩa — không tốn thêm lệnh gọi LLM."""
+    store = _FakeStore([(_doc("Nội dung A", 1, "Tài liệu A"), 0.1)])
+    rewrite_llm = _FakeLLM(error=AssertionError("không có lịch sử thì không được gọi LLM viết lại"))
+    await _run(monkeypatch, store, _FakeLLM("ok"), rewrite_llm=rewrite_llm)
+
+    assert store.received_queries == ["Làm thẻ xe cần gì?"]
+
+
+@pytest.mark.asyncio
+async def test_co_lich_su_thi_viet_lai_va_dung_cau_da_viet_lai_de_truy_xuat(monkeypatch):
+    """Câu hỏi mơ hồ ('còn phí thì sao') được viết lại độc lập ngữ cảnh trước khi truy xuất."""
+    store = _FakeStore([(_doc("Phí thẻ xe 50k/tháng", 1, "Bảng phí"), 0.1)])
+    rewrite_llm = _FakeLLM("Thẻ xe có mất phí không?")
+    history = [{"question": "Thẻ xe cần giấy tờ gì?", "answer": "Cần CCCD và cà vẹt xe."}]
+
+    result = await _run(
+        monkeypatch,
+        store,
+        _FakeLLM("Có, thẻ xe mất phí."),
+        query="Còn phí thì sao?",
+        chat_history=history,
+        rewrite_llm=rewrite_llm,
+    )
+
+    # rag_retrieve phải nhận câu ĐÃ VIẾT LẠI, không phải câu gốc mơ hồ.
+    assert store.received_queries == ["Thẻ xe có mất phí không?"]
+    assert result["answer_source"] == "rag"
+
+
+@pytest.mark.asyncio
+async def test_loi_viet_lai_cau_hoi_khong_chan_ca_pipeline(monkeypatch):
+    """Lỗi ở bước viết lại (phụ trợ) không được làm hỏng cả request — rơi về câu gốc."""
+    store = _FakeStore([(_doc("Nội dung A", 1, "Tài liệu A"), 0.1)])
+    rewrite_llm = _FakeLLM(error=TimeoutError("hết giờ lúc viết lại"))
+    history = [{"question": "Câu trước", "answer": "Trả lời trước"}]
+
+    result = await _run(
+        monkeypatch,
+        store,
+        _FakeLLM("Vẫn trả lời được."),
+        query="Câu hỏi mơ hồ",
+        chat_history=history,
+        rewrite_llm=rewrite_llm,
+    )
+
+    assert store.received_queries == ["Câu hỏi mơ hồ"]  # rơi về câu gốc
+    assert result["answer"] == "Vẫn trả lời được."

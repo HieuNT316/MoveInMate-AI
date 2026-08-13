@@ -170,10 +170,13 @@ def set_completion(db: Session, user_id: int, item_id: int, completed: bool) -> 
 # --- Hội thoại ----------------------------------------------------------
 
 
-def add_chat(db: Session, user_id: int, payload: dict[str, Any]) -> None:
+def add_chat(
+    db: Session, user_id: int, conversation_id: uuid.UUID, payload: dict[str, Any]
+) -> None:
     db.add(
         ChatHistory(
             user_id=user_id,
+            conversation_id=conversation_id,
             question=payload["question"],
             answer=payload["answer"],
             answer_source=payload["answer_source"],
@@ -183,20 +186,62 @@ def add_chat(db: Session, user_id: int, payload: dict[str, Any]) -> None:
     db.commit()
 
 
-def list_chat(db: Session, user_id: int) -> list[dict[str, Any]]:
+def _chat_entry(row: ChatHistory) -> dict[str, Any]:
+    return {
+        "id": row.chat_id,
+        "question": row.question,
+        "answer": row.answer,
+        "answer_source": row.answer_source,
+        "sources": row.sources or [],
+        "created_at": _as_utc(row.created_at),
+    }
+
+
+def get_conversation_messages(
+    db: Session, user_id: int, conversation_id: uuid.UUID
+) -> list[dict[str, Any]]:
+    """Toàn bộ lượt hỏi đáp của MỘT hội thoại, theo thứ tự thời gian tăng dần.
+
+    Lọc theo CẢ `user_id` lẫn `conversation_id` — không tin riêng
+    `conversation_id`: chặn user A xem/tiếp tục được hội thoại của user B dù
+    đoán đúng UUID. Rỗng nghĩa là hội thoại không tồn tại HOẶC không thuộc về
+    người này — route không phân biệt hai trường hợp đó khi trả lỗi, tránh lộ
+    thông tin "UUID này có tồn tại" cho người không sở hữu nó.
+    """
     rows = db.scalars(
         select(ChatHistory)
-        .where(ChatHistory.user_id == user_id)
+        .where(
+            ChatHistory.user_id == user_id,
+            ChatHistory.conversation_id == conversation_id,
+        )
         .order_by(ChatHistory.chat_id)
     )
-    return [
+    return [_chat_entry(r) for r in rows]
+
+
+def list_conversations(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """Nhóm CHAT_HISTORY theo `conversation_id`, mới nhất trước — danh sách
+    hội thoại đã lưu để bấm vào xem lại/hỏi tiếp (US-07).
+
+    Gom ở Python thay vì SQL GROUP BY: quy mô dữ liệu một cư dân nhỏ (vài
+    chục hội thoại đã là nhiều), và tránh cú pháp aggregate lệch nhau giữa
+    SQLite (dev) và Postgres (production).
+    """
+    rows = db.scalars(
+        select(ChatHistory).where(ChatHistory.user_id == user_id).order_by(ChatHistory.chat_id)
+    )
+    grouped: dict[uuid.UUID, list[ChatHistory]] = {}
+    for row in rows:
+        grouped.setdefault(row.conversation_id, []).append(row)
+
+    conversations = [
         {
-            "id": r.chat_id,
-            "question": r.question,
-            "answer": r.answer,
-            "answer_source": r.answer_source,
-            "sources": r.sources or [],
-            "created_at": _as_utc(r.created_at),
+            "conversation_id": conv_id,
+            "preview": entries[0].question,
+            "message_count": len(entries),
+            "last_message_at": _as_utc(entries[-1].created_at),
         }
-        for r in rows
+        for conv_id, entries in grouped.items()
     ]
+    conversations.sort(key=lambda c: c["last_message_at"], reverse=True)
+    return conversations
