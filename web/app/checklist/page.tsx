@@ -143,7 +143,9 @@ function ChecklistContent() {
                   key={item.id}
                   id={`checklist-item-${item.id}`}
                   className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
-                    highlighted === item.id ? "bg-gold-tint/60 ring-1 ring-gold/40" : ""
+                    highlighted === item.id
+                      ? "animate-[pulse_0.7s_ease-in-out_2] bg-gold-tint/60 ring-1 ring-gold/40"
+                      : ""
                   }`}
                 >
                   {index !== items.length - 1 && (
