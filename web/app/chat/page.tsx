@@ -16,6 +16,8 @@ import {
   Paperclip,
   Scale,
   Send,
+  ThumbsDown,
+  ThumbsUp,
   Wallet,
   X,
 } from "lucide-react";
@@ -237,6 +239,10 @@ export default function ChatPage() {
                   <SuggestedActionCard action={message.suggestedAction} />
                 )}
 
+                {message.role === "assistant" && (
+                  <FeedbackButtons userId={userId} messageId={message.id} />
+                )}
+
                 {/* Guard chống bịa từ chối trả lời (answer_source: no_context)
                     — thay vì để người dùng tự nghĩ câu hỏi khác, gợi ý luôn
                     các chủ đề đã có tài liệu kiểm chứng. Tái dùng nguyên
@@ -332,6 +338,71 @@ export default function ChatPage() {
         <SourceModal source={openSource} onClose={() => setOpenSource(null)} />
       )}
     </Layout>
+  );
+}
+
+type Rating = "up" | "down";
+
+/**
+ * V7 — chưa có cột lưu rating ở `chat_history` và `POST /chat` cũng chưa trả
+ * `chat_id` cho tin nhắn vừa gửi (chỉ tin nhắn tải từ lịch sử mới có id thật),
+ * nên chưa thể đồng bộ lên backend. Lưu tạm ở localStorage theo máy — còn hơn
+ * mất trắng mỗi lần F5, nhưng KHÔNG giả vờ đã lưu vào hệ thống (xem dòng chú
+ * thích trong `FeedbackButtons`). Cần Hiếu thêm cột + endpoint để làm tiếp.
+ */
+function feedbackKey(userId: number, messageId: number): string {
+  return `moveinmate.chat-feedback.${userId}.${messageId}`;
+}
+
+function readFeedback(userId: number, messageId: number): Rating | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(feedbackKey(userId, messageId));
+  return raw === "up" || raw === "down" ? raw : null;
+}
+
+function FeedbackButtons({ userId, messageId }: { userId: number; messageId: number }) {
+  const [rating, setRating] = useState<Rating | null>(() => readFeedback(userId, messageId));
+
+  const rate = (value: Rating) => {
+    const next = rating === value ? null : value;
+    setRating(next);
+    if (next) {
+      window.localStorage.setItem(feedbackKey(userId, messageId), next);
+    } else {
+      window.localStorage.removeItem(feedbackKey(userId, messageId));
+    }
+  };
+
+  return (
+    <div className="mt-1.5 flex items-center gap-2.5">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => rate("up")}
+          aria-label="Câu trả lời hữu ích"
+          aria-pressed={rating === "up"}
+          className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
+            rating === "up" ? "bg-emerald/15 text-emerald" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+          }`}
+        >
+          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          onClick={() => rate("down")}
+          aria-label="Câu trả lời chưa hữu ích"
+          aria-pressed={rating === "down"}
+          className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
+            rating === "down" ? "bg-danger/15 text-danger" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+          }`}
+        >
+          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </button>
+      </div>
+      {rating && (
+        <span className="text-[10px] text-muted/70">Đã ghi nhận trên trình duyệt này</span>
+      )}
+    </div>
   );
 }
 
