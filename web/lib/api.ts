@@ -48,6 +48,10 @@ export type ChecklistItem = {
   order_index: number;
   completed: boolean;
   completed_at: string | null;
+  /** US-13 — null với `third_party_info` (không có bộ phận BQL nào phụ trách). */
+  handling_department: string | null;
+  submission_location: string | null;
+  processing_time: string | null;
 };
 
 export type ProgressSummary = {

@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Building2, Check, Clock3, ExternalLink, Loader2, MapPin } from "lucide-react";
 
 import Layout from "../components/Layout";
 import { api, type Checklist } from "../../lib/api";
@@ -193,6 +193,30 @@ function ChecklistContent() {
                     <p className="mt-1.5 text-sm leading-relaxed text-muted">
                       {item.description}
                     </p>
+
+                    {/* US-13: 3 trường chỉ có ở mục `bql_actionable` — mục
+                        third_party_info không có bộ phận nào của BQL phụ
+                        trách nên backend luôn trả null cho cả ba. */}
+                    {item.handling_department && (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                          {item.handling_department}
+                        </span>
+                        {item.submission_location && (
+                          <span className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            {item.submission_location}
+                          </span>
+                        )}
+                        {item.processing_time && (
+                          <span className="flex items-center gap-1.5">
+                            <Clock3 className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            {item.processing_time}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               );
