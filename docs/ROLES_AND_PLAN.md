@@ -333,3 +333,169 @@ phân công.
 V1, V2, V3 nên xong trước khi công bố URL rộng rãi. V10 là thói quen, không phải
 việc một lần: **đổi KB hoặc đổi ngưỡng mà không đo lại thì không biết mình vừa
 làm tốt lên hay tệ đi.**
+
+
+---
+
+## 12. Kế hoạch 15/08 — ngày demo GATE 2
+
+> **Cách dùng:** tự tick `[x]` việc của mình và ghi ngày. Ai đổi trạng thái thì
+> commit luôn file này để hai người kia thấy — đừng báo miệng rồi quên.
+>
+> Lập sau rà soát sáng 15/08. Thay thế các mốc "trước thứ Bảy" ở mục 11.
+
+### Đang ở đâu
+
+| | Trạng thái |
+|---|---|
+| Backend Railway | Multi-turn + US-13 nộp hồ sơ + upload minh chứng — **đã chạy, kiểm chứng bằng JWT thật** |
+| Frontend Vercel | Bản 12/08 lúc 17:12 — **đi sau `main` ba lớp**: redesign dashboard BQL, lịch sử chat, multi-turn. Đo lại 15/08: hash bundle không đổi, `Age` 66 giờ |
+| Eval | 32/35 · 91% — **đo trước khi có multi-turn**, chưa đo lại |
+| Test | 121 pass · coverage 82% |
+| CI | Đỏ ở mọi nhánh vì tài khoản tổ chức vướng thanh toán, không phải lỗi code |
+
+### Trước demo — có cả form nộp hồ sơ và upload minh chứng
+
+**Quyết định nhóm trưởng 15/08:** buổi demo hôm nay phải cho thấy được luồng nộp
+hồ sơ trực tuyến và tải ảnh minh chứng. Đây là **đảo lại** nguyên tắc "không thêm
+tính năng vào ngày demo" ghi ở bản kế hoạch sáng nay.
+
+Đánh đổi đã chấp nhận: viết ~3 giờ giao diện trong ngày demo là rủi ro thật. Bù
+lại bằng hai thứ — **giờ đóng băng cứng** và **thang rút lui** ở cuối mục này.
+Toàn bộ backend đã xong và đã kiểm chứng trên bản chạy thật, nên phần còn lại
+chỉ là giao diện, không ai phải chờ ai.
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| A1 | **Sửa tên cache service worker.** Làm TRƯỚC và ship kèm bản deploy cuối. `moveinmate-shell-v1` cố định + cache-first ⇒ ai đã từng mở trang sẽ **vẫn thấy bản cũ** dù deploy bao nhiêu lần, kể cả Ctrl+F5. Không có bước này thì mọi việc dưới đây vô hình với người xem | **Thu** | 20' | [ ] |
+| A2 | **Form nộp hồ sơ** + hiện "Bộ phận · Nơi nộp · Thời hạn" trong checklist. Nút "Nộp hồ sơ" ở mục `bql_processing` | **Thu** | 1h15 | [ ] |
+| A3 | **Upload ảnh minh chứng** cho thủ tục ngoài phạm vi BQL (tạm trú, cập nhật cư trú). Multipart, field tên `file`, tối đa 5MB, chỉ JPG/PNG/PDF | **Thu** | 1h | [ ] |
+| A4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | **Thu** | 1h | [ ] |
+| A5 | **Deploy Vercel — làm SAU CÙNG.** `git checkout main && git pull`, rồi `cd web && vercel --prod`. Bản đang chạy vẫn là bản 12/08 lúc 17:12, đi sau `main` ba lớp | **Thu** | 15' | [ ] |
+| A6 | **Chạy lại `python -m scripts.run_eval`.** Số 32/35 trong báo cáo đo trên kiến trúc **trước** `rewrite_query`. Chạy song song, không chặn ai | **Hải** | 30' | [ ] |
+| A7 | ~~Dọn dữ liệu demo~~ — xong, xem "Dữ liệu demo đang ở trạng thái nào" ngay dưới | **Hiếu** | 20' | [x] 15/08 |
+| A8 | **Chạy thử trọn kịch bản** trên bản deploy, bằng tab ẩn danh | Cả nhóm | 30' | [ ] |
+
+Hợp đồng API đầy đủ ở [`CONTRACT_US13.md`](./CONTRACT_US13.md) — mục 3 (trường
+định tuyến), mục 5 (endpoint), mục 7 (upload). Backend đã chạy thật, không cần mock.
+
+### Dữ liệu demo đang ở trạng thái nào
+
+Nguyên tắc chọn: **thứ gì định làm trực tiếp trên sân khấu thì để trống**, và
+luôn có sẵn bản dự phòng phòng khi thao tác trực tiếp trục trặc.
+
+| Persona | Hồ sơ | Vì sao |
+|---|---|---|
+| **Trần Hồng Tuấn** (chủ hộ, có ô tô) | **0** | Để nộp *Đăng ký thẻ xe* trực tiếp |
+| **Phạm Thị Dũng** (người thuê) | **0** | Để tải ảnh minh chứng *tạm trú* trực tiếp |
+| Trần Ngọc Giang | Thẻ xe · *Đang xử lý* | Mẫu sẵn — ngoài kịch bản |
+| Hoàng Hải Cường | Tạm trú · *Đã ghi nhận* · 1 ảnh | Mẫu sẵn — ngoài kịch bản |
+
+Hai hồ sơ mẫu nằm trên cư dân **không xuất hiện ở màn đăng nhập**, nên không
+đụng persona nào trong kịch bản. Chúng có hai tác dụng: dashboard BQL không
+trống trước khi nộp trực tiếp, và nếu bước nộp trực tiếp trục trặc thì vẫn có
+hồ sơ để bấm đổi trạng thái.
+
+Hai mẫu phủ **cả hai loại**: một `bql_processing` (BQL xử lý thật) và một
+`self_declared` kèm ảnh (cư dân tự khai) — đủ để nói về ranh giới giữa hai loại
+mà không cần nộp thêm gì.
+
+Ảnh minh chứng là **PNG tự sinh**, không phải giấy tờ thật của ai.
+
+⚠️ Nếu chạy thử trước demo mà lỡ nộp bằng hai persona đầu, báo Hiếu dọn lại —
+mất một phút. Đừng để trạng thái *Từ chối* còn treo trên màn hình lúc demo.
+
+### Mốc thời gian — giả định demo 20:00, sửa lại nếu khác
+
+| Giờ | |
+|---|---|
+| → 13:00 | Thu xong A1 + A2 |
+| → 15:00 | Thu xong A3 |
+| → 16:00 | Thu xong A4, **deploy lần một** để có cái mà thử |
+| 16:00–17:30 | Thử, sửa lỗi phát hiện, deploy lại |
+| **18:00** | **ĐÓNG BĂNG — không sửa code nữa, kể cả lỗi nhỏ** |
+| 18:00–19:00 | A8 chạy thử trọn kịch bản trên bản deploy |
+| 20:00 | Demo |
+
+Giờ đóng băng là phần quan trọng nhất của bảng này. Lỗi hiển thị nhỏ mang lên
+sân khấu vẫn hơn một bản deploy chưa ai kịp thử.
+
+### Thang rút lui — bỏ theo đúng thứ tự này nếu trễ
+
+1. **Bỏ A4 trước** (theo dõi trạng thái + nút BQL). Nộp được hồ sơ và tải được
+   ảnh đã đủ kể câu chuyện; xem trạng thái là phần thưởng thêm.
+2. **Rồi mới bỏ A3** (upload). Giữ A2 — form nộp hồ sơ là phần lõi.
+3. **Nếu cả A3 lẫn A2 đều không kịp:** demo phần nộp hồ sơ **qua `/docs`** của
+   backend (Swagger có sẵn, gọi thật, trả dữ liệu thật). Nói thẳng là giao diện
+   chưa kịp, backend đã chạy — trung thực và vẫn cho thấy hệ thống hoạt động.
+   **Đừng** dựng màn hình giả để trông như đã xong.
+
+### Sau demo
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| B1 | ~~Upload ảnh minh chứng — backend~~ | Hiếu | — | [x] 15/08 |
+| B4b | **Sửa hồ sơ còn thiếu ba trường.** Trang Hồ sơ hiện chỉ nối `has_car`; `amenity_packages`, `ownership_type`, `apartment_type` chỉ hiển thị, không sửa được — trong khi charter US-06 ghi rõ "xem **và sửa**" và backend đã nhận đủ bốn trường (đo thử: đổi gói tiện ích → checklist 6 mục thành 8 ngay). Giá trị hợp lệ đóng trong `AmenityPackage`: `pool` · `gym` · `tennis` · `bbq` · `kids_area`, sai chuỗi thì 422 | Thu | 30' | [ ] |
+| B5 | **V3 — sửa hiển thị khi guard trượt.** Vẫn là lỗi nguy hiểm nhất còn lại: 3 câu "đúng lĩnh vực nhưng KB không có" hiện trích dẫn ngay dưới câu "tôi không biết" | **Hải** | 1h | [ ] |
+| B6 | Cập nhật charter + `architecture_diagram.md` + README + `.env.example`. Hiện charter vẫn ghi `APPLICATIONS` là Phase 2 trong khi nó đã chạy thật | Hiếu | 45' | [ ] |
+| B7 | **V2 — rate limiting.** Cố tình để sau demo: đặt ngưỡng sai là chặn nhầm đúng lúc đang trình bày | Hiếu | 1h | [ ] |
+| B8 | **V1 — LangSmith.** Khai là deliverable ở 4 nơi trong tài liệu, `src/` không có dòng nào | **Hải** | 30' | [ ] |
+| B9 | Partial unique index chống nộp trùng hồ sơ (hiện chỉ chặn ở tầng ứng dụng, hai request đồng thời lọt cả hai) | Hiếu | 20' | [ ] |
+| B10 | Video Demo · Pitch Deck — hai deliverable BTC còn nợ | Cả nhóm | — | [ ] |
+
+### Ranh giới phải giữ khi làm A2/A3 — đọc trước khi code
+
+**Nộp hồ sơ và nộp minh chứng là hai việc khác bản chất.** Gộp chung là phá đúng
+cái bất biến mà cả sản phẩm đang dựa vào.
+
+| | Nộp hồ sơ (`bql_processing`) | Nộp minh chứng (`self_declared`) |
+|---|---|---|
+| Ví dụ | Đăng ký thẻ xe, thẻ cư dân | Đăng ký tạm trú, cập nhật cư trú |
+| Ai xử lý | Bộ phận BQL | Không ai — cư dân tự khai |
+| Định tuyến | Có bộ phận | Không có bộ phận nào |
+| BQL làm gì | Tiếp nhận → xử lý → trả kết quả | Chỉ **ghi nhận**, hoặc báo cần bổ sung |
+| File | Tuỳ chọn | **Bắt buộc** — đây chính là nội dung nộp |
+
+Giao diện tuyệt đối không hiện "Ban quản lý đang xử lý hồ sơ tạm trú của bạn" —
+sai sự thật, và phá nguyên tắc "BQL không mạo nhận quy trình của cơ quan khác".
+
+**Dữ liệu cá nhân.** `architecture_diagram.md` mục cuối có quy tắc: không bao giờ
+đưa dữ liệu cá nhân cư dân vào vector store — Chroma không phân quyền, đã index
+là ai hỏi đúng câu cũng lấy được. Ảnh CCCD/VNeID là giấy tờ tuỳ thân:
+
+- Bucket **private**, đọc qua signed URL hết hạn ngắn — không bao giờ URL công khai
+- **Tuyệt đối không** embed vào Chroma
+- Chỉ chủ hồ sơ và BQL đọc được
+- Giới hạn 5MB, chỉ nhận `jpeg` / `png` / `pdf`, tên file lưu bằng UUID
+- **Demo dùng ảnh giả hoặc đã che số** — đừng dùng CCCD thật của ai trong nhóm
+
+**Cách nối API không phá hợp đồng đang code:** giữ nguyên `POST /applications`
+dạng JSON, thêm `POST /applications/{id}/attachments` dạng multipart. Tạo hồ sơ
+trước rồi đính file — thuần cộng thêm, không sửa cái đã chốt với Thu.
+
+### Gói tiện ích là khai báo, không phải quyền sử dụng
+
+Khi làm B4b, ghi rõ trên giao diện rằng đây là **khai báo để cá nhân hoá
+checklist**, không phải nguồn sự thật về quyền dùng tiện ích.
+
+`has_car` là chuyện cư dân tự biết. Nhưng gói tiện ích và chủ hộ/người thuê là
+**dữ kiện hợp đồng** — trong sản phẩm thật, ai có gói bể bơi là do Ban quản lý
+quyết. Ở đây rủi ro thấp vì trường này **chỉ đổi checklist cá nhân, không cấp
+quyền gì**: tự khai có gói bể bơi chỉ làm hiện thêm một mục việc cần làm, không
+mở cửa bể bơi.
+
+Nếu về sau BQL muốn nắm phần này thì chuyển sang mô hình cư dân đề nghị → BQL
+xác nhận — đúng cơ chế `self_declared` đã dựng cho hồ sơ ở B1.
+
+⚠️ **Thử B4b bằng tài khoản `mentor@moveinmate.demo`**, đừng đụng năm persona
+trong kịch bản demo. Sửa hồ sơ trên bản deploy là sửa dữ liệu thật; đã hai lần
+persona bị lệch vì đúng chuyện này.
+
+### Nhắc lại hai điều đã trả giá
+
+**Charter mục 12 — chốt hợp đồng bằng văn bản trước khi hai vai code song song.**
+Ngày 12/08 Hiếu sửa `web/app/chat/page.tsx` để hiện nút điều hướng mà không báo;
+Thu tự viết bản khác. Cả hai chạy được, nhưng một bản thành code chết trên `main`.
+
+**Đừng bấm nút "Đổi" ở trang Hồ sơ trên bản deploy khi đang thử.** Nó sửa dữ liệu
+thật và làm lệch persona demo. Đã phải vá tay hai lần.

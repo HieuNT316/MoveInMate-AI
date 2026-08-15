@@ -43,6 +43,34 @@ OWNERSHIP_TYPES = ("owner", "renter")
 ITEM_TYPES = ("bql_actionable", "third_party_info")
 ANSWER_SOURCES = ("faq", "rag", "no_context")
 
+# US-13 — vòng đời hồ sơ, bám đúng quy trình mô tả trong
+# data/kb/bql/bql-co-cau-va-quy-trinh.md. Không tự đặt thêm trạng thái: cư dân
+# đối chiếu được với thứ BQL nói ngoài đời thì mới có ích.
+APPLICATION_STATUSES = (
+    "received",    # Đã tiếp nhận
+    "processing",  # Đang xử lý
+    "needs_info",  # Cần bổ sung
+    "approved",    # Đã duyệt
+    "delivered",   # Đã trả kết quả
+    "rejected",    # Từ chối
+)
+
+# Hồ sơ đã kết thúc vòng đời — nộp lại cùng thủ tục là hợp lệ. Các trạng thái
+# còn lại tính là "đang mở", chặn nộp trùng.
+CLOSED_STATUSES = ("delivered", "rejected")
+
+# Hai loại hồ sơ KHÁC BẢN CHẤT, không được gộp:
+#
+#   bql_processing — BQL thật sự tiếp nhận và xử lý (thẻ xe, thẻ cư dân). Có bộ
+#                    phận phụ trách, chạy đủ vòng đời trạng thái.
+#   self_declared  — thủ tục làm ở cơ quan khác (tạm trú, cập nhật cư trú). BQL
+#                    KHÔNG xử lý, chỉ ghi nhận ảnh minh chứng cư dân tự nộp.
+#
+# Gộp chung sẽ khiến giao diện nói "Ban quản lý đang xử lý hồ sơ tạm trú của
+# bạn" — sai sự thật, và phá nguyên tắc sản phẩm không mạo nhận quy trình của
+# cơ quan khác (PROJECT_CHARTER.md mục 7).
+APPLICATION_KINDS = ("bql_processing", "self_declared")
+
 
 class Base(DeclarativeBase):
     pass
@@ -110,6 +138,17 @@ class ChecklistItem(Base):
     conditions: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
 
+    # US-13 — định tuyến hồ sơ. Chép TẤT ĐỊNH từ bảng định tuyến trong
+    # data/kb/bql/bql-co-cau-va-quy-trinh.md, không hỏi LLM: thủ tục hành chính
+    # cần đúng tuyệt đối và giải thích được, cùng lý do đã áp cho rule engine.
+    #
+    # NULL với mục `third_party_info`: tạm trú và cập nhật cư trú do công an
+    # phường xử lý, BQL không tiếp nhận nên không có bộ phận nào để định tuyến.
+    # `seed_data` kiểm bất biến này lúc nạp.
+    handling_department: Mapped[str | None] = mapped_column(String(100))
+    submission_location: Mapped[str | None] = mapped_column(String(255))
+    processing_time: Mapped[str | None] = mapped_column(String(100))
+
 
 class ChecklistCompletion(Base):
     """Chỉ lưu mục ĐÃ xong. Không có dòng = chưa xong, không cần cột trạng thái."""
@@ -129,11 +168,97 @@ class ChecklistCompletion(Base):
     user: Mapped[User] = relationship(back_populates="completions")
 
 
+class Application(Base):
+    """US-13 — hồ sơ cư dân nộp trực tuyến cho một thủ tục trong checklist.
+
+    KHÔNG trùng khái niệm với `ChecklistCompletion`: nộp hồ sơ là gửi yêu cầu
+    đi, tick checklist là cư dân tự xác nhận đã xong. Một người có thể nộp hồ sơ
+    rồi vẫn chưa tick, hoặc tick mà chưa từng nộp (làm trực tiếp ở quầy).
+
+    Không lưu bộ phận xử lý ở đây — tra thẳng từ `checklist_items` mỗi lần đọc.
+    Bảng định tuyến đổi thì mọi hồ sơ hiện đúng ngay, không phải đi vá dữ liệu cũ.
+    """
+
+    __tablename__ = "applications"
+
+    application_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"), index=True
+    )
+    checklist_item_id: Mapped[int] = mapped_column(
+        ForeignKey("checklist_items.checklist_item_id", ondelete="CASCADE")
+    )
+    status: Mapped[str] = mapped_column(
+        SAEnum(*APPLICATION_STATUSES, name="application_status", native_enum=False),
+        default="received",
+        index=True,
+    )
+
+    # Suy ra từ `item_type` của mục checklist lúc nộp, không do client khai.
+    kind: Mapped[str] = mapped_column(
+        SAEnum(*APPLICATION_KINDS, name="application_kind", native_enum=False),
+        default="bql_processing",
+    )
+
+    # Cư dân ghi khi nộp (vd. biển số xe); BQL ghi khi đổi trạng thái (vd. thiếu
+    # giấy tờ gì). Hai chiều tách riêng để cư dân không sửa được lời của BQL.
+    note: Mapped[str | None] = mapped_column(Text)
+    bql_note: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship()
+    item: Mapped[ChecklistItem] = relationship()
+    attachments: Mapped[list[ApplicationAttachment]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+
+
+class ApplicationAttachment(Base):
+    """Ảnh minh chứng cư dân tải lên cho một hồ sơ (US-13).
+
+    Chỉ lưu METADATA ở đây; nội dung tệp nằm trong bucket private của Supabase
+    Storage (`src/services/storage.py`). Không nhét binary vào DB: mọi truy vấn
+    hồ sơ sẽ phải kéo theo ảnh dù không cần.
+
+    `storage_path` do backend sinh bằng UUID, không dùng tên file client gửi —
+    tên gốc chỉ giữ ở `filename` để hiển thị.
+    """
+
+    __tablename__ = "application_attachments"
+
+    attachment_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.application_id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    storage_path: Mapped[str] = mapped_column(String(512))
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    application: Mapped[Application] = relationship(back_populates="attachments")
+
+
 class ChatHistory(Base):
     __tablename__ = "chat_history"
 
     chat_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"))
+
+    # Gom các lượt hỏi đáp thuộc cùng một cuộc hội thoại multi-turn — để "bấm
+    # vào hỏi tiếp" biết lấy đúng lịch sử nào làm ngữ cảnh viết lại câu hỏi
+    # (`rewrite_query`). Mỗi cuộc hội thoại mới sinh một UUID mới ở backend;
+    # tiếp tục hội thoại cũ thì client gửi lại đúng id này.
+    conversation_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+
     question: Mapped[str] = mapped_column(Text)
     answer: Mapped[str] = mapped_column(Text)
 

@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     supabase_jwt_secret: str = ""
 
+    # US-13 — nơi cất ảnh minh chứng cư dân tải lên. Bucket PRIVATE: giấy tờ
+    # tuỳ thân (CCCD, VNeID) không bao giờ được có URL công khai, chỉ đọc qua
+    # signed URL hết hạn ngắn do backend ký.
+    supabase_storage_bucket: str = "application-attachments"
+    attachment_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    attachment_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1024)
+
     # Vector Store / RAG
     chroma_persist_dir: str = "./data/chroma"
     rag_top_k: int = Field(default=4, ge=1, le=20)
@@ -92,6 +99,14 @@ class Settings(BaseSettings):
     # đủ hơn trước khi tin hẳn, và cần thêm dữ liệu KB cho các thủ tục còn
     # thiếu (vd. "thẻ xe" hiện không có tài liệu riêng, dễ bị trả lời lạc đề).
     rag_max_distance: float = Field(default=0.35, ge=0.0, le=2.0)
+
+    # Số lượt hỏi-đáp gần nhất (cùng cuộc hội thoại) đưa vào node `rewrite_query`
+    # để viết lại câu hỏi mới thành độc lập ngữ cảnh. Chỉ dùng cho bước viết
+    # lại — KHÔNG đưa vào `generate` (xem rewrite_query.py). Lấy ít vì mục
+    # đích chỉ là giải quyết đại từ/tỉnh lược ("nó", "còn X thì sao"), không
+    # phải tóm tắt cả cuộc hội thoại — lấy nhiều vừa tốn token vừa dễ khiến
+    # model bám nhầm vào chủ đề cũ đã hết liên quan.
+    rag_history_turns: int = Field(default=3, ge=0, le=10)
 
 
 @lru_cache

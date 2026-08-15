@@ -6,6 +6,7 @@ theo file này; đổi field ở đây là đổi hợp đồng, phải báo c�
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -108,6 +109,13 @@ class ChecklistItemResponse(BaseModel):
     completed: bool
     completed_at: datetime | None = None
 
+    # US-13 — định tuyến, đủ để hiện "Bộ phận · Nơi nộp · Thời hạn" ngay trong
+    # checklist kể cả khi chưa nộp gì. `null` với `third_party_info`: công an
+    # phường xử lý, BQL không tiếp nhận nên không có gì để định tuyến.
+    handling_department: str | None = None
+    submission_location: str | None = None
+    processing_time: str | None = None
+
 
 class ProgressSummary(BaseModel):
     total: int
@@ -145,6 +153,14 @@ class CompletionRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Tiếp tục một hội thoại đã có — AI sẽ dùng vài lượt gần nhất của "
+            "đúng hội thoại này để hiểu câu hỏi tiếp nối (vd 'còn phí thì "
+            "sao?'). Bỏ trống để bắt đầu hội thoại mới."
+        ),
+    )
 
 
 class Source(BaseModel):
@@ -164,10 +180,9 @@ class SuggestedAction(BaseModel):
     checklist thật của người dùng — FE nên ẩn nút điều hướng trong trường
     hợp đó, chỉ hiển thị `procedure_name` dạng text.
 
-    ⚠️ Đích điều hướng thật (trang nộp hồ sơ/upload) CHƯA tồn tại — đây là
-    Phase 2 (APPLICATIONS, xem PROJECT_CHARTER.md mục 4). Field này mới chỉ
-    là tín hiệu để FE chuẩn bị, tạm thời có thể điều hướng tới `/checklist`
-    kèm `checklist_item_id` cho tới khi có trang nộp hồ sơ thật.
+    Từ 15/08 đích điều hướng đã có thật: `POST /api/v1/applications` (US-13).
+    FE có thể dẫn thẳng tới form nộp hồ sơ của đúng `checklist_item_id`, thay
+    vì chỉ mở `/checklist` như giai đoạn trước.
     """
 
     type: Literal["navigate_to_submission"]
@@ -186,10 +201,14 @@ class ChatResponse(BaseModel):
     sources: list[Source] = Field(default_factory=list)
     answer_source: AnswerSource
     suggested_action: SuggestedAction | None = None
+    conversation_id: UUID = Field(
+        description="Hội thoại vừa hỏi thuộc về — FE cần lưu lại để gửi kèm "
+        "cho câu hỏi tiếp theo nếu muốn AI hiểu ngữ cảnh."
+    )
 
 
 class ChatHistoryEntry(BaseModel):
-    """US-07 — một lượt hỏi đáp đã lưu."""
+    """Một lượt hỏi đáp đã lưu, thuộc về đúng một hội thoại."""
 
     id: int
     question: str
@@ -197,6 +216,16 @@ class ChatHistoryEntry(BaseModel):
     answer_source: AnswerSource
     sources: list[Source] = Field(default_factory=list)
     created_at: datetime
+
+
+class ConversationSummary(BaseModel):
+    """US-07 — một cuộc hội thoại đã lưu, hiển thị trong danh sách để bấm vào
+    xem lại/hỏi tiếp. `preview` lấy nguyên câu hỏi đầu tiên làm tiêu đề."""
+
+    conversation_id: UUID
+    preview: str
+    message_count: int
+    last_message_at: datetime
 
 
 class CreateUserRequest(BaseModel):
@@ -228,3 +257,93 @@ class DashboardResponse(BaseModel):
 
     residents: list[ResidentProgress]
     total_residents: int
+
+
+# --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
+
+ApplicationStatus = Literal[
+    "received", "processing", "needs_info", "approved", "delivered", "rejected"
+]
+
+# Hai loại hồ sơ khác bản chất — xem APPLICATION_KINDS trong models/db.py.
+# Giao diện PHẢI hiển thị khác nhau: `self_declared` là cư dân tự khai kèm ảnh
+# minh chứng cho thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận chứ không xử lý.
+ApplicationKind = Literal["bql_processing", "self_declared"]
+
+
+class AttachmentResponse(BaseModel):
+    """Ảnh/PDF minh chứng đã tải lên.
+
+    `url` là link ĐỌC TẠM THỜI, ký lại mỗi lần đọc và hết hạn sau vài phút —
+    đừng lưu lại hay chia sẻ. `null` nghĩa là ký link hỏng, thử tải lại trang.
+    """
+
+    attachment_id: int
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str | None = None
+    uploaded_at: datetime
+
+
+class ApplicationCreateRequest(BaseModel):
+    """US-13 — cư dân nộp hồ sơ cho một thủ tục trong checklist của chính mình."""
+
+    checklist_item_id: int
+    note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Ghi chú của cư dân, vd. biển số xe cần đăng ký thẻ.",
+    )
+
+
+class ApplicationResponse(BaseModel):
+    """Một hồ sơ đã nộp.
+
+    Ba trường định tuyến tra thẳng từ checklist item chứ không sao chép vào hồ
+    sơ — bảng định tuyến đổi thì hồ sơ cũ hiện đúng ngay.
+    """
+
+    application_id: int
+    checklist_item_id: int
+    task_name: str
+    status: ApplicationStatus
+    kind: ApplicationKind = Field(
+        description=(
+            "`bql_processing` — Ban quản lý thật sự xử lý. `self_declared` — thủ "
+            "tục làm ở cơ quan khác, cư dân tự nộp ảnh minh chứng và BQL chỉ ghi "
+            "nhận. Giao diện không được nói 'Ban quản lý đang xử lý' với loại sau."
+        )
+    )
+    attachments: list[AttachmentResponse] = Field(default_factory=list)
+    handling_department: str | None = None
+    submission_location: str | None = None
+    processing_time: str | None = None
+    note: str | None = None
+    bql_note: str | None = Field(
+        default=None, description="Lời nhắn của BQL, vd. lý do cần bổ sung."
+    )
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminApplicationResponse(ApplicationResponse):
+    """Như trên, kèm thông tin cư dân để BQL biết liên hệ ai."""
+
+    user_id: int
+    full_name: str
+    apartment: str
+
+
+class ApplicationStatusUpdateRequest(BaseModel):
+    """US-13 / D7 — BQL chuyển trạng thái hồ sơ."""
+
+    status: ApplicationStatus
+    bql_note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description=(
+            "Bỏ trống thì GIỮ NGUYÊN ghi chú cũ, không xoá — đổi trạng thái mà "
+            "không nói gì không nên làm mất lý do 'cần bổ sung' trước đó."
+        ),
+    )

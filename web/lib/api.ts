@@ -91,9 +91,12 @@ export type ChatAnswer = {
   sources: Source[];
   answer_source: AnswerSource;
   suggested_action?: SuggestedAction | null;
+  /** Hội thoại vừa hỏi thuộc về — gửi lại đúng id này ở câu hỏi tiếp theo
+   * (`sendChat(userId, message, conversationId)`) để AI hiểu ngữ cảnh. */
+  conversation_id: string;
 };
 
-/** US-07 — một lượt hỏi đáp đã lưu, trả về theo thứ tự thời gian tăng dần. */
+/** Một lượt hỏi đáp đã lưu, thuộc về đúng một hội thoại. */
 export type ChatHistoryEntry = {
   id: number;
   question: string;
@@ -101,6 +104,15 @@ export type ChatHistoryEntry = {
   answer_source: AnswerSource;
   sources: Source[];
   created_at: string;
+};
+
+/** US-07 — một cuộc hội thoại đã lưu, hiển thị trong danh sách để bấm vào
+ * xem lại/hỏi tiếp. `preview` là câu hỏi đầu tiên, dùng làm tiêu đề. */
+export type ConversationSummary = {
+  conversation_id: string;
+  preview: string;
+  message_count: number;
+  last_message_at: string;
 };
 
 export type OnboardingPayload = {
@@ -298,17 +310,27 @@ export const api = {
       body: JSON.stringify({ completed }),
     }),
 
-  sendChat: (userId: number, message: string) =>
+  /** Bỏ trống `conversationId` để bắt đầu hội thoại mới; truyền lại giá trị
+   * từ `ChatAnswer.conversation_id` trước đó để AI hiểu ngữ cảnh câu hỏi
+   * tiếp nối (vd "còn phí thì sao?"). */
+  sendChat: (userId: number, message: string, conversationId?: string) =>
     request<ChatAnswer>("/chat", userId, {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, conversation_id: conversationId ?? null }),
     }),
 
-  /** US-07 — lịch sử hội thoại. Backend lọc theo `user_id` xác thực, không
-   * theo tham số nào FE gửi lên — mỗi người chỉ nhận được đúng lịch sử của
-   * chính mình dù có cố ý truyền `userId` của người khác. */
-  getChatHistory: (userId: number) =>
-    request<ChatHistoryEntry[]>("/chat/history", userId),
+  /** US-07 — danh sách hội thoại đã lưu. Backend lọc theo `user_id` xác
+   * thực, không theo tham số nào FE gửi lên — mỗi người chỉ nhận được đúng
+   * hội thoại của chính mình dù có cố ý truyền `userId` của người khác. */
+  getConversations: (userId: number) =>
+    request<ConversationSummary[]>("/chat/conversations", userId),
+
+  /** Toàn bộ tin nhắn của MỘT hội thoại — để mở lại và hỏi tiếp. Backend
+   * kiểm tra sở hữu qua cả `user_id` lẫn `conversationId`, trả 404 nếu
+   * không phải hội thoại của người gọi (không phân biệt "không tồn tại" với
+   * "không phải của bạn" để không lộ UUID nào có thật). */
+  getConversationMessages: (userId: number, conversationId: string) =>
+    request<ChatHistoryEntry[]>(`/chat/conversations/${conversationId}/messages`, userId),
 
   getDashboard: (userId: number) =>
     request<Dashboard>("/admin/dashboard", userId),

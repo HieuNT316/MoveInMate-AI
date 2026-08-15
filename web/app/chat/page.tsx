@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Loader2,
   MapPin,
+  MessageSquarePlus,
   Paperclip,
   Scale,
   Send,
@@ -27,6 +28,7 @@ import ChatContextPanel from "../components/ChatContextPanel";
 import {
   api,
   type ChatHistoryEntry,
+  type ConversationSummary,
   type Source,
   type SuggestedAction,
 } from "../../lib/api";
@@ -79,37 +81,61 @@ export default function ChatPage() {
   const { userId, ready } = useDemoUser();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
+  // `null` = hội thoại mới, chưa gửi câu nào — chỉ có giá trị sau khi backend
+  // trả về `conversation_id` ở lần gửi đầu tiên.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  // Chỉ bật khi đang MỞ một hội thoại cũ từ sidebar — khác với trước đây
+  // (từng chặn cả trang lúc mới vào): hội thoại mới gõ được ngay, không phải
+  // chờ gì cả.
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   // Chỉ 1 nguồn được xem chi tiết tại một thời điểm — modal dùng chung cho
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
 
-  const loadHistory = useCallback(async () => {
+  const loadConversations = useCallback(async () => {
     try {
-      const entries = await api.getChatHistory(userId);
-      // Có lịch sử thật thì bỏ lời chào, coi như nối tiếp cuộc trò chuyện cũ
-      // — chưa từng hỏi gì thì vẫn giữ lời chào cho người dùng lần đầu.
-      setMessages(entries.length > 0 ? historyToMessages(entries) : [GREETING]);
+      setConversations(await api.getConversations(userId));
     } catch (err) {
-      // Không chặn cả trang chỉ vì không tải được lịch sử cũ — cư dân vẫn
-      // phải hỏi được câu mới ngay cả khi backend đang chập chờn lúc này.
-      console.error("[chat] không tải được lịch sử:", err);
+      // Sidebar lỗi không được chặn khung chat chính — cư dân vẫn hỏi được
+      // câu mới dù danh sách hội thoại cũ tải hỏng.
+      console.error("[chat] không tải được danh sách hội thoại:", err);
     } finally {
-      setLoadingHistory(false);
+      setLoadingConversations(false);
     }
   }, [userId]);
 
   useEffect(() => {
-    if (ready) loadHistory();
-  }, [ready, loadHistory]);
+    if (ready) loadConversations();
+  }, [ready, loadConversations]);
+
+  const startNewConversation = () => {
+    if (loadingMessages) return;
+    setConversationId(null);
+    setMessages([GREETING]);
+    setInput("");
+  };
+
+  const openConversation = async (id: string) => {
+    if (id === conversationId || loadingMessages) return;
+    setLoadingMessages(true);
+    try {
+      const entries = await api.getConversationMessages(userId, id);
+      setConversationId(id);
+      setMessages(historyToMessages(entries));
+    } catch (err) {
+      console.error("[chat] không mở được hội thoại:", err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   const send = async (text: string) => {
     const question = text.trim();
     // `ready` false = chưa có danh tính, đang trên đường chuyển về /login.
-    // `loadingHistory` true = lịch sử cũ chưa nạp xong; gửi sớm hơn thì lúc
-    // nạp xong sẽ ghi đè cả tin nhắn vừa gửi (setMessages thay nguyên mảng).
-    if (!question || sending || !ready || loadingHistory) return;
+    if (!question || sending || !ready || loadingMessages) return;
 
     setMessages((prev) => [
       ...prev,
@@ -119,7 +145,7 @@ export default function ChatPage() {
     setSending(true);
 
     try {
-      const reply = await api.sendChat(userId, question);
+      const reply = await api.sendChat(userId, question, conversationId ?? undefined);
       setMessages((prev) => [
         ...prev,
         {
@@ -131,6 +157,11 @@ export default function ChatPage() {
           suggestedAction: reply.suggested_action,
         },
       ]);
+      // Lần gửi đầu của hội thoại mới: đây là lúc backend chính thức sinh ra
+      // `conversation_id` — mọi câu hỏi sau đó trong phiên này gửi kèm id
+      // này để AI hiểu ngữ cảnh (rewrite_query).
+      setConversationId(reply.conversation_id);
+      loadConversations(); // cập nhật preview/số lượt/thứ tự mới nhất ở sidebar
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -148,196 +179,273 @@ export default function ChatPage() {
 
   return (
     <Layout>
-      <div className="flex gap-6">
-      <div className="flex h-[calc(100vh-9rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
-        <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ink">
-            <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
-          </div>
-          <div>
-            <p className="font-display text-base font-semibold text-ink">
-              MoveInMate AI
-            </p>
-            <p className="flex items-center gap-1.5 text-xs text-emerald">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
-              Đang hoạt động
-            </p>
-          </div>
-        </div>
+      <div className="flex gap-4">
+        <ConversationSidebar
+          conversations={conversations}
+          activeId={conversationId}
+          loading={loadingConversations}
+          onSelect={openConversation}
+          onNew={startNewConversation}
+        />
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-          {loadingHistory && (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Đang tải lịch sử trò chuyện...
+        <div className="flex h-[calc(100vh-9rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+          <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ink">
+              <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
             </div>
-          )}
+            <div>
+              <p className="font-display text-base font-semibold text-ink">
+                MoveInMate AI
+              </p>
+              <p className="flex items-center gap-1.5 text-xs text-emerald">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
+                Đang hoạt động
+              </p>
+            </div>
+          </div>
 
-          {!loadingHistory && messages.length === 1 && (
-            <div className="rounded-2xl border border-border bg-background px-6 py-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink">
-                  <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="flex items-center gap-2 font-display text-sm font-semibold text-ink">
-                    MoveInMate AI
-                    <span className="flex items-center gap-1 rounded-full bg-emerald/10 px-2 py-0.5 text-[10px] font-medium text-emerald">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
-                      Online
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted">
-                    {GREETING.text}
-                  </p>
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+            {loadingMessages && (
+              <div className="flex items-center gap-2 text-sm text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang mở hội thoại...
+              </div>
+            )}
+
+            {!loadingMessages && messages.length === 1 && (
+              <div className="rounded-2xl border border-border bg-background px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink">
+                    <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="flex items-center gap-2 font-display text-sm font-semibold text-ink">
+                      MoveInMate AI
+                      <span className="flex items-center gap-1 rounded-full bg-emerald/10 px-2 py-0.5 text-[10px] font-medium text-emerald">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
+                        Online
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">
+                      {GREETING.text}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!loadingHistory && messages.length > 1 && messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div className="max-w-lg">
-                <div
-                  className={`rounded-2xl px-5 py-3.5 ${
-                    message.role === "user"
-                      ? "rounded-br-sm bg-ink text-white"
-                      : message.refused
-                        ? "rounded-bl-sm border border-gold/40 bg-gold-tint text-ink"
-                        : "rounded-bl-sm border border-border bg-background text-ink"
-                  }`}
-                >
-                  {/* Câu trả lời chính — phải nhận ra được trong <1 giây, nên
-                      đậm và lớn hơn hẳn phần nguồn bên dưới. */}
-                  <p
-                    className={`text-[13.5px] font-normal leading-relaxed ${
-                      message.role === "user" ? "text-white" : "text-ink"
+            {!loadingMessages && messages.length > 1 && messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div className="max-w-lg">
+                  <div
+                    className={`rounded-2xl px-5 py-3.5 ${
+                      message.role === "user"
+                        ? "rounded-br-sm bg-ink text-white"
+                        : message.refused
+                          ? "rounded-bl-sm border border-gold/40 bg-gold-tint text-ink"
+                          : "rounded-bl-sm border border-border bg-background text-ink"
                     }`}
                   >
-                    {message.text}
-                  </p>
+                    {/* Câu trả lời chính — phải nhận ra được trong <1 giây, nên
+                        đậm và lớn hơn hẳn phần nguồn bên dưới. */}
+                    <p
+                      className={`text-[13.5px] font-normal leading-relaxed ${
+                        message.role === "user" ? "text-white" : "text-ink"
+                      }`}
+                    >
+                      {message.text}
+                    </p>
 
-                  {message.sources && message.sources.length > 0 && (
-                    <div className="mt-2.5 border-t border-dashed border-border pt-2.5">
-                      <div className="flex flex-wrap gap-1.5">
-                        {message.sources.map((source) => (
-                          <SourceChip
-                            key={source.document_id}
-                            source={source}
-                            onOpen={() => setOpenSource(source)}
-                          />
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-2.5 border-t border-dashed border-border pt-2.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {message.sources.map((source) => (
+                            <SourceChip
+                              key={source.document_id}
+                              source={source}
+                              onOpen={() => setOpenSource(source)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {message.suggestedAction && (
+                    <SuggestedActionCard action={message.suggestedAction} />
+                  )}
+
+                  {message.role === "assistant" && (
+                    <FeedbackButtons userId={userId} messageId={message.id} />
+                  )}
+
+                  {/* Guard chống bịa từ chối trả lời (answer_source: no_context)
+                      — thay vì để người dùng tự nghĩ câu hỏi khác, gợi ý luôn
+                      các chủ đề đã có tài liệu kiểm chứng. Tái dùng nguyên
+                      SUGGESTIONS đã dùng ở màn hình chào, không phải danh sách
+                      mới — chỉ dẫn về "hỏi gì khác", CHƯA dẫn vào luồng hành
+                      động (form đăng ký...) vì luồng đó chưa tồn tại ở backend. */}
+                  {message.role === "assistant" && message.refused && (
+                    <div className="mt-2.5">
+                      <p className="text-[11px] text-muted">Bạn có thể hỏi thử:</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {SUGGESTIONS.map(({ icon: Icon, text }) => (
+                          <button
+                            key={text}
+                            onClick={() => send(text)}
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/70 transition hover:border-gold/50 hover:text-gold"
+                          >
+                            <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
+                            {text}
+                          </button>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-
-                {message.suggestedAction && (
-                  <SuggestedActionCard action={message.suggestedAction} />
-                )}
-
-                {message.role === "assistant" && (
-                  <FeedbackButtons userId={userId} messageId={message.id} />
-                )}
-
-                {/* Guard chống bịa từ chối trả lời (answer_source: no_context)
-                    — thay vì để người dùng tự nghĩ câu hỏi khác, gợi ý luôn
-                    các chủ đề đã có tài liệu kiểm chứng. Tái dùng nguyên
-                    SUGGESTIONS đã dùng ở màn hình chào, không phải danh sách
-                    mới — chỉ dẫn về "hỏi gì khác", CHƯA dẫn vào luồng hành
-                    động (form đăng ký...) vì luồng đó chưa tồn tại ở backend. */}
-                {message.role === "assistant" && message.refused && (
-                  <div className="mt-2.5">
-                    <p className="text-[11px] text-muted">Bạn có thể hỏi thử:</p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {SUGGESTIONS.map(({ icon: Icon, text }) => (
-                        <button
-                          key={text}
-                          onClick={() => send(text)}
-                          className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/70 transition hover:border-gold/50 hover:text-gold"
-                        >
-                          <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-                          {text}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            ))}
 
-          {sending && (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Đang tra cứu tài liệu...
-            </div>
-          )}
+            {sending && (
+              <div className="flex items-center gap-2 text-sm text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang tra cứu tài liệu...
+              </div>
+            )}
 
-          {!loadingHistory && messages.length === 1 && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {SUGGESTIONS.map(({ icon: Icon, text }) => (
-                <button
-                  key={text}
-                  onClick={() => send(text)}
-                  className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
-                  {text}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            {!loadingMessages && messages.length === 1 && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {SUGGESTIONS.map(({ icon: Icon, text }) => (
+                  <button
+                    key={text}
+                    onClick={() => send(text)}
+                    className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
+                    {text}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-        <div className="border-t border-border bg-surface p-4">
-          <div className="flex items-center gap-2">
-            <button
-              disabled
-              title="Sắp có — chưa nối API tải lên giấy tờ"
-              aria-label="Đính kèm tệp (sắp có)"
-              className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-            >
-              <Paperclip className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-            <button
-              disabled
-              title="Sắp có — chưa nối API tải ảnh giấy tờ (CCCD, thẻ xe...)"
-              aria-label="Tải ảnh (sắp có)"
-              className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-            >
-              <ImageIcon className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-            <input
-              className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-60"
-              placeholder="Nhập câu hỏi của bạn..."
-              value={input}
-              disabled={loadingHistory}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && send(input)}
-            />
-            <button
-              onClick={() => send(input)}
-              disabled={sending || loadingHistory}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
-              aria-label="Gửi"
-            >
-              <Send className="h-4 w-4" strokeWidth={1.75} />
-            </button>
+          <div className="border-t border-border bg-surface p-4">
+            <div className="flex items-center gap-2">
+              <button
+                disabled
+                title="Sắp có — chưa nối API tải lên giấy tờ"
+                aria-label="Đính kèm tệp (sắp có)"
+                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
+              >
+                <Paperclip className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+              <button
+                disabled
+                title="Sắp có — chưa nối API tải ảnh giấy tờ (CCCD, thẻ xe...)"
+                aria-label="Tải ảnh (sắp có)"
+                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
+              >
+                <ImageIcon className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+              <input
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-60"
+                placeholder="Nhập câu hỏi của bạn..."
+                value={input}
+                disabled={loadingMessages}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && send(input)}
+              />
+              <button
+                onClick={() => send(input)}
+                disabled={sending || loadingMessages}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
+                aria-label="Gửi"
+              >
+                <Send className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <ChatContextPanel userId={userId} ready={ready} />
+        <ChatContextPanel userId={userId} ready={ready} />
       </div>
 
       {openSource && (
         <SourceModal source={openSource} onClose={() => setOpenSource(null)} />
       )}
     </Layout>
+  );
+}
+
+/** Danh sách hội thoại đã lưu (US-07) — bấm vào để mở lại và hỏi tiếp có
+ * ngữ cảnh (`rewrite_query` ở backend dùng vài lượt gần nhất của đúng hội
+ * thoại đang mở). "Cuộc trò chuyện mới" không gọi API gì — chỉ dọn state,
+ * hội thoại thật chỉ được tạo ở backend khi gửi câu hỏi đầu tiên. */
+function ConversationSidebar({
+  conversations,
+  activeId,
+  loading,
+  onSelect,
+  onNew,
+}: {
+  conversations: ConversationSummary[];
+  activeId: string | null;
+  loading: boolean;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="flex w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="border-b border-border p-3">
+        <button
+          onClick={onNew}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-ink transition hover:border-gold/50 hover:text-gold"
+        >
+          <MessageSquarePlus className="h-4 w-4" strokeWidth={1.75} />
+          Cuộc trò chuyện mới
+        </button>
+      </div>
+
+      <div className="flex-1 space-y-1 overflow-y-auto p-2">
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Đang tải...
+          </div>
+        )}
+
+        {!loading && conversations.length === 0 && (
+          <p className="px-3 py-4 text-center text-xs text-muted">
+            Chưa có hội thoại nào đã lưu.
+          </p>
+        )}
+
+        {!loading &&
+          conversations.map((conv) => (
+            <button
+              key={conv.conversation_id}
+              onClick={() => onSelect(conv.conversation_id)}
+              className={`w-full rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                conv.conversation_id === activeId
+                  ? "bg-ink text-white"
+                  : "text-ink hover:bg-background"
+              }`}
+            >
+              <p className="truncate">{conv.preview}</p>
+              <p
+                className={`mt-0.5 text-[11px] ${
+                  conv.conversation_id === activeId ? "text-white/60" : "text-muted"
+                }`}
+              >
+                {conv.message_count} lượt hỏi đáp
+              </p>
+            </button>
+          ))}
+      </div>
+    </div>
   );
 }
 
