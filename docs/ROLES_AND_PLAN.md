@@ -348,33 +348,67 @@ làm tốt lên hay tệ đi.**
 
 | | Trạng thái |
 |---|---|
-| Backend Railway | Multi-turn + US-13 nộp hồ sơ — **đã chạy, kiểm chứng bằng JWT thật** |
-| Frontend Vercel | **Đi sau `main` ba lớp**: redesign dashboard BQL, lịch sử chat, multi-turn |
+| Backend Railway | Multi-turn + US-13 nộp hồ sơ + upload minh chứng — **đã chạy, kiểm chứng bằng JWT thật** |
+| Frontend Vercel | Bản 12/08 lúc 17:12 — **đi sau `main` ba lớp**: redesign dashboard BQL, lịch sử chat, multi-turn. Đo lại 15/08: hash bundle không đổi, `Age` 66 giờ |
 | Eval | 32/35 · 91% — **đo trước khi có multi-turn**, chưa đo lại |
-| Test | 111 pass · coverage 84% |
+| Test | 121 pass · coverage 82% |
 | CI | Đỏ ở mọi nhánh vì tài khoản tổ chức vướng thanh toán, không phải lỗi code |
 
-### Trước demo — chỉ ba việc, xếp theo thứ tự chặn nhau
+### Trước demo — có cả form nộp hồ sơ và upload minh chứng
 
-Hôm nay là ngày demo. **Nguyên tắc: không thêm tính năng mới vào nhánh sẽ demo.**
-Đổi code vài giờ trước khi trình bày là cách hỏng demo phổ biến nhất.
+**Quyết định nhóm trưởng 15/08:** buổi demo hôm nay phải cho thấy được luồng nộp
+hồ sơ trực tuyến và tải ảnh minh chứng. Đây là **đảo lại** nguyên tắc "không thêm
+tính năng vào ngày demo" ghi ở bản kế hoạch sáng nay.
 
-| | Việc | Ai | Ước | Xong |
-|---|---|---|---|---|
-| A1 | **Deploy lại Vercel.** Không có bước này thì toàn bộ việc của cả nhóm ba ngày qua không ai nhìn thấy. `git checkout main && git pull`, rồi `cd web && vercel --prod` | **Thu** | 15' | [ ] |
-| A2 | **Sửa tên cache service worker.** `moveinmate-shell-v1` cố định + chiến lược cache-first ⇒ ai đã từng mở trang sẽ **vẫn thấy bản cũ sau A1**, kể cả Ctrl+F5. Cho tên cache đổi theo mỗi lần build; phần dọn cache cũ đã viết sẵn ở `activate` | **Thu** | 20' | [ ] |
-| A3 | **Chạy lại `python -m scripts.run_eval`.** Con số 32/35 đang dùng trong báo cáo đo trên kiến trúc **trước** `rewrite_query`. Báo cáo số cũ cho kiến trúc mới là sai. Tốn 35 lượt embedding nên để đúng vai AI chạy | **Hải** | 30' | [ ] |
-
-Nếu A1/A2 chưa xong thì demo bằng **tab ẩn danh** và nói rõ đang chạy bản nào.
-
-### Sau demo — theo thứ tự ưu tiên
+Đánh đổi đã chấp nhận: viết ~3 giờ giao diện trong ngày demo là rủi ro thật. Bù
+lại bằng hai thứ — **giờ đóng băng cứng** và **thang rút lui** ở cuối mục này.
+Toàn bộ backend đã xong và đã kiểm chứng trên bản chạy thật, nên phần còn lại
+chỉ là giao diện, không ai phải chờ ai.
 
 | | Việc | Ai | Ước | Xong |
 |---|---|---|---|---|
-| B1 | **Upload ảnh minh chứng (US-13 phần còn lại).** Bảng `attachments`, bucket Supabase Storage **private**, `POST/GET /applications/{id}/attachments`. Thêm `kind` phân biệt hai loại hồ sơ (xem dưới) | Hiếu | 3h | [ ] |
-| B2 | Form nộp hồ sơ + hiện "Bộ phận · Nơi nộp · Thời hạn" trong checklist. Hợp đồng đã chốt ở [`CONTRACT_US13.md`](./CONTRACT_US13.md), mock được ngay | Thu | 1h15 | [ ] |
-| B3 | Giao diện upload ảnh minh chứng cho thủ tục ngoài phạm vi BQL | Thu | 1h | [ ] |
-| B4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | Thu | 1h | [ ] |
+| A1 | **Sửa tên cache service worker.** Làm TRƯỚC và ship kèm bản deploy cuối. `moveinmate-shell-v1` cố định + cache-first ⇒ ai đã từng mở trang sẽ **vẫn thấy bản cũ** dù deploy bao nhiêu lần, kể cả Ctrl+F5. Không có bước này thì mọi việc dưới đây vô hình với người xem | **Thu** | 20' | [ ] |
+| A2 | **Form nộp hồ sơ** + hiện "Bộ phận · Nơi nộp · Thời hạn" trong checklist. Nút "Nộp hồ sơ" ở mục `bql_processing` | **Thu** | 1h15 | [ ] |
+| A3 | **Upload ảnh minh chứng** cho thủ tục ngoài phạm vi BQL (tạm trú, cập nhật cư trú). Multipart, field tên `file`, tối đa 5MB, chỉ JPG/PNG/PDF | **Thu** | 1h | [ ] |
+| A4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | **Thu** | 1h | [ ] |
+| A5 | **Deploy Vercel — làm SAU CÙNG.** `git checkout main && git pull`, rồi `cd web && vercel --prod`. Bản đang chạy vẫn là bản 12/08 lúc 17:12, đi sau `main` ba lớp | **Thu** | 15' | [ ] |
+| A6 | **Chạy lại `python -m scripts.run_eval`.** Số 32/35 trong báo cáo đo trên kiến trúc **trước** `rewrite_query`. Chạy song song, không chặn ai | **Hải** | 30' | [ ] |
+| A7 | **Dọn dữ liệu demo.** Đợt kiểm chứng backend đã tạo hồ sơ thật trên production (Trần Hồng Tuấn: thẻ xe *Cần bổ sung*; Phạm Thị Dũng: tạm trú *Đã duyệt* kèm ảnh). Chốt persona nào để trống cho demo nộp mới, persona nào giữ làm ví dụ có sẵn | **Hiếu** | 20' | [ ] |
+| A8 | **Chạy thử trọn kịch bản** trên bản deploy, bằng tab ẩn danh | Cả nhóm | 30' | [ ] |
+
+Hợp đồng API đầy đủ ở [`CONTRACT_US13.md`](./CONTRACT_US13.md) — mục 3 (trường
+định tuyến), mục 5 (endpoint), mục 7 (upload). Backend đã chạy thật, không cần mock.
+
+### Mốc thời gian — giả định demo 20:00, sửa lại nếu khác
+
+| Giờ | |
+|---|---|
+| → 13:00 | Thu xong A1 + A2 |
+| → 15:00 | Thu xong A3 |
+| → 16:00 | Thu xong A4, **deploy lần một** để có cái mà thử |
+| 16:00–17:30 | Thử, sửa lỗi phát hiện, deploy lại |
+| **18:00** | **ĐÓNG BĂNG — không sửa code nữa, kể cả lỗi nhỏ** |
+| 18:00–19:00 | A8 chạy thử trọn kịch bản trên bản deploy |
+| 20:00 | Demo |
+
+Giờ đóng băng là phần quan trọng nhất của bảng này. Lỗi hiển thị nhỏ mang lên
+sân khấu vẫn hơn một bản deploy chưa ai kịp thử.
+
+### Thang rút lui — bỏ theo đúng thứ tự này nếu trễ
+
+1. **Bỏ A4 trước** (theo dõi trạng thái + nút BQL). Nộp được hồ sơ và tải được
+   ảnh đã đủ kể câu chuyện; xem trạng thái là phần thưởng thêm.
+2. **Rồi mới bỏ A3** (upload). Giữ A2 — form nộp hồ sơ là phần lõi.
+3. **Nếu cả A3 lẫn A2 đều không kịp:** demo phần nộp hồ sơ **qua `/docs`** của
+   backend (Swagger có sẵn, gọi thật, trả dữ liệu thật). Nói thẳng là giao diện
+   chưa kịp, backend đã chạy — trung thực và vẫn cho thấy hệ thống hoạt động.
+   **Đừng** dựng màn hình giả để trông như đã xong.
+
+### Sau demo
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| B1 | ~~Upload ảnh minh chứng — backend~~ | Hiếu | — | [x] 15/08 |
 | B4b | **Sửa hồ sơ còn thiếu ba trường.** Trang Hồ sơ hiện chỉ nối `has_car`; `amenity_packages`, `ownership_type`, `apartment_type` chỉ hiển thị, không sửa được — trong khi charter US-06 ghi rõ "xem **và sửa**" và backend đã nhận đủ bốn trường (đo thử: đổi gói tiện ích → checklist 6 mục thành 8 ngay). Giá trị hợp lệ đóng trong `AmenityPackage`: `pool` · `gym` · `tennis` · `bbq` · `kids_area`, sai chuỗi thì 422 | Thu | 30' | [ ] |
 | B5 | **V3 — sửa hiển thị khi guard trượt.** Vẫn là lỗi nguy hiểm nhất còn lại: 3 câu "đúng lĩnh vực nhưng KB không có" hiện trích dẫn ngay dưới câu "tôi không biết" | **Hải** | 1h | [ ] |
 | B6 | Cập nhật charter + `architecture_diagram.md` + README + `.env.example`. Hiện charter vẫn ghi `APPLICATIONS` là Phase 2 trong khi nó đã chạy thật | Hiếu | 45' | [ ] |
@@ -383,7 +417,7 @@ Nếu A1/A2 chưa xong thì demo bằng **tab ẩn danh** và nói rõ đang ch�
 | B9 | Partial unique index chống nộp trùng hồ sơ (hiện chỉ chặn ở tầng ứng dụng, hai request đồng thời lọt cả hai) | Hiếu | 20' | [ ] |
 | B10 | Video Demo · Pitch Deck — hai deliverable BTC còn nợ | Cả nhóm | — | [ ] |
 
-### Ranh giới phải giữ khi làm B1 — đọc trước khi code
+### Ranh giới phải giữ khi làm A2/A3 — đọc trước khi code
 
 **Nộp hồ sơ và nộp minh chứng là hai việc khác bản chất.** Gộp chung là phá đúng
 cái bất biến mà cả sản phẩm đang dựa vào.
