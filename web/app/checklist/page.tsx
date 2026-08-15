@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import Layout from "../components/Layout";
+import AttachmentUploader from "../components/AttachmentUploader";
 import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
@@ -317,6 +318,14 @@ function ChecklistContent() {
                                 application.status === "rejected") && (
                                 <span className="opacity-90">{application.bql_note}</span>
                               )}
+
+                            <AttachmentUploader
+                              userId={userId}
+                              applicationId={application.application_id}
+                              attachments={application.attachments}
+                              required={application.kind === "self_declared"}
+                              onUploaded={load}
+                            />
                           </div>
                         ) : (
                           <button

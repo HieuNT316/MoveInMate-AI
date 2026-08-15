@@ -334,6 +334,30 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+/**
+ * Như `request`, nhưng KHÔNG set `Content-Type` cứng — để trình duyệt tự
+ * gắn boundary của `multipart/form-data` khi `body` là `FormData`. Set tay
+ * `Content-Type: multipart/form-data` sẽ thiếu boundary, backend không parse
+ * được. Chỉ dùng cho upload tệp (`POST /applications/{id}/attachments`).
+ */
+async function requestMultipart<T>(
+  path: string,
+  userId: number,
+  body: FormData,
+): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: await authHeaders(userId),
+    body,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
+  }
+  return response.json() as Promise<T>;
+}
+
 /** Gọi endpoint không cần danh tính — chỉ dùng cho luồng đăng nhập. */
 async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -416,4 +440,17 @@ export const api = {
   /** Hồ sơ của chính cư dân đang đăng nhập, mới nhất trước. */
   getApplications: (userId: number) =>
     request<Application[]>("/applications", userId),
+
+  /** US-13 mục 7 — tải một tệp minh chứng (CCCD, VNeID...) lên cho một hồ sơ
+   * đã nộp. Giới hạn 5MB, chỉ nhận jpg/png/pdf — backend chặn lại (415/413)
+   * dù FE có kiểm tay trước để phản hồi nhanh hơn. */
+  uploadAttachment: (userId: number, applicationId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return requestMultipart<Attachment>(
+      `/applications/${applicationId}/attachments`,
+      userId,
+      form,
+    );
+  },
 };
