@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     supabase_jwt_secret: str = ""
 
+    # US-13 — nơi cất ảnh minh chứng cư dân tải lên. Bucket PRIVATE: giấy tờ
+    # tuỳ thân (CCCD, VNeID) không bao giờ được có URL công khai, chỉ đọc qua
+    # signed URL hết hạn ngắn do backend ký.
+    supabase_storage_bucket: str = "application-attachments"
+    attachment_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    attachment_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1024)
+
     # Vector Store / RAG
     chroma_persist_dir: str = "./data/chroma"
     rag_top_k: int = Field(default=4, ge=1, le=20)

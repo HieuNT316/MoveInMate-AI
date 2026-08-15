@@ -10,7 +10,7 @@ import unicodedata
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
@@ -23,6 +23,7 @@ from src.models.schemas import (
     ApplicationCreateRequest,
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
+    AttachmentResponse,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -38,8 +39,9 @@ from src.models.schemas import (
     ProfileResponse,
     ProfileUpdateRequest,
 )
-from src.services import store
+from src.services import storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
+from src.services.storage import ALLOWED_CONTENT_TYPES
 from src.services.supabase_admin import (
     SupabaseAdminError,
     create_auth_user,
@@ -249,22 +251,82 @@ async def submit_application(
             detail="Mục này không có trong checklist của bạn.",
         )
 
-    if item["item_type"] != "bql_actionable":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"“{item['task_name']}” do cơ quan bên ngoài xử lý, "
-                "Ban quản lý không tiếp nhận hồ sơ này."
-            ),
-        )
-
     if store.get_open_application(db, user["user_id"], item["id"]):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Bạn đã có hồ sơ đang xử lý cho “{item['task_name']}”.",
         )
 
-    return store.create_application(db, user["user_id"], item["id"], payload.note)
+    # Loại hồ sơ suy ra từ THỦ TỤC, không do client khai: mục ngoài phạm vi BQL
+    # (tạm trú, cập nhật cư trú) không có bộ phận nào tiếp nhận, nên hồ sơ chỉ
+    # là cư dân tự khai kèm ảnh minh chứng.
+    kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
+    return store.create_application(db, user["user_id"], item["id"], payload.note, kind)
+
+
+@router.post(
+    "/applications/{application_id}/attachments",
+    response_model=AttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_attachment(
+    application_id: int,
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 — tải ảnh minh chứng lên cho một hồ sơ.
+
+    Tách khỏi `POST /applications` để không phá hợp đồng đã chốt với vai FE:
+    tạo hồ sơ bằng JSON như cũ, rồi đính tệp. Với thủ tục ngoài phạm vi BQL
+    (tạm trú), chính ảnh này mới là nội dung nộp — không có form nào để điền.
+
+    Tệp vào bucket PRIVATE; đọc lại chỉ qua signed URL hết hạn ngắn. Đây là
+    CCCD/VNeID, không bao giờ được có URL công khai.
+    """
+    app = store.get_application(db, application_id)
+    # Không phân biệt "không tồn tại" với "của người khác" — đừng xác nhận hộ
+    # rằng id đó có thật.
+    if app is None or app.user_id != user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ này."
+        )
+
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Chỉ nhận ảnh JPG, PNG hoặc file PDF.",
+        )
+
+    settings = get_settings()
+    data = await file.read()
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Tệp rỗng."
+        )
+    # Đọc rồi mới đo: `file.size` do client khai, không tin được.
+    if len(data) > settings.attachment_max_bytes:
+        limit_mb = settings.attachment_max_bytes // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Tệp vượt quá {limit_mb}MB.",
+        )
+
+    path = storage.build_object_path(application_id, file.content_type)
+    try:
+        storage.upload(path, data, file.content_type)
+    except storage.StorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lưu được tệp lúc này, vui lòng thử lại.",
+        ) from exc
+
+    # Chỉ ghi DB SAU khi tệp đã nằm trong bucket: ngược lại sẽ có bản ghi trỏ
+    # tới tệp không tồn tại.
+    return store.add_attachment(
+        db, application_id, storage.display_name(file.filename), file.content_type,
+        len(data), path,
+    )
 
 
 @router.get("/applications", response_model=list[ApplicationResponse])
@@ -563,11 +625,26 @@ async def update_application_status(
     (đã duyệt rồi phát hiện thiếu giấy tờ → cần bổ sung). Ép một máy trạng thái
     cứng sẽ chặn đúng những tình huống mà BQL cần xử lý linh hoạt nhất.
     """
-    updated = store.update_application_status(
-        db, application_id, payload.status, payload.bql_note
-    )
-    if updated is None:
+    app = store.get_application(db, application_id)
+    if app is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ này."
         )
-    return updated
+
+    # Hồ sơ tự khai KHÔNG có gì để xác nhận ngoài ảnh minh chứng. Ghi nhận một
+    # hồ sơ trống nghĩa là BQL xác nhận cư dân đã đăng ký tạm trú mà không hề
+    # nhìn thấy bằng chứng nào — đúng thứ mà nguyên tắc "không mạo nhận quy
+    # trình của cơ quan khác" cấm.
+    if (
+        app.kind == "self_declared"
+        and payload.status in ("approved", "delivered")
+        and store.count_attachments(db, application_id) == 0
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Chưa có ảnh minh chứng nào để ghi nhận hồ sơ tự khai này.",
+        )
+
+    return store.update_application_status(
+        db, application_id, payload.status, payload.bql_note
+    )

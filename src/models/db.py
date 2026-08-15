@@ -59,6 +59,18 @@ APPLICATION_STATUSES = (
 # còn lại tính là "đang mở", chặn nộp trùng.
 CLOSED_STATUSES = ("delivered", "rejected")
 
+# Hai loại hồ sơ KHÁC BẢN CHẤT, không được gộp:
+#
+#   bql_processing — BQL thật sự tiếp nhận và xử lý (thẻ xe, thẻ cư dân). Có bộ
+#                    phận phụ trách, chạy đủ vòng đời trạng thái.
+#   self_declared  — thủ tục làm ở cơ quan khác (tạm trú, cập nhật cư trú). BQL
+#                    KHÔNG xử lý, chỉ ghi nhận ảnh minh chứng cư dân tự nộp.
+#
+# Gộp chung sẽ khiến giao diện nói "Ban quản lý đang xử lý hồ sơ tạm trú của
+# bạn" — sai sự thật, và phá nguyên tắc sản phẩm không mạo nhận quy trình của
+# cơ quan khác (PROJECT_CHARTER.md mục 7).
+APPLICATION_KINDS = ("bql_processing", "self_declared")
+
 
 class Base(DeclarativeBase):
     pass
@@ -182,6 +194,12 @@ class Application(Base):
         index=True,
     )
 
+    # Suy ra từ `item_type` của mục checklist lúc nộp, không do client khai.
+    kind: Mapped[str] = mapped_column(
+        SAEnum(*APPLICATION_KINDS, name="application_kind", native_enum=False),
+        default="bql_processing",
+    )
+
     # Cư dân ghi khi nộp (vd. biển số xe); BQL ghi khi đổi trạng thái (vd. thiếu
     # giấy tờ gì). Hai chiều tách riêng để cư dân không sửa được lời của BQL.
     note: Mapped[str | None] = mapped_column(Text)
@@ -196,6 +214,37 @@ class Application(Base):
 
     user: Mapped[User] = relationship()
     item: Mapped[ChecklistItem] = relationship()
+    attachments: Mapped[list[ApplicationAttachment]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+
+
+class ApplicationAttachment(Base):
+    """Ảnh minh chứng cư dân tải lên cho một hồ sơ (US-13).
+
+    Chỉ lưu METADATA ở đây; nội dung tệp nằm trong bucket private của Supabase
+    Storage (`src/services/storage.py`). Không nhét binary vào DB: mọi truy vấn
+    hồ sơ sẽ phải kéo theo ảnh dù không cần.
+
+    `storage_path` do backend sinh bằng UUID, không dùng tên file client gửi —
+    tên gốc chỉ giữ ở `filename` để hiển thị.
+    """
+
+    __tablename__ = "application_attachments"
+
+    attachment_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.application_id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    storage_path: Mapped[str] = mapped_column(String(512))
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    application: Mapped[Application] = relationship(back_populates="attachments")
 
 
 class ChatHistory(Base):

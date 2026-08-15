@@ -136,3 +136,29 @@ def fake_auth_provisioning(monkeypatch):
     monkeypatch.setattr(
         routes, "create_auth_user", lambda _email, _password: uuid.uuid4()
     )
+
+
+@pytest.fixture(autouse=True)
+def fake_storage(monkeypatch):
+    """Chặn mọi lời gọi Supabase Storage trong test.
+
+    `autouse` chứ không phải chọn thủ công: `_attachment_dict` ký signed URL
+    mỗi lần đọc hồ sơ, nên bất kỳ test nào chạm tới hồ sơ có tệp đính kèm cũng
+    sẽ bắn request thật nếu quên bật fixture. Cùng bài học với
+    `fake_auth_provisioning` — test lỡ gọi dịch vụ ngoài đã phải đi dọn tay
+    một lần rồi (11/08).
+
+    Giữ nguyên `build_object_path` và `display_name`: hai hàm này thuần, không
+    chạm mạng, và chính chúng là thứ cần được kiểm.
+    """
+    from src.services import storage
+
+    uploaded: dict[str, bytes] = {}
+
+    def _upload(path: str, data: bytes, _content_type: str) -> None:
+        uploaded[path] = data
+
+    monkeypatch.setattr(storage, "upload", _upload)
+    monkeypatch.setattr(storage, "signed_url", lambda path: f"https://fake.test/{path}")
+    monkeypatch.setattr(storage, "ensure_bucket", lambda: None)
+    return uploaded

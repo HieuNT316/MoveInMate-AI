@@ -14,17 +14,19 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
     CLOSED_STATUSES,
     Application,
+    ApplicationAttachment,
     ChatHistory,
     ChecklistCompletion,
     ChecklistItem,
     User,
 )
+from src.services import storage
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -272,13 +274,32 @@ def _application_dict(app: Application) -> dict[str, Any]:
         "checklist_item_id": app.checklist_item_id,
         "task_name": app.item.task_name,
         "status": app.status,
+        "kind": app.kind,
         "handling_department": app.item.handling_department,
         "submission_location": app.item.submission_location,
         "processing_time": app.item.processing_time,
         "note": app.note,
         "bql_note": app.bql_note,
+        "attachments": [_attachment_dict(a) for a in app.attachments],
         "created_at": _as_utc(app.created_at),
         "updated_at": _as_utc(app.updated_at),
+    }
+
+
+def _attachment_dict(att: ApplicationAttachment) -> dict[str, Any]:
+    """Metadata tệp kèm URL đọc TẠM THỜI.
+
+    URL ký lại mỗi lần đọc thay vì lưu sẵn: link hết hạn sau vài phút nên có
+    lọt ra ngoài cũng không dùng lại được. Ký hỏng thì trả None — thiếu một ảnh
+    còn hơn vỡ cả trang hồ sơ.
+    """
+    return {
+        "attachment_id": att.attachment_id,
+        "filename": att.filename,
+        "content_type": att.content_type,
+        "size_bytes": att.size_bytes,
+        "url": storage.signed_url(att.storage_path),
+        "uploaded_at": _as_utc(att.uploaded_at),
     }
 
 
@@ -299,13 +320,56 @@ def get_open_application(db: Session, user_id: int, item_id: int) -> dict[str, A
 
 
 def create_application(
-    db: Session, user_id: int, item_id: int, note: str | None
+    db: Session, user_id: int, item_id: int, note: str | None, kind: str
 ) -> dict[str, Any]:
-    app = Application(user_id=user_id, checklist_item_id=item_id, note=note, status="received")
+    app = Application(
+        user_id=user_id,
+        checklist_item_id=item_id,
+        note=note,
+        status="received",
+        kind=kind,
+    )
     db.add(app)
     db.commit()
     db.refresh(app)
     return _application_dict(app)
+
+
+def get_application(db: Session, application_id: int) -> Application | None:
+    """Trả ORM object — người gọi cần kiểm quyền sở hữu trước khi dùng."""
+    return db.scalar(select(Application).where(Application.application_id == application_id))
+
+
+def add_attachment(
+    db: Session,
+    application_id: int,
+    filename: str,
+    content_type: str,
+    size_bytes: int,
+    storage_path: str,
+) -> dict[str, Any]:
+    att = ApplicationAttachment(
+        application_id=application_id,
+        filename=filename,
+        content_type=content_type,
+        size_bytes=size_bytes,
+        storage_path=storage_path,
+    )
+    db.add(att)
+    db.commit()
+    db.refresh(att)
+    return _attachment_dict(att)
+
+
+def count_attachments(db: Session, application_id: int) -> int:
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(ApplicationAttachment)
+            .where(ApplicationAttachment.application_id == application_id)
+        )
+        or 0
+    )
 
 
 def list_applications(db: Session, user_id: int) -> list[dict[str, Any]]:
@@ -332,7 +396,11 @@ def list_all_applications(
     query = (
         select(Application)
         .join(Application.item)
-        .options(selectinload(Application.user), selectinload(Application.item))
+        .options(
+            selectinload(Application.user),
+            selectinload(Application.item),
+            selectinload(Application.attachments),
+        )
         .order_by(Application.application_id.desc())
     )
     if status:

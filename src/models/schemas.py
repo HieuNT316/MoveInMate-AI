@@ -265,6 +265,26 @@ ApplicationStatus = Literal[
     "received", "processing", "needs_info", "approved", "delivered", "rejected"
 ]
 
+# Hai loại hồ sơ khác bản chất — xem APPLICATION_KINDS trong models/db.py.
+# Giao diện PHẢI hiển thị khác nhau: `self_declared` là cư dân tự khai kèm ảnh
+# minh chứng cho thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận chứ không xử lý.
+ApplicationKind = Literal["bql_processing", "self_declared"]
+
+
+class AttachmentResponse(BaseModel):
+    """Ảnh/PDF minh chứng đã tải lên.
+
+    `url` là link ĐỌC TẠM THỜI, ký lại mỗi lần đọc và hết hạn sau vài phút —
+    đừng lưu lại hay chia sẻ. `null` nghĩa là ký link hỏng, thử tải lại trang.
+    """
+
+    attachment_id: int
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str | None = None
+    uploaded_at: datetime
+
 
 class ApplicationCreateRequest(BaseModel):
     """US-13 — cư dân nộp hồ sơ cho một thủ tục trong checklist của chính mình."""
@@ -288,6 +308,14 @@ class ApplicationResponse(BaseModel):
     checklist_item_id: int
     task_name: str
     status: ApplicationStatus
+    kind: ApplicationKind = Field(
+        description=(
+            "`bql_processing` — Ban quản lý thật sự xử lý. `self_declared` — thủ "
+            "tục làm ở cơ quan khác, cư dân tự nộp ảnh minh chứng và BQL chỉ ghi "
+            "nhận. Giao diện không được nói 'Ban quản lý đang xử lý' với loại sau."
+        )
+    )
+    attachments: list[AttachmentResponse] = Field(default_factory=list)
     handling_department: str | None = None
     submission_location: str | None = None
     processing_time: str | None = None
