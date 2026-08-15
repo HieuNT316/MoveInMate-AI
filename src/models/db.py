@@ -43,6 +43,22 @@ OWNERSHIP_TYPES = ("owner", "renter")
 ITEM_TYPES = ("bql_actionable", "third_party_info")
 ANSWER_SOURCES = ("faq", "rag", "no_context")
 
+# US-13 — vòng đời hồ sơ, bám đúng quy trình mô tả trong
+# data/kb/bql/bql-co-cau-va-quy-trinh.md. Không tự đặt thêm trạng thái: cư dân
+# đối chiếu được với thứ BQL nói ngoài đời thì mới có ích.
+APPLICATION_STATUSES = (
+    "received",    # Đã tiếp nhận
+    "processing",  # Đang xử lý
+    "needs_info",  # Cần bổ sung
+    "approved",    # Đã duyệt
+    "delivered",   # Đã trả kết quả
+    "rejected",    # Từ chối
+)
+
+# Hồ sơ đã kết thúc vòng đời — nộp lại cùng thủ tục là hợp lệ. Các trạng thái
+# còn lại tính là "đang mở", chặn nộp trùng.
+CLOSED_STATUSES = ("delivered", "rejected")
+
 
 class Base(DeclarativeBase):
     pass
@@ -110,6 +126,17 @@ class ChecklistItem(Base):
     conditions: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
 
+    # US-13 — định tuyến hồ sơ. Chép TẤT ĐỊNH từ bảng định tuyến trong
+    # data/kb/bql/bql-co-cau-va-quy-trinh.md, không hỏi LLM: thủ tục hành chính
+    # cần đúng tuyệt đối và giải thích được, cùng lý do đã áp cho rule engine.
+    #
+    # NULL với mục `third_party_info`: tạm trú và cập nhật cư trú do công an
+    # phường xử lý, BQL không tiếp nhận nên không có bộ phận nào để định tuyến.
+    # `seed_data` kiểm bất biến này lúc nạp.
+    handling_department: Mapped[str | None] = mapped_column(String(100))
+    submission_location: Mapped[str | None] = mapped_column(String(255))
+    processing_time: Mapped[str | None] = mapped_column(String(100))
+
 
 class ChecklistCompletion(Base):
     """Chỉ lưu mục ĐÃ xong. Không có dòng = chưa xong, không cần cột trạng thái."""
@@ -127,6 +154,48 @@ class ChecklistCompletion(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="completions")
+
+
+class Application(Base):
+    """US-13 — hồ sơ cư dân nộp trực tuyến cho một thủ tục trong checklist.
+
+    KHÔNG trùng khái niệm với `ChecklistCompletion`: nộp hồ sơ là gửi yêu cầu
+    đi, tick checklist là cư dân tự xác nhận đã xong. Một người có thể nộp hồ sơ
+    rồi vẫn chưa tick, hoặc tick mà chưa từng nộp (làm trực tiếp ở quầy).
+
+    Không lưu bộ phận xử lý ở đây — tra thẳng từ `checklist_items` mỗi lần đọc.
+    Bảng định tuyến đổi thì mọi hồ sơ hiện đúng ngay, không phải đi vá dữ liệu cũ.
+    """
+
+    __tablename__ = "applications"
+
+    application_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"), index=True
+    )
+    checklist_item_id: Mapped[int] = mapped_column(
+        ForeignKey("checklist_items.checklist_item_id", ondelete="CASCADE")
+    )
+    status: Mapped[str] = mapped_column(
+        SAEnum(*APPLICATION_STATUSES, name="application_status", native_enum=False),
+        default="received",
+        index=True,
+    )
+
+    # Cư dân ghi khi nộp (vd. biển số xe); BQL ghi khi đổi trạng thái (vd. thiếu
+    # giấy tờ gì). Hai chiều tách riêng để cư dân không sửa được lời của BQL.
+    note: Mapped[str | None] = mapped_column(Text)
+    bql_note: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship()
+    item: Mapped[ChecklistItem] = relationship()
 
 
 class ChatHistory(Base):

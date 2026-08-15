@@ -10,14 +10,19 @@ import unicodedata
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
 from src.database import get_db
+from src.models.db import APPLICATION_STATUSES
 from src.models.schemas import (
+    AdminApplicationResponse,
+    ApplicationCreateRequest,
+    ApplicationResponse,
+    ApplicationStatusUpdateRequest,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -209,6 +214,66 @@ async def set_checklist_item(
         )
     store.set_completion(db, user["user_id"], item_id, payload.completed)
     return _build_checklist(db, user)
+
+
+# --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
+
+
+@router.post(
+    "/applications",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_application(
+    payload: ApplicationCreateRequest,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 — cư dân nộp hồ sơ trực tuyến thay vì mang giấy tờ tới quầy.
+
+    Định tuyến TẤT ĐỊNH: bộ phận xử lý tra từ chính mục checklist, không hỏi
+    LLM — cùng lý do đã áp cho rule engine phân loại cư dân.
+
+    Nộp hồ sơ KHÔNG đánh dấu mục checklist là xong: nộp là gửi yêu cầu đi, tick
+    là cư dân tự xác nhận đã hoàn tất. Gộp hai việc sẽ khiến tiến độ báo xong
+    trong khi BQL còn chưa xử lý.
+    """
+    matched = generate_checklist(user, store.list_checklist_items(db))
+    item = next((i for i in matched if i["id"] == payload.checklist_item_id), None)
+
+    # Không có trong checklist của CHÍNH người này -> 404, kể cả khi mục đó tồn
+    # tại với người khác: không xác nhận hộ rằng id đó có thật.
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mục này không có trong checklist của bạn.",
+        )
+
+    if item["item_type"] != "bql_actionable":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"“{item['task_name']}” do cơ quan bên ngoài xử lý, "
+                "Ban quản lý không tiếp nhận hồ sơ này."
+            ),
+        )
+
+    if store.get_open_application(db, user["user_id"], item["id"]):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Bạn đã có hồ sơ đang xử lý cho “{item['task_name']}”.",
+        )
+
+    return store.create_application(db, user["user_id"], item["id"], payload.note)
+
+
+@router.get("/applications", response_model=list[ApplicationResponse])
+async def list_my_applications(
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 — hồ sơ của chính cư dân, mới nhất trước."""
+    return store.list_applications(db, user["user_id"])
 
 
 # --- Hỏi đáp ------------------------------------------------------------
@@ -461,3 +526,48 @@ async def dashboard(
             }
         )
     return DashboardResponse(residents=residents, total_residents=len(residents))
+
+
+@router.get("/admin/applications", response_model=list[AdminApplicationResponse])
+async def list_applications_for_bql(
+    status_filter: str | None = Query(default=None, alias="status"),
+    department: str | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 — hồ sơ cư dân đã nộp, để BQL tiếp nhận và xử lý.
+
+    `?department=An ninh` cho phép mỗi bộ phận chỉ xem phần việc của mình —
+    đây chính là chỗ việc "định tuyến" trở nên hữu dụng thay vì chỉ là nhãn.
+    """
+    if status_filter is not None and status_filter not in APPLICATION_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Trạng thái không hợp lệ. Hợp lệ: {', '.join(APPLICATION_STATUSES)}",
+        )
+    return store.list_all_applications(db, status_filter, department)
+
+
+@router.patch(
+    "/admin/applications/{application_id}", response_model=ApplicationResponse
+)
+async def update_application_status(
+    application_id: int,
+    payload: ApplicationStatusUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 / D7 — BQL chuyển trạng thái hồ sơ.
+
+    Không ràng buộc thứ tự chuyển trạng thái: quy trình thật có thể quay lại
+    (đã duyệt rồi phát hiện thiếu giấy tờ → cần bổ sung). Ép một máy trạng thái
+    cứng sẽ chặn đúng những tình huống mà BQL cần xử lý linh hoạt nhất.
+    """
+    updated = store.update_application_status(
+        db, application_id, payload.status, payload.bql_note
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ này."
+        )
+    return updated

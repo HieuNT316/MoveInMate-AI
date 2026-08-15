@@ -17,7 +17,14 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from src.models.db import ChatHistory, ChecklistCompletion, ChecklistItem, User
+from src.models.db import (
+    CLOSED_STATUSES,
+    Application,
+    ChatHistory,
+    ChecklistCompletion,
+    ChecklistItem,
+    User,
+)
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -61,6 +68,10 @@ def _item_dict(item: ChecklistItem) -> dict[str, Any]:
         "conditions": item.conditions or {},
         "item_type": item.item_type,
         "order_index": item.order_index,
+        # US-13 — None với thủ tục ngoài phạm vi BQL.
+        "handling_department": item.handling_department,
+        "submission_location": item.submission_location,
+        "processing_time": item.processing_time,
     }
 
 
@@ -245,3 +256,106 @@ def list_conversations(db: Session, user_id: int) -> list[dict[str, Any]]:
     ]
     conversations.sort(key=lambda c: c["last_message_at"], reverse=True)
     return conversations
+
+
+# --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
+
+
+def _application_dict(app: Application) -> dict[str, Any]:
+    """Hồ sơ kèm thông tin định tuyến tra THẲNG từ checklist item.
+
+    Không sao chép bộ phận/nơi nộp vào bảng `applications`: bảng định tuyến đổi
+    thì mọi hồ sơ hiện đúng ngay, không phải đi vá dữ liệu cũ.
+    """
+    return {
+        "application_id": app.application_id,
+        "checklist_item_id": app.checklist_item_id,
+        "task_name": app.item.task_name,
+        "status": app.status,
+        "handling_department": app.item.handling_department,
+        "submission_location": app.item.submission_location,
+        "processing_time": app.item.processing_time,
+        "note": app.note,
+        "bql_note": app.bql_note,
+        "created_at": _as_utc(app.created_at),
+        "updated_at": _as_utc(app.updated_at),
+    }
+
+
+def get_open_application(db: Session, user_id: int, item_id: int) -> dict[str, Any] | None:
+    """Hồ sơ CHƯA kết thúc của người này cho đúng thủ tục đó, nếu có.
+
+    Dùng để chặn nộp trùng: đã trả kết quả hoặc bị từ chối thì nộp lại là hợp
+    lệ, còn đang chờ xử lý mà nộp tiếp chỉ làm BQL nhận hai hồ sơ giống nhau.
+    """
+    app = db.scalar(
+        select(Application).where(
+            Application.user_id == user_id,
+            Application.checklist_item_id == item_id,
+            Application.status.not_in(CLOSED_STATUSES),
+        )
+    )
+    return _application_dict(app) if app else None
+
+
+def create_application(
+    db: Session, user_id: int, item_id: int, note: str | None
+) -> dict[str, Any]:
+    app = Application(user_id=user_id, checklist_item_id=item_id, note=note, status="received")
+    db.add(app)
+    db.commit()
+    db.refresh(app)
+    return _application_dict(app)
+
+
+def list_applications(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """Hồ sơ của chính một cư dân, mới nhất trước."""
+    apps = db.scalars(
+        select(Application)
+        .where(Application.user_id == user_id)
+        .order_by(Application.application_id.desc())
+    )
+    return [_application_dict(a) for a in apps]
+
+
+def list_all_applications(
+    db: Session, status: str | None = None, department: str | None = None
+) -> list[dict[str, Any]]:
+    """Toàn bộ hồ sơ cho BQL, kèm thông tin cư dân để biết gọi ai.
+
+    Lọc theo bộ phận chạy trên `checklist_items` chứ không trên `applications`
+    — định tuyến là thuộc tính của THỦ TỤC, không phải của từng hồ sơ.
+    """
+    query = select(Application).join(Application.item).order_by(Application.application_id.desc())
+    if status:
+        query = query.where(Application.status == status)
+    if department:
+        query = query.where(ChecklistItem.handling_department == department)
+
+    return [
+        {
+            **_application_dict(a),
+            "user_id": a.user_id,
+            "full_name": a.user.full_name,
+            "apartment": a.user.apartment,
+        }
+        for a in db.scalars(query)
+    ]
+
+
+def update_application_status(
+    db: Session, application_id: int, status: str, bql_note: str | None
+) -> dict[str, Any] | None:
+    app = db.scalar(select(Application).where(Application.application_id == application_id))
+    if app is None:
+        return None
+
+    app.status = status
+    # Chỉ ghi đè khi BQL thực sự gửi ghi chú — đổi trạng thái mà không nói gì
+    # thì giữ nguyên lời nhắn cũ, đừng xoá mất lý do "cần bổ sung" trước đó.
+    if bql_note is not None:
+        app.bql_note = bql_note
+
+    db.commit()
+    db.refresh(app)
+    return _application_dict(app)

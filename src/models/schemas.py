@@ -109,6 +109,13 @@ class ChecklistItemResponse(BaseModel):
     completed: bool
     completed_at: datetime | None = None
 
+    # US-13 — định tuyến, đủ để hiện "Bộ phận · Nơi nộp · Thời hạn" ngay trong
+    # checklist kể cả khi chưa nộp gì. `null` với `third_party_info`: công an
+    # phường xử lý, BQL không tiếp nhận nên không có gì để định tuyến.
+    handling_department: str | None = None
+    submission_location: str | None = None
+    processing_time: str | None = None
+
 
 class ProgressSummary(BaseModel):
     total: int
@@ -173,10 +180,9 @@ class SuggestedAction(BaseModel):
     checklist thật của người dùng — FE nên ẩn nút điều hướng trong trường
     hợp đó, chỉ hiển thị `procedure_name` dạng text.
 
-    ⚠️ Đích điều hướng thật (trang nộp hồ sơ/upload) CHƯA tồn tại — đây là
-    Phase 2 (APPLICATIONS, xem PROJECT_CHARTER.md mục 4). Field này mới chỉ
-    là tín hiệu để FE chuẩn bị, tạm thời có thể điều hướng tới `/checklist`
-    kèm `checklist_item_id` cho tới khi có trang nộp hồ sơ thật.
+    Từ 15/08 đích điều hướng đã có thật: `POST /api/v1/applications` (US-13).
+    FE có thể dẫn thẳng tới form nộp hồ sơ của đúng `checklist_item_id`, thay
+    vì chỉ mở `/checklist` như giai đoạn trước.
     """
 
     type: Literal["navigate_to_submission"]
@@ -251,3 +257,65 @@ class DashboardResponse(BaseModel):
 
     residents: list[ResidentProgress]
     total_residents: int
+
+
+# --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
+
+ApplicationStatus = Literal[
+    "received", "processing", "needs_info", "approved", "delivered", "rejected"
+]
+
+
+class ApplicationCreateRequest(BaseModel):
+    """US-13 — cư dân nộp hồ sơ cho một thủ tục trong checklist của chính mình."""
+
+    checklist_item_id: int
+    note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Ghi chú của cư dân, vd. biển số xe cần đăng ký thẻ.",
+    )
+
+
+class ApplicationResponse(BaseModel):
+    """Một hồ sơ đã nộp.
+
+    Ba trường định tuyến tra thẳng từ checklist item chứ không sao chép vào hồ
+    sơ — bảng định tuyến đổi thì hồ sơ cũ hiện đúng ngay.
+    """
+
+    application_id: int
+    checklist_item_id: int
+    task_name: str
+    status: ApplicationStatus
+    handling_department: str | None = None
+    submission_location: str | None = None
+    processing_time: str | None = None
+    note: str | None = None
+    bql_note: str | None = Field(
+        default=None, description="Lời nhắn của BQL, vd. lý do cần bổ sung."
+    )
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminApplicationResponse(ApplicationResponse):
+    """Như trên, kèm thông tin cư dân để BQL biết liên hệ ai."""
+
+    user_id: int
+    full_name: str
+    apartment: str
+
+
+class ApplicationStatusUpdateRequest(BaseModel):
+    """US-13 / D7 — BQL chuyển trạng thái hồ sơ."""
+
+    status: ApplicationStatus
+    bql_note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description=(
+            "Bỏ trống thì GIỮ NGUYÊN ghi chú cũ, không xoá — đổi trạng thái mà "
+            "không nói gì không nên làm mất lý do 'cần bổ sung' trước đó."
+        ),
+    )

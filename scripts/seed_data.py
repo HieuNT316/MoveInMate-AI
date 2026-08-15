@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import random
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import delete, select
 
@@ -57,6 +58,30 @@ GIVEN_NAMES = [
     "Lan", "Linh", "Mai", "Nam", "Phong", "Quân", "Sơn", "Thảo", "Trang", "Tuấn",
 ]
 
+ROUTING_FIELDS = ("handling_department", "submission_location", "processing_time")
+
+
+def validate_routing(item: dict[str, Any]) -> None:
+    """Mục BQL xử lý được thì PHẢI có đủ ba trường định tuyến, mục ngoài phạm vi
+    thì KHÔNG được có trường nào.
+
+    Thiếu bước này thì thêm một mục checklist mới mà quên dữ liệu định tuyến sẽ
+    dựng ra một nút "Nộp hồ sơ" không biết gửi đi đâu — cùng loại lỗi im lặng mà
+    `validate_conditions` đang chặn.
+    """
+    present = [f for f in ROUTING_FIELDS if item.get(f)]
+
+    if item["item_type"] == "bql_actionable" and len(present) != len(ROUTING_FIELDS):
+        missing = sorted(set(ROUTING_FIELDS) - set(present))
+        raise ValueError(f"{item['task_name']!r} thiếu định tuyến: {missing}")
+
+    if item["item_type"] == "third_party_info" and present:
+        raise ValueError(
+            f"{item['task_name']!r} là thủ tục ngoài phạm vi BQL nhưng lại có "
+            f"định tuyến: {sorted(present)}"
+        )
+
+
 CHECKLIST_ITEMS = [
     {
         "task_name": "Ký nội quy toà nhà",
@@ -65,6 +90,9 @@ CHECKLIST_ITEMS = [
         "conditions": {},
         "item_type": "bql_actionable",
         "order_index": 1,
+        "handling_department": "Lễ tân & CSKH",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Trong ngày",
     },
     {
         "task_name": "Làm thẻ cư dân (chủ hộ)",
@@ -73,6 +101,9 @@ CHECKLIST_ITEMS = [
         "conditions": {"ownership_type": "owner"},
         "item_type": "bql_actionable",
         "order_index": 2,
+        "handling_department": "Lễ tân & CSKH",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "1–3 ngày làm việc",
     },
     {
         "task_name": "Làm thẻ cư dân (người thuê)",
@@ -81,6 +112,9 @@ CHECKLIST_ITEMS = [
         "conditions": {"ownership_type": "renter"},
         "item_type": "bql_actionable",
         "order_index": 2,
+        "handling_department": "Lễ tân & CSKH",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "1–3 ngày làm việc",
     },
     {
         "task_name": "Đăng ký tạm trú tại công an phường",
@@ -111,6 +145,9 @@ CHECKLIST_ITEMS = [
         "conditions": {"has_car": True},
         "item_type": "bql_actionable",
         "order_index": 4,
+        "handling_department": "An ninh",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "1–2 ngày làm việc",
     },
     {
         "task_name": "Đăng ký chỗ đỗ xe cố định",
@@ -119,14 +156,23 @@ CHECKLIST_ITEMS = [
         "conditions": {"has_car": True},
         "item_type": "bql_actionable",
         "order_index": 5,
+        "handling_department": "An ninh",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "2–5 ngày làm việc",
     },
     {
-        "task_name": "Kích hoạt thẻ hồ bơi",
-        "description": "Kích hoạt quyền sử dụng hồ bơi theo gói tiện ích đã đăng ký.",
+        # Tên phải khớp bảng định tuyến trong data/kb/bql/bql-co-cau-va-quy-trinh.md.
+        # Trước 13/08 mục này tên "hồ bơi" còn KB dùng "bể bơi" ở cả 10 chỗ —
+        # lệch tên là hồ sơ không tra được bộ phận xử lý.
+        "task_name": "Kích hoạt thẻ bể bơi",
+        "description": "Kích hoạt quyền sử dụng bể bơi theo gói tiện ích đã đăng ký.",
         "category": "Tiện ích",
         "conditions": {"amenity_packages": "pool"},
         "item_type": "bql_actionable",
         "order_index": 6,
+        "handling_department": "Quản lý tiện ích chung",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Trong ngày",
     },
     {
         "task_name": "Kích hoạt thẻ phòng gym",
@@ -135,6 +181,9 @@ CHECKLIST_ITEMS = [
         "conditions": {"amenity_packages": "gym"},
         "item_type": "bql_actionable",
         "order_index": 7,
+        "handling_department": "Quản lý tiện ích chung",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Trong ngày",
     },
     {
         "task_name": "Đăng ký thẻ thang máy",
@@ -143,6 +192,9 @@ CHECKLIST_ITEMS = [
         "conditions": {},
         "item_type": "bql_actionable",
         "order_index": 8,
+        "handling_department": "An ninh",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Trong ngày",
     },
     {
         "task_name": "Đăng ký internet và truyền hình",
@@ -151,6 +203,9 @@ CHECKLIST_ITEMS = [
         "conditions": {},
         "item_type": "bql_actionable",
         "order_index": 9,
+        "handling_department": "Kỹ thuật (hỗ trợ lắp đặt)",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Theo lịch nhà mạng",
     },
     {
         "task_name": "Đăng ký chuyển đồ vào căn hộ",
@@ -159,6 +214,9 @@ CHECKLIST_ITEMS = [
         "conditions": {},
         "item_type": "bql_actionable",
         "order_index": 10,
+        "handling_department": "Lễ tân & CSKH",
+        "submission_location": "Quầy lễ tân tầng 1",
+        "processing_time": "Đặt trước 24 giờ",
     },
 ]
 
@@ -286,6 +344,7 @@ def main() -> None:
 
     for item in CHECKLIST_ITEMS:
         validate_conditions(item["conditions"])
+        validate_routing(item)
 
     rng = random.Random(SEED)
     session = SessionLocal()
