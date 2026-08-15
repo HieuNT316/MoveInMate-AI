@@ -81,6 +81,24 @@ export function getApplicationFormFields(taskName: string): ApplicationFormField
   return FORM_FIELDS[taskName] ?? null;
 }
 
+/**
+ * Thủ tục nào cần ảnh giấy tờ thật để BQL đối chiếu — không phải trang trí,
+ * đây là thứ khiến hồ sơ có căn cứ thay vì chỉ là vài dòng chữ tự khai. Chỉ
+ * liệt kê thủ tục THẬT SỰ cần giấy tờ; các thủ tục còn lại (kích hoạt tiện
+ * ích theo gói đã đăng ký, đặt lịch chuyển đồ...) không cần ảnh vì hệ thống
+ * đã có đủ dữ kiện qua hồ sơ cư dân.
+ */
+const REQUIRED_DOCUMENTS: Record<string, string> = {
+  "Làm thẻ cư dân (chủ hộ)": "Ảnh CCCD và giấy tờ chứng minh quyền sở hữu căn hộ",
+  "Làm thẻ cư dân (người thuê)": "Ảnh CCCD, hợp đồng thuê nhà và giấy uỷ quyền của chủ hộ",
+  "Đăng ký thẻ xe": "Ảnh giấy đăng ký xe (cà vẹt)",
+  "Đăng ký chỗ đỗ xe cố định": "Ảnh giấy đăng ký xe (cà vẹt)",
+};
+
+export function getRequiredDocument(taskName: string): string | null {
+  return REQUIRED_DOCUMENTS[taskName] ?? null;
+}
+
 /** Gộp các trường đã điền thành một đoạn text — đây là thứ thật sự gửi vào
  * `note`. Bỏ qua trường trống, giữ nguyên thứ tự khai báo trong form. */
 export function composeNote(

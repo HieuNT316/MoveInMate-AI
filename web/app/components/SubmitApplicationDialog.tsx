@@ -1,27 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, ShieldAlert, X } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldAlert, X } from "lucide-react";
 
-import { api, ApiError, type ChecklistItem } from "../../lib/api";
-import { getApplicationFormFields, composeNote } from "../../lib/applicationForms";
+import { api, ApiError, type Application, type ChecklistItem } from "../../lib/api";
+import {
+  composeNote,
+  getApplicationFormFields,
+  getRequiredDocument,
+} from "../../lib/applicationForms";
+import AttachmentUploader from "./AttachmentUploader";
 
 /**
- * US-13 — nộp hồ sơ cho một mục checklist.
+ * US-13 — nộp hồ sơ cho một mục checklist, hai bước.
  *
  * `item.item_type` quyết định `kind` phía backend (routes.py: `bql_actionable`
  * → `bql_processing`, còn lại → `self_declared` — xem docs/CONTRACT_US13.md
- * mục 2), nên FE suy ra được TRƯỚC khi nộp, không cần đợi phản hồi:
- * - `third_party_info` (tạm trú, cập nhật cư trú...): thủ tục thuộc cơ quan
- *   khác, BQL chỉ ghi nhận. Không có form nghiệp vụ — chỉ cần xác nhận rồi
- *   nộp ảnh minh chứng (đơn đăng ký / ảnh chụp màn hình VNeID) ngay sau đó.
- * - `bql_actionable`: BQL thật sự xử lý, cần thông tin nghiệp vụ theo từng
- *   thủ tục (biển số xe, ngày chuyển đồ...) — lấy từ
- *   `lib/applicationForms.ts` và nén thành `note` vì hợp đồng chỉ có một
- *   trường note tự do, không có trường riêng cho từng thủ tục.
+ * mục 2), nên FE suy ra được TRƯỚC khi nộp:
+ * - `third_party_info` (tạm trú, cập nhật cư trú...): không có form nghiệp
+ *   vụ — ảnh minh chứng CHÍNH LÀ nội dung nộp.
+ * - `bql_actionable` cần giấy tờ thật (thẻ cư dân, thẻ xe...): có form theo
+ *   thủ tục (`lib/applicationForms.ts`) VÀ bắt buộc ảnh giấy tờ tương ứng —
+ *   nộp form suông không kèm ảnh cà vẹt/CCCD thì BQL không có gì đối chiếu.
+ * - `bql_actionable` không cần giấy tờ (kích hoạt tiện ích theo gói đã đăng
+ *   ký, đặt lịch chuyển đồ...): chỉ cần form, không chặn bằng ảnh.
  *
- * Ảnh minh chứng đính kèm sau qua endpoint riêng (mục 7) — chưa làm ở đây;
- * card trạng thái trên `/checklist` đã tự hiện ô tải ảnh ngay sau khi tạo.
+ * Backend chỉ nhận ảnh SAU khi hồ sơ đã tồn tại (mục 7 — endpoint tách
+ * riêng, cần `application_id`), nên bước 2 tạo hồ sơ trước rồi mới tải ảnh
+ * ngay trong cùng dialog, thay vì bắt cư dân tự quay lại tìm nút sau.
  */
 export default function SubmitApplicationDialog({
   userId,
@@ -36,11 +42,19 @@ export default function SubmitApplicationDialog({
 }) {
   const isSelfDeclared = item.item_type !== "bql_actionable";
   const fields = isSelfDeclared ? null : getApplicationFormFields(item.task_name);
+  const requiredDocument = isSelfDeclared
+    ? "Đơn đăng ký hoặc ảnh chụp màn hình VNeID"
+    : getRequiredDocument(item.task_name);
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sau khi tạo hồ sơ, dialog chuyển sang bước tải ảnh nếu thủ tục cần giấy
+  // tờ. `createdApp` khác null nghĩa là bước 1 đã xong, không quay lại được.
+  const [createdApp, setCreatedApp] = useState<Application | null>(null);
+  const [attachmentCount, setAttachmentCount] = useState(0);
 
   const missingRequired =
     fields?.some((f) => f.required && !values[f.key]?.trim()) ?? false;
@@ -51,11 +65,15 @@ export default function SubmitApplicationDialog({
     setError(null);
     try {
       const composedNote = fields ? composeNote(fields, values, note) : note.trim() || undefined;
-      await api.createApplication(userId, {
+      const app = await api.createApplication(userId, {
         checklist_item_id: item.id,
         note: composedNote,
       });
-      onSubmitted();
+      if (requiredDocument) {
+        setCreatedApp(app);
+      } else {
+        onSubmitted();
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError("Mục này đã có hồ sơ đang xử lý — không nộp trùng được.");
@@ -68,6 +86,71 @@ export default function SubmitApplicationDialog({
       setSaving(false);
     }
   };
+
+  // Hồ sơ đã tồn tại ở backend rồi (kể cả khi chưa tải ảnh) — đóng dialog ở
+  // bước này vẫn phải báo cho checklist tải lại, không phải huỷ thao tác.
+  const closeAfterCreated = () => onSubmitted();
+
+  if (createdApp) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg font-semibold text-ink">
+              Tải ảnh minh chứng
+            </h3>
+            <button
+              onClick={closeAfterCreated}
+              aria-label="Đóng"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition hover:bg-background hover:text-ink"
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
+
+          <p className="mt-1 text-sm text-muted">{item.task_name}</p>
+
+          <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-3 text-xs text-ink/80">
+            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
+            <p>
+              Hồ sơ đã ghi nhận, nhưng cần <span className="font-medium text-ink">{requiredDocument}</span> để
+              Ban quản lý đối chiếu — nộp form suông không có gì để xác nhận.
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-border bg-background px-3.5 py-3">
+            <AttachmentUploader
+              userId={userId}
+              applicationId={createdApp.application_id}
+              attachments={[]}
+              required
+              onUploaded={() => setAttachmentCount((c) => c + 1)}
+            />
+          </div>
+
+          {attachmentCount > 0 && (
+            <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald">
+              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Đã tải {attachmentCount} ảnh.
+            </p>
+          )}
+
+          <button
+            onClick={closeAfterCreated}
+            disabled={attachmentCount === 0}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3 text-sm font-medium text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Hoàn tất
+          </button>
+          {attachmentCount === 0 && (
+            <p className="mt-2 text-center text-[11px] text-muted">
+              Tải ít nhất một ảnh để hoàn tất — có thể quay lại bổ sung sau ở trang Checklist.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
@@ -103,6 +186,13 @@ export default function SubmitApplicationDialog({
                 <span className="font-medium text-ink">{item.handling_department}</span>
                 {item.submission_location && <> · {item.submission_location}</>}
                 {item.processing_time && <> · {item.processing_time}</>}
+              </p>
+            )}
+
+            {requiredDocument && (
+              <p className="mt-3 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-2.5 text-xs text-ink/80">
+                Cần kèm <span className="font-medium text-ink">{requiredDocument}</span> ở bước
+                tiếp theo — bắt buộc để BQL đối chiếu.
               </p>
             )}
 
@@ -171,7 +261,13 @@ export default function SubmitApplicationDialog({
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-3 text-sm font-medium text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          {saving ? "Đang nộp..." : isSelfDeclared ? "Xác nhận, nộp minh chứng tiếp" : "Nộp hồ sơ"}
+          {saving
+            ? "Đang nộp..."
+            : isSelfDeclared
+              ? "Xác nhận, nộp minh chứng tiếp"
+              : requiredDocument
+                ? "Tiếp tục, tải ảnh giấy tờ"
+                : "Nộp hồ sơ"}
         </button>
       </div>
     </div>
