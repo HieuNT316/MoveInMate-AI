@@ -2,10 +2,20 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, Check, Clock3, ExternalLink, Loader2, MapPin } from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  Check,
+  Clock3,
+  ExternalLink,
+  FileUp,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, type Checklist } from "../../lib/api";
+import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 
 export default function ChecklistPage() {
@@ -16,6 +26,55 @@ export default function ChecklistPage() {
   );
 }
 
+/**
+ * US-13 — nhãn hiển thị theo `status`, KHÔNG dùng chung một bảng cho cả hai
+ * `kind`: `self_declared` (thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận ảnh
+ * minh chứng cư dân tự nộp) không được nói "Ban quản lý đang xử lý" — mạo
+ * nhận quy trình của cơ quan khác (xem docs/CONTRACT_US13.md mục 2).
+ */
+function applicationStatusLabel(app: Application): string {
+  if (app.kind === "self_declared") {
+    switch (app.status) {
+      case "received":
+      case "processing":
+        return "Đã gửi minh chứng, chờ Ban quản lý ghi nhận";
+      case "needs_info":
+        return "Cần bổ sung minh chứng";
+      case "approved":
+      case "delivered":
+        return "Đã ghi nhận";
+      case "rejected":
+        return "Bị từ chối";
+    }
+  }
+  switch (app.status) {
+    case "received":
+      return "Đã tiếp nhận";
+    case "processing":
+      return "Đang xử lý";
+    case "needs_info":
+      return "Cần bổ sung";
+    case "approved":
+      return "Đã duyệt";
+    case "delivered":
+      return "Đã trả kết quả";
+    case "rejected":
+      return "Từ chối";
+  }
+}
+
+// `needs_info`/`rejected` cần cư dân hành động tiếp — làm nổi bật hơn hẳn các
+// trạng thái còn lại (xem docs/CONTRACT_US13.md mục 6).
+function applicationStatusTone(status: Application["status"]): string {
+  if (status === "needs_info" || status === "rejected") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  if (status === "approved" || status === "delivered") {
+    return "border-emerald/30 bg-emerald/10 text-emerald";
+  }
+  return "border-gold/30 bg-gold-tint text-ink";
+}
+
 // `useSearchParams()` bắt buộc nằm trong <Suspense> (đọc `?item=` từ nút
 // "Đến mục này" trong chat) — thiếu boundary này thì `next build` fail.
 function ChecklistContent() {
@@ -24,8 +83,10 @@ function ChecklistContent() {
   const { userId, ready } = useDemoUser();
 
   const [data, setData] = useState<Checklist | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  const [submittingFor, setSubmittingFor] = useState<ChecklistItem | null>(null);
 
   // Đích tới từ nút "Đến mục này" trong chat (SuggestedAction) — cuộn và
   // đánh dấu đúng mục một lần sau khi checklist tải xong.
@@ -40,6 +101,13 @@ function ChecklistContent() {
         return;
       }
       setData(checklist);
+      // Lỗi tải hồ sơ không được chặn cả trang checklist — cư dân vẫn xem và
+      // tick được các mục khác dù danh sách hồ sơ đã nộp tải hỏng.
+      try {
+        setApplications(await api.getApplications(userId));
+      } catch (err) {
+        console.error("[checklist] không tải được danh sách hồ sơ đã nộp:", err);
+      }
       setError(null);
     } catch {
       setError("Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?");
@@ -94,6 +162,16 @@ function ChecklistContent() {
 
   const { items, overall, bql_scope } = data;
 
+  // Mỗi mục chỉ có MỘT hồ sơ đang mở — `applications` trả mới nhất trước nên
+  // giữ bản ghi đầu tiên gặp cho mỗi `checklist_item_id` là đủ, không cần lọc
+  // theo trạng thái "đang mở" ở FE (backend đã tự chặn nộp trùng bằng 409).
+  const applicationByItem = new Map<number, Application>();
+  for (const app of applications) {
+    if (!applicationByItem.has(app.checklist_item_id)) {
+      applicationByItem.set(app.checklist_item_id, app);
+    }
+  }
+
   return (
     <Layout>
       <div className="mx-auto max-w-3xl">
@@ -138,6 +216,9 @@ function ChecklistContent() {
           <ol className="space-y-0">
             {items.map((item, index) => {
               const external = item.item_type === "third_party_info";
+              // Contract mục 6: nút "Nộp hồ sơ" chỉ hiện ở mục bql_actionable.
+              const submittable = item.item_type === "bql_actionable";
+              const application = applicationByItem.get(item.id);
               return (
                 <li
                   key={item.id}
@@ -217,6 +298,37 @@ function ChecklistContent() {
                         )}
                       </div>
                     )}
+
+                    {submittable && (
+                      <div className="mt-3">
+                        {application ? (
+                          <div
+                            className={`flex flex-col gap-1 rounded-xl border px-3.5 py-2.5 text-xs ${applicationStatusTone(application.status)}`}
+                          >
+                            <span className="flex items-center gap-1.5 font-medium">
+                              {(application.status === "needs_info" ||
+                                application.status === "rejected") && (
+                                <AlertCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+                              )}
+                              {applicationStatusLabel(application)}
+                            </span>
+                            {application.bql_note &&
+                              (application.status === "needs_info" ||
+                                application.status === "rejected") && (
+                                <span className="opacity-90">{application.bql_note}</span>
+                              )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setSubmittingFor(item)}
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
+                          >
+                            <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            Nộp hồ sơ
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               );
@@ -224,6 +336,18 @@ function ChecklistContent() {
           </ol>
         </div>
       </div>
+
+      {submittingFor && (
+        <SubmitApplicationDialog
+          userId={userId}
+          item={submittingFor}
+          onClose={() => setSubmittingFor(null)}
+          onSubmitted={() => {
+            setSubmittingFor(null);
+            load();
+          }}
+        />
+      )}
     </Layout>
   );
 }

@@ -143,6 +143,66 @@ export type Dashboard = {
   total_residents: number;
 };
 
+// --- Hồ sơ nộp trực tuyến (US-13) — xem docs/CONTRACT_US13.md ------------
+
+export type ApplicationStatus =
+  | "received"
+  | "processing"
+  | "needs_info"
+  | "approved"
+  | "delivered"
+  | "rejected";
+
+/**
+ * `bql_processing` — BQL thật sự xử lý. `self_declared` — thủ tục làm ở cơ
+ * quan khác (vd tạm trú), cư dân tự nộp ảnh minh chứng, BQL chỉ ghi nhận.
+ * Giao diện KHÔNG được nói "Ban quản lý đang xử lý" với loại sau — mạo nhận
+ * quy trình của cơ quan khác.
+ */
+export type ApplicationKind = "bql_processing" | "self_declared";
+
+export type Attachment = {
+  attachment_id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  /** Link đọc tạm thời, hết hạn sau vài phút — không cache, không chia sẻ. */
+  url: string | null;
+  uploaded_at: string;
+};
+
+export type Application = {
+  application_id: number;
+  checklist_item_id: number;
+  task_name: string;
+  status: ApplicationStatus;
+  kind: ApplicationKind;
+  attachments: Attachment[];
+  handling_department: string | null;
+  submission_location: string | null;
+  processing_time: string | null;
+  note: string | null;
+  bql_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminApplication = Application & {
+  user_id: number;
+  full_name: string;
+  apartment: string;
+};
+
+export type CreateApplicationPayload = {
+  checklist_item_id: number;
+  note?: string;
+};
+
+export type UpdateApplicationStatusPayload = {
+  status: ApplicationStatus;
+  bql_note?: string;
+};
+
 export type CreateUserPayload = {
   full_name: string;
   email: string;
@@ -344,4 +404,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  /** US-13 — nộp hồ sơ cho một mục checklist. 409 nếu mục đó đã có hồ sơ
+   * đang mở, 404 nếu mục không thuộc checklist của chính người gọi. */
+  createApplication: (userId: number, payload: CreateApplicationPayload) =>
+    request<Application>("/applications", userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** Hồ sơ của chính cư dân đang đăng nhập, mới nhất trước. */
+  getApplications: (userId: number) =>
+    request<Application[]>("/applications", userId),
 };
