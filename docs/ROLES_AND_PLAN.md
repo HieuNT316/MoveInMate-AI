@@ -375,6 +375,7 @@ Nếu A1/A2 chưa xong thì demo bằng **tab ẩn danh** và nói rõ đang ch�
 | B2 | Form nộp hồ sơ + hiện "Bộ phận · Nơi nộp · Thời hạn" trong checklist. Hợp đồng đã chốt ở [`CONTRACT_US13.md`](./CONTRACT_US13.md), mock được ngay | Thu | 1h15 | [ ] |
 | B3 | Giao diện upload ảnh minh chứng cho thủ tục ngoài phạm vi BQL | Thu | 1h | [ ] |
 | B4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | Thu | 1h | [ ] |
+| B4b | **Sửa hồ sơ còn thiếu ba trường.** Trang Hồ sơ hiện chỉ nối `has_car`; `amenity_packages`, `ownership_type`, `apartment_type` chỉ hiển thị, không sửa được — trong khi charter US-06 ghi rõ "xem **và sửa**" và backend đã nhận đủ bốn trường (đo thử: đổi gói tiện ích → checklist 6 mục thành 8 ngay). Giá trị hợp lệ đóng trong `AmenityPackage`: `pool` · `gym` · `tennis` · `bbq` · `kids_area`, sai chuỗi thì 422 | Thu | 30' | [ ] |
 | B5 | **V3 — sửa hiển thị khi guard trượt.** Vẫn là lỗi nguy hiểm nhất còn lại: 3 câu "đúng lĩnh vực nhưng KB không có" hiện trích dẫn ngay dưới câu "tôi không biết" | **Hải** | 1h | [ ] |
 | B6 | Cập nhật charter + `architecture_diagram.md` + README + `.env.example`. Hiện charter vẫn ghi `APPLICATIONS` là Phase 2 trong khi nó đã chạy thật | Hiếu | 45' | [ ] |
 | B7 | **V2 — rate limiting.** Cố tình để sau demo: đặt ngưỡng sai là chặn nhầm đúng lúc đang trình bày | Hiếu | 1h | [ ] |
@@ -411,6 +412,24 @@ là ai hỏi đúng câu cũng lấy được. Ảnh CCCD/VNeID là giấy tờ 
 **Cách nối API không phá hợp đồng đang code:** giữ nguyên `POST /applications`
 dạng JSON, thêm `POST /applications/{id}/attachments` dạng multipart. Tạo hồ sơ
 trước rồi đính file — thuần cộng thêm, không sửa cái đã chốt với Thu.
+
+### Gói tiện ích là khai báo, không phải quyền sử dụng
+
+Khi làm B4b, ghi rõ trên giao diện rằng đây là **khai báo để cá nhân hoá
+checklist**, không phải nguồn sự thật về quyền dùng tiện ích.
+
+`has_car` là chuyện cư dân tự biết. Nhưng gói tiện ích và chủ hộ/người thuê là
+**dữ kiện hợp đồng** — trong sản phẩm thật, ai có gói bể bơi là do Ban quản lý
+quyết. Ở đây rủi ro thấp vì trường này **chỉ đổi checklist cá nhân, không cấp
+quyền gì**: tự khai có gói bể bơi chỉ làm hiện thêm một mục việc cần làm, không
+mở cửa bể bơi.
+
+Nếu về sau BQL muốn nắm phần này thì chuyển sang mô hình cư dân đề nghị → BQL
+xác nhận — đúng cơ chế `self_declared` đã dựng cho hồ sơ ở B1.
+
+⚠️ **Thử B4b bằng tài khoản `mentor@moveinmate.demo`**, đừng đụng năm persona
+trong kịch bản demo. Sửa hồ sơ trên bản deploy là sửa dữ liệu thật; đã hai lần
+persona bị lệch vì đúng chuyện này.
 
 ### Nhắc lại hai điều đã trả giá
 
