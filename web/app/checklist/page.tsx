@@ -169,8 +169,11 @@ function ChecklistContent() {
           <ol className="space-y-0">
             {items.map((item, index) => {
               const external = item.item_type === "third_party_info";
-              // Contract mục 6: nút "Nộp hồ sơ" chỉ hiện ở mục bql_actionable.
-              const submittable = item.item_type === "bql_actionable";
+              // Cập nhật 15/08 (CONTRACT_US13.md mục 2): mọi mục đều nộp
+              // được — backend tự gắn kind theo item_type (routes.py), mục
+              // "ngoài phạm vi BQL" (tạm trú, cập nhật cư trú) thành hồ sơ
+              // self_declared, cư dân chỉ cần nộp ảnh minh chứng.
+              const submittable = true;
               const application = applicationByItem.get(item.id);
               return (
                 <li
