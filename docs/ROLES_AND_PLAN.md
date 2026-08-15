@@ -373,11 +373,37 @@ chỉ là giao diện, không ai phải chờ ai.
 | A4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | **Thu** | 1h | [ ] |
 | A5 | **Deploy Vercel — làm SAU CÙNG.** `git checkout main && git pull`, rồi `cd web && vercel --prod`. Bản đang chạy vẫn là bản 12/08 lúc 17:12, đi sau `main` ba lớp | **Thu** | 15' | [ ] |
 | A6 | **Chạy lại `python -m scripts.run_eval`.** Số 32/35 trong báo cáo đo trên kiến trúc **trước** `rewrite_query`. Chạy song song, không chặn ai | **Hải** | 30' | [ ] |
-| A7 | **Dọn dữ liệu demo.** Đợt kiểm chứng backend đã tạo hồ sơ thật trên production (Trần Hồng Tuấn: thẻ xe *Cần bổ sung*; Phạm Thị Dũng: tạm trú *Đã duyệt* kèm ảnh). Chốt persona nào để trống cho demo nộp mới, persona nào giữ làm ví dụ có sẵn | **Hiếu** | 20' | [ ] |
+| A7 | ~~Dọn dữ liệu demo~~ — xong, xem "Dữ liệu demo đang ở trạng thái nào" ngay dưới | **Hiếu** | 20' | [x] 15/08 |
 | A8 | **Chạy thử trọn kịch bản** trên bản deploy, bằng tab ẩn danh | Cả nhóm | 30' | [ ] |
 
 Hợp đồng API đầy đủ ở [`CONTRACT_US13.md`](./CONTRACT_US13.md) — mục 3 (trường
 định tuyến), mục 5 (endpoint), mục 7 (upload). Backend đã chạy thật, không cần mock.
+
+### Dữ liệu demo đang ở trạng thái nào
+
+Nguyên tắc chọn: **thứ gì định làm trực tiếp trên sân khấu thì để trống**, và
+luôn có sẵn bản dự phòng phòng khi thao tác trực tiếp trục trặc.
+
+| Persona | Hồ sơ | Vì sao |
+|---|---|---|
+| **Trần Hồng Tuấn** (chủ hộ, có ô tô) | **0** | Để nộp *Đăng ký thẻ xe* trực tiếp |
+| **Phạm Thị Dũng** (người thuê) | **0** | Để tải ảnh minh chứng *tạm trú* trực tiếp |
+| Trần Ngọc Giang | Thẻ xe · *Đang xử lý* | Mẫu sẵn — ngoài kịch bản |
+| Hoàng Hải Cường | Tạm trú · *Đã ghi nhận* · 1 ảnh | Mẫu sẵn — ngoài kịch bản |
+
+Hai hồ sơ mẫu nằm trên cư dân **không xuất hiện ở màn đăng nhập**, nên không
+đụng persona nào trong kịch bản. Chúng có hai tác dụng: dashboard BQL không
+trống trước khi nộp trực tiếp, và nếu bước nộp trực tiếp trục trặc thì vẫn có
+hồ sơ để bấm đổi trạng thái.
+
+Hai mẫu phủ **cả hai loại**: một `bql_processing` (BQL xử lý thật) và một
+`self_declared` kèm ảnh (cư dân tự khai) — đủ để nói về ranh giới giữa hai loại
+mà không cần nộp thêm gì.
+
+Ảnh minh chứng là **PNG tự sinh**, không phải giấy tờ thật của ai.
+
+⚠️ Nếu chạy thử trước demo mà lỡ nộp bằng hai persona đầu, báo Hiếu dọn lại —
+mất một phút. Đừng để trạng thái *Từ chối* còn treo trên màn hình lúc demo.
 
 ### Mốc thời gian — giả định demo 20:00, sửa lại nếu khác
 
