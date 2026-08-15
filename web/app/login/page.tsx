@@ -111,12 +111,15 @@ export default function LoginPage() {
           }}
         />
 
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-gold/40 bg-gold/10">
-            <Building2 className="h-5 w-5 text-gold-soft" strokeWidth={1.5} />
+        <div
+          className="relative flex flex-col items-center gap-3 opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
+          style={{ animationDelay: "0ms" }}
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-gold-soft/50 bg-gold shadow-[0_8px_24px_-6px_rgba(26,115,232,0.55)]">
+            <Building2 className="h-8 w-8 text-white" strokeWidth={1.5} />
           </div>
-          <div>
-            <p className="font-display text-lg font-semibold">MoveInMate</p>
+          <div className="text-center">
+            <p className="font-display text-xl font-semibold">MoveInMate</p>
             <p className="text-[11px] uppercase tracking-[0.2em] text-gold-soft/80">
               AI Concierge
             </p>
@@ -125,7 +128,10 @@ export default function LoginPage() {
 
         {/* Mascot — chào mừng bằng AI, đặt trước phần headline để ấn tượng
             đầu tiên là "có trợ lý đồng hành", không phải một cái form trơ. */}
-        <div className="relative flex items-start gap-3.5">
+        <div
+          className="relative flex items-start gap-3.5 opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
+          style={{ animationDelay: "150ms" }}
+        >
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-gold/30 to-gold/5 ring-1 ring-gold/30">
             <Bot className="h-7 w-7 text-gold-soft" strokeWidth={1.5} />
           </div>
@@ -135,7 +141,10 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative max-w-md">
+        <div
+          className="relative max-w-md opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
+          style={{ animationDelay: "300ms" }}
+        >
           <p className="font-display text-4xl font-semibold leading-tight">
             Nhận nhà an tâm, đồng hành chỉn chu.
           </p>
@@ -144,7 +153,10 @@ export default function LoginPage() {
             giải đáp mọi thắc mắc trong hành trình nhận nhà của bạn.
           </p>
 
-          <ol className="mt-8 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.08] p-4 shadow-lg backdrop-blur-md">
+          <ol
+            className="mt-8 flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.08] p-4 shadow-lg backdrop-blur-md opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
+            style={{ animationDelay: "450ms" }}
+          >
             {HANDOVER_STEPS.map((step, index) => (
               <li key={step.label} className="flex flex-1 items-center gap-2">
                 <div className="flex flex-1 items-start gap-2.5">
