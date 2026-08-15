@@ -18,6 +18,7 @@ import AttachmentUploader from "../components/AttachmentUploader";
 import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
+import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
 
 export default function ChecklistPage() {
   return (
@@ -25,55 +26,6 @@ export default function ChecklistPage() {
       <ChecklistContent />
     </Suspense>
   );
-}
-
-/**
- * US-13 — nhãn hiển thị theo `status`, KHÔNG dùng chung một bảng cho cả hai
- * `kind`: `self_declared` (thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận ảnh
- * minh chứng cư dân tự nộp) không được nói "Ban quản lý đang xử lý" — mạo
- * nhận quy trình của cơ quan khác (xem docs/CONTRACT_US13.md mục 2).
- */
-function applicationStatusLabel(app: Application): string {
-  if (app.kind === "self_declared") {
-    switch (app.status) {
-      case "received":
-      case "processing":
-        return "Đã gửi minh chứng, chờ Ban quản lý ghi nhận";
-      case "needs_info":
-        return "Cần bổ sung minh chứng";
-      case "approved":
-      case "delivered":
-        return "Đã ghi nhận";
-      case "rejected":
-        return "Bị từ chối";
-    }
-  }
-  switch (app.status) {
-    case "received":
-      return "Đã tiếp nhận";
-    case "processing":
-      return "Đang xử lý";
-    case "needs_info":
-      return "Cần bổ sung";
-    case "approved":
-      return "Đã duyệt";
-    case "delivered":
-      return "Đã trả kết quả";
-    case "rejected":
-      return "Từ chối";
-  }
-}
-
-// `needs_info`/`rejected` cần cư dân hành động tiếp — làm nổi bật hơn hẳn các
-// trạng thái còn lại (xem docs/CONTRACT_US13.md mục 6).
-function applicationStatusTone(status: Application["status"]): string {
-  if (status === "needs_info" || status === "rejected") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-  if (status === "approved" || status === "delivered") {
-    return "border-emerald/30 bg-emerald/10 text-emerald";
-  }
-  return "border-gold/30 bg-gold-tint text-ink";
 }
 
 // `useSearchParams()` bắt buộc nằm trong <Suspense> (đọc `?item=` từ nút
