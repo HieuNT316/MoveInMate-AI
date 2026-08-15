@@ -453,4 +453,30 @@ export const api = {
       form,
     );
   },
+
+  /** BQL xem hồ sơ của mọi cư dân. `status`/`department` là bộ lọc tuỳ chọn
+   * — bỏ trống để lấy tất cả. Yêu cầu role admin, backend tự chặn 403. */
+  getAdminApplications: (
+    userId: number,
+    filter?: { status?: ApplicationStatus; department?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (filter?.status) params.set("status", filter.status);
+    if (filter?.department) params.set("department", filter.department);
+    const qs = params.toString();
+    return request<AdminApplication[]>(`/admin/applications${qs ? `?${qs}` : ""}`, userId);
+  },
+
+  /** US-13 — BQL đổi trạng thái một hồ sơ. Backend không ép thứ tự chuyển
+   * trạng thái (có thể quay lại `needs_info` sau khi đã `approved`), và chặn
+   * 409 nếu duyệt hồ sơ `self_declared` chưa có ảnh minh chứng nào. */
+  updateApplicationStatus: (
+    userId: number,
+    applicationId: number,
+    payload: UpdateApplicationStatusPayload,
+  ) =>
+    request<Application>(`/admin/applications/${applicationId}`, userId, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };
