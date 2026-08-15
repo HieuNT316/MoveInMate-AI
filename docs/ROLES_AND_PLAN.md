@@ -333,3 +333,90 @@ phân công.
 V1, V2, V3 nên xong trước khi công bố URL rộng rãi. V10 là thói quen, không phải
 việc một lần: **đổi KB hoặc đổi ngưỡng mà không đo lại thì không biết mình vừa
 làm tốt lên hay tệ đi.**
+
+
+---
+
+## 12. Kế hoạch 15/08 — ngày demo GATE 2
+
+> **Cách dùng:** tự tick `[x]` việc của mình và ghi ngày. Ai đổi trạng thái thì
+> commit luôn file này để hai người kia thấy — đừng báo miệng rồi quên.
+>
+> Lập sau rà soát sáng 15/08. Thay thế các mốc "trước thứ Bảy" ở mục 11.
+
+### Đang ở đâu
+
+| | Trạng thái |
+|---|---|
+| Backend Railway | Multi-turn + US-13 nộp hồ sơ — **đã chạy, kiểm chứng bằng JWT thật** |
+| Frontend Vercel | **Đi sau `main` ba lớp**: redesign dashboard BQL, lịch sử chat, multi-turn |
+| Eval | 32/35 · 91% — **đo trước khi có multi-turn**, chưa đo lại |
+| Test | 111 pass · coverage 84% |
+| CI | Đỏ ở mọi nhánh vì tài khoản tổ chức vướng thanh toán, không phải lỗi code |
+
+### Trước demo — chỉ ba việc, xếp theo thứ tự chặn nhau
+
+Hôm nay là ngày demo. **Nguyên tắc: không thêm tính năng mới vào nhánh sẽ demo.**
+Đổi code vài giờ trước khi trình bày là cách hỏng demo phổ biến nhất.
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| A1 | **Deploy lại Vercel.** Không có bước này thì toàn bộ việc của cả nhóm ba ngày qua không ai nhìn thấy. `git checkout main && git pull`, rồi `cd web && vercel --prod` | **Thu** | 15' | [ ] |
+| A2 | **Sửa tên cache service worker.** `moveinmate-shell-v1` cố định + chiến lược cache-first ⇒ ai đã từng mở trang sẽ **vẫn thấy bản cũ sau A1**, kể cả Ctrl+F5. Cho tên cache đổi theo mỗi lần build; phần dọn cache cũ đã viết sẵn ở `activate` | **Thu** | 20' | [ ] |
+| A3 | **Chạy lại `python -m scripts.run_eval`.** Con số 32/35 đang dùng trong báo cáo đo trên kiến trúc **trước** `rewrite_query`. Báo cáo số cũ cho kiến trúc mới là sai. Tốn 35 lượt embedding nên để đúng vai AI chạy | **Hải** | 30' | [ ] |
+
+Nếu A1/A2 chưa xong thì demo bằng **tab ẩn danh** và nói rõ đang chạy bản nào.
+
+### Sau demo — theo thứ tự ưu tiên
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| B1 | **Upload ảnh minh chứng (US-13 phần còn lại).** Bảng `attachments`, bucket Supabase Storage **private**, `POST/GET /applications/{id}/attachments`. Thêm `kind` phân biệt hai loại hồ sơ (xem dưới) | Hiếu | 3h | [ ] |
+| B2 | Form nộp hồ sơ + hiện "Bộ phận · Nơi nộp · Thời hạn" trong checklist. Hợp đồng đã chốt ở [`CONTRACT_US13.md`](./CONTRACT_US13.md), mock được ngay | Thu | 1h15 | [ ] |
+| B3 | Giao diện upload ảnh minh chứng cho thủ tục ngoài phạm vi BQL | Thu | 1h | [ ] |
+| B4 | Trang theo dõi trạng thái hồ sơ + nút BQL đổi trạng thái | Thu | 1h | [ ] |
+| B5 | **V3 — sửa hiển thị khi guard trượt.** Vẫn là lỗi nguy hiểm nhất còn lại: 3 câu "đúng lĩnh vực nhưng KB không có" hiện trích dẫn ngay dưới câu "tôi không biết" | **Hải** | 1h | [ ] |
+| B6 | Cập nhật charter + `architecture_diagram.md` + README + `.env.example`. Hiện charter vẫn ghi `APPLICATIONS` là Phase 2 trong khi nó đã chạy thật | Hiếu | 45' | [ ] |
+| B7 | **V2 — rate limiting.** Cố tình để sau demo: đặt ngưỡng sai là chặn nhầm đúng lúc đang trình bày | Hiếu | 1h | [ ] |
+| B8 | **V1 — LangSmith.** Khai là deliverable ở 4 nơi trong tài liệu, `src/` không có dòng nào | **Hải** | 30' | [ ] |
+| B9 | Partial unique index chống nộp trùng hồ sơ (hiện chỉ chặn ở tầng ứng dụng, hai request đồng thời lọt cả hai) | Hiếu | 20' | [ ] |
+| B10 | Video Demo · Pitch Deck — hai deliverable BTC còn nợ | Cả nhóm | — | [ ] |
+
+### Ranh giới phải giữ khi làm B1 — đọc trước khi code
+
+**Nộp hồ sơ và nộp minh chứng là hai việc khác bản chất.** Gộp chung là phá đúng
+cái bất biến mà cả sản phẩm đang dựa vào.
+
+| | Nộp hồ sơ (`bql_processing`) | Nộp minh chứng (`self_declared`) |
+|---|---|---|
+| Ví dụ | Đăng ký thẻ xe, thẻ cư dân | Đăng ký tạm trú, cập nhật cư trú |
+| Ai xử lý | Bộ phận BQL | Không ai — cư dân tự khai |
+| Định tuyến | Có bộ phận | Không có bộ phận nào |
+| BQL làm gì | Tiếp nhận → xử lý → trả kết quả | Chỉ **ghi nhận**, hoặc báo cần bổ sung |
+| File | Tuỳ chọn | **Bắt buộc** — đây chính là nội dung nộp |
+
+Giao diện tuyệt đối không hiện "Ban quản lý đang xử lý hồ sơ tạm trú của bạn" —
+sai sự thật, và phá nguyên tắc "BQL không mạo nhận quy trình của cơ quan khác".
+
+**Dữ liệu cá nhân.** `architecture_diagram.md` mục cuối có quy tắc: không bao giờ
+đưa dữ liệu cá nhân cư dân vào vector store — Chroma không phân quyền, đã index
+là ai hỏi đúng câu cũng lấy được. Ảnh CCCD/VNeID là giấy tờ tuỳ thân:
+
+- Bucket **private**, đọc qua signed URL hết hạn ngắn — không bao giờ URL công khai
+- **Tuyệt đối không** embed vào Chroma
+- Chỉ chủ hồ sơ và BQL đọc được
+- Giới hạn 5MB, chỉ nhận `jpeg` / `png` / `pdf`, tên file lưu bằng UUID
+- **Demo dùng ảnh giả hoặc đã che số** — đừng dùng CCCD thật của ai trong nhóm
+
+**Cách nối API không phá hợp đồng đang code:** giữ nguyên `POST /applications`
+dạng JSON, thêm `POST /applications/{id}/attachments` dạng multipart. Tạo hồ sơ
+trước rồi đính file — thuần cộng thêm, không sửa cái đã chốt với Thu.
+
+### Nhắc lại hai điều đã trả giá
+
+**Charter mục 12 — chốt hợp đồng bằng văn bản trước khi hai vai code song song.**
+Ngày 12/08 Hiếu sửa `web/app/chat/page.tsx` để hiện nút điều hướng mà không báo;
+Thu tự viết bản khác. Cả hai chạy được, nhưng một bản thành code chết trên `main`.
+
+**Đừng bấm nút "Đổi" ở trang Hồ sơ trên bản deploy khi đang thử.** Nó sửa dữ liệu
+thật và làm lệch persona demo. Đã phải vá tay hai lần.

@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
     CLOSED_STATUSES,
@@ -326,7 +326,15 @@ def list_all_applications(
     Lọc theo bộ phận chạy trên `checklist_items` chứ không trên `applications`
     — định tuyến là thuộc tính của THỦ TỤC, không phải của từng hồ sơ.
     """
-    query = select(Application).join(Application.item).order_by(Application.application_id.desc())
+    # `join` chỉ để LỌC theo bộ phận; muốn đọc `a.user`/`a.item` mà không bắn
+    # thêm một truy vấn cho mỗi dòng thì phải nạp sẵn. Không có hai dòng này,
+    # 10 hồ sơ tốn 12 truy vấn — với 40 cư dân là hàng trăm.
+    query = (
+        select(Application)
+        .join(Application.item)
+        .options(selectinload(Application.user), selectinload(Application.item))
+        .order_by(Application.application_id.desc())
+    )
     if status:
         query = query.where(Application.status == status)
     if department:
