@@ -165,7 +165,7 @@ bằng JSON như cũ, **rồi** đính tệp.
   "filename": "vneid.png",
   "content_type": "image/png",
   "size_bytes": 184320,
-  "url": "https://…/object/sign/…",   // ĐỌC TẠM THỜI, hết hạn sau 5 phút
+  "url": null,   // LUÔN null từ 18/08 — xem mục "Lấy link xem ảnh" bên dưới
   "uploaded_at": "2026-08-15T10:00:00Z"
 }
 ```
@@ -230,6 +230,29 @@ localStorage hay share ra ngoài; tải lại trang là có link mới.
 **Đây là giấy tờ tuỳ thân** (CCCD, VNeID). Bucket private, không có URL công
 khai. Đừng hiện ảnh ở trang nào không kiểm đăng nhập, đừng ghi ra log.
 **Khi demo dùng ảnh giả hoặc đã che số**, không dùng CCCD thật của ai trong nhóm.
+
+### Lấy link xem ảnh — đổi từ 18/08
+
+`url` trong mọi phản hồi danh sách **luôn là `null`**. Muốn xem một tệp thì gọi
+riêng:
+
+`GET /api/v1/applications/{application_id}/attachments/{attachment_id}/url`
+
+```jsonc
+// nhận 200
+{ "url": "https://…/object/sign/…" }   // hết hạn sau 5 phút
+```
+
+Lỗi: **404** tệp không tồn tại, không thuộc hồ sơ đó, hoặc hồ sơ không phải của
+mình. BQL gọi được mọi tệp.
+
+**Vì sao đổi:** ký URL là một lời gọi mạng đồng bộ tới Supabase, chạy một lần
+cho **mỗi tệp, mỗi lần đọc hồ sơ**, bên trong route `async`. Nó chặn event loop
+nên mọi request của mọi người khác đều phải đợi. Ký khi thật sự mở ảnh đưa số
+lượt gọi từ N xuống thường là 0.
+
+**Cách sửa phía giao diện:** gọi endpoint này khi người dùng bấm mở ảnh, đừng
+gọi sẵn cho cả danh sách — làm thế là quay lại đúng vấn đề vừa sửa.
 
 ## 8. Chưa làm ở lát này
 
