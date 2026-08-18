@@ -1010,7 +1010,9 @@ async def test_checklist_kem_danh_sach_giay_to_can_nop(client):
     items = (await client.get("/api/v1/checklist", headers=OWNER)).json()["items"]
     car = next(i for i in items if i["id"] == CAR_CARD_ITEM)
 
-    assert [d["code"] for d in car["required_documents"]] == ["cccd", "dang_ky_xe"]
+    assert [d["code"] for d in car["required_documents"]] == [
+        "cccd", "dang_ky_xe", "the_cu_dan",
+    ]
     # Kèm nhãn để frontend khỏi phải giữ bảng riêng.
     assert all(d["label"] for d in car["required_documents"])
 
@@ -1053,7 +1055,7 @@ async def test_loai_giay_to_khong_hop_le_bi_tu_choi(client):
 async def test_du_giay_to_thi_bao_khong_thieu(client):
     app = await _create(client, CAR_CARD_ITEM)
     aid = app["application_id"]
-    for code in ("cccd", "dang_ky_xe"):
+    for code in ("cccd", "dang_ky_xe", "the_cu_dan"):
         await client.post(
             f"/api/v1/applications/{aid}/attachments",
             files={"file": (f"{code}.png", PNG, "image/png")},
@@ -1077,7 +1079,7 @@ async def test_thieu_mot_loai_thi_bao_dung_loai_do(client):
     )
 
     mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
-    assert [d["code"] for d in mine["missing_documents"]] == ["dang_ky_xe"]
+    assert [d["code"] for d in mine["missing_documents"]] == ["dang_ky_xe", "the_cu_dan"]
 
 
 @pytest.mark.asyncio
@@ -1109,7 +1111,7 @@ async def test_bql_gan_lai_loai_thi_tinh_lai_duoc_con_thieu_gi(client):
 
     mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
     assert mine["unlabelled_count"] == 0
-    assert [d["code"] for d in mine["missing_documents"]] == ["cccd"]
+    assert [d["code"] for d in mine["missing_documents"]] == ["cccd", "the_cu_dan"]
 
 
 @pytest.mark.asyncio
@@ -1129,10 +1131,58 @@ async def test_cu_dan_khong_gan_lai_loai_duoc(client):
 async def test_gan_lai_tep_khong_ton_tai_tra_404(client):
     app = await _create(client, CAR_CARD_ITEM)
     r = await client.patch(
-        f"/api/v1/applications/{app['application_id']}/attachments/9999".replace(
-            "/api/v1/applications", "/api/v1/admin/applications"
-        ),
+        f"/api/v1/admin/applications/{app['application_id']}/attachments/9999",
         json={"document_type": "cccd"},
         headers=ADMIN,
     )
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bql_cung_thay_con_thieu_gi(client):
+    """Dashboard BQL mới là nơi chính dùng tính năng này — phải kiểm riêng,
+    không dựa vào việc nó dùng chung hàm với danh sách của cư dân."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])
+
+    row = next(
+        r for r in (await client.get("/api/v1/admin/applications", headers=ADMIN)).json()
+        if r["application_id"] == app["application_id"]
+    )
+    assert row["missing_documents"] is None
+    assert row["unlabelled_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_khong_gan_lai_duoc_tep_thuoc_ho_so_khac(client):
+    """Đây mới là phép thử về quyền: id tệp có thật, nhưng thuộc hồ sơ khác.
+    Chỉ kiểm id không tồn tại thì không chứng minh được gì."""
+    first = await _create(client, CAR_CARD_ITEM)
+    second = await _create(client, 1)
+    att_id = (await _upload(client, first["application_id"])).json()["attachment_id"]
+
+    response = await client.patch(
+        f"/api/v1/admin/applications/{second['application_id']}/attachments/{att_id}",
+        json={"document_type": "cccd"},
+        headers=ADMIN,
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_go_loai_ve_chua_phan_loai(client):
+    """Gán nhầm phải quay lại được trạng thái trung thực "chưa ai xem"."""
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    url = f"/api/v1/admin/applications/{aid}/attachments/{att_id}"
+    await client.patch(url, json={"document_type": "cccd"}, headers=ADMIN)
+    cleared = await client.patch(url, json={"document_type": None}, headers=ADMIN)
+
+    assert cleared.status_code == 200
+    assert cleared.json()["document_type"] is None
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["unlabelled_count"] == 1
+    assert mine["missing_documents"] is None

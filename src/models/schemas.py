@@ -292,9 +292,15 @@ ApplicationStatus = Literal[
 ApplicationKind = Literal["bql_processing", "self_declared"]
 
 class AttachmentTypeUpdateRequest(BaseModel):
-    """Gán lại loại cho tệp đã tải lên — dùng khi gán nhầm hoặc chưa gán."""
+    """Gán lại loại cho tệp đã tải lên — dùng khi gán nhầm hoặc chưa gán.
 
-    document_type: DocumentType
+    Gửi `null` để trả tệp về trạng thái CHƯA PHÂN LOẠI. Không có đường này thì
+    gán nhầm là một chiều: chỉ đổi được sang loại khác, không khôi phục được
+    trạng thái trung thực "chưa ai xem" — mà cả tính năng dựa trên việc phân
+    biệt hai thứ đó.
+    """
+
+    document_type: DocumentType | None
 
 
 class AttachmentResponse(BaseModel):

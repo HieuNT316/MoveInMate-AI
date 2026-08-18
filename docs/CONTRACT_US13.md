@@ -201,9 +201,22 @@ thứ đã có. Hệ thống chỉ nói chắc điều nó biết chắc.
 `document_type` của tệp cũng có ba trạng thái, đừng gộp: **`null`** = chưa ai
 phân loại · **`khac`** = đã phân loại, không thuộc loại nào · một mã cụ thể.
 
+### Cách gọi tên trên giao diện
+
+Với hồ sơ `bql_processing` vừa nộp và chưa tải gì, `missing_documents` sẽ liệt kê
+đủ giấy tờ của thủ tục. Đó là **danh sách cần mang**, không phải lời trách cư dân
+— luồng bình thường vẫn là cầm giấy tờ tới quầy. Dùng chữ kiểu *"Giấy tờ cần
+chuẩn bị"* thay vì *"Hồ sơ thiếu giấy tờ"*.
+
+Chỉ nên nhấn là "thiếu" khi hồ sơ đã ở trạng thái `needs_info` — lúc đó chính BQL
+nói là thiếu.
+
 ### `PATCH /api/v1/admin/applications/{id}/attachments/{attachment_id}`
 
 BQL gán lại loại cho một tệp: `{ "document_type": "dang_ky_xe" }`.
+
+Gửi `{ "document_type": null }` để trả tệp về trạng thái **chưa phân loại** —
+cần có đường này vì gán nhầm nếu không sẽ là một chiều.
 
 Cần thiết chứ không phải tiện nghi: gán nhầm hoặc chưa gán thì hồ sơ kẹt ở trạng
 thái "thiếu giấy tờ đã nộp rồi" mà không ai sửa được. Cũng là đường dọn cho các

@@ -14,9 +14,18 @@ from pathlib import Path
 import pytest
 
 from scripts.seed_data import CHECKLIST_ITEMS
-from src.services.documents import DOCUMENT_LABELS, describe, evaluate_documents
+from src.services.documents import (
+    DOCUMENT_CODES,
+    DOCUMENT_LABELS,
+    describe,
+    evaluate_documents,
+)
 
-ROUTING_TABLE = Path("data/kb/bql/bql-co-cau-va-quy-trinh.md")
+# Tuyệt đối, không phụ thuộc thư mục chạy pytest.
+ROUTING_TABLE = (
+    Path(__file__).resolve().parents[2] / "data" / "kb" / "bql"
+    / "bql-co-cau-va-quy-trinh.md"
+)
 
 
 # --- Suy ra còn thiếu gì -------------------------------------------------
@@ -92,3 +101,25 @@ def test_ten_thu_tuc_khop_bang_dinh_tuyen_trong_kb(item):
         f"{item['task_name']!r} không có trong bảng định tuyến của KB — "
         "tên lệch thì không tra được bộ phận lẫn giấy tờ"
     )
+
+
+def test_ma_la_bi_bo_qua_nhung_co_ghi_canh_bao(caplog):
+    """Ghim hành vi: mã không còn trong bảng nhãn thì KHÔNG làm vỡ request,
+    nhưng phải để lại dấu vết. Im lặng bỏ qua là kiểu lỗi tệ nhất — thủ tục
+    vĩnh viễn không đòi giấy tờ gì mà không ai biết."""
+    with caplog.at_level("WARNING"):
+        result = evaluate_documents(["cccd", "ma_da_bi_xoa"], ["cccd"])
+
+    assert result["missing_documents"] == []
+    assert "ma_da_bi_xoa" in caplog.text
+
+
+def test_literal_trong_schema_khop_bang_nhan():
+    """Bốn bản sao của danh sách mã tồn tại (bảng nhãn, Literal, hai chỗ trong
+    migration). Hai bản trong migration cố ý đóng băng; bản Literal thì không —
+    lệch nhau là upload nhận mã mà PATCH từ chối, lỗi hiện ra dưới dạng 500."""
+    from typing import get_args
+
+    from src.models.schemas import DocumentType
+
+    assert get_args(DocumentType) == DOCUMENT_CODES

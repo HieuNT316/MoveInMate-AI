@@ -132,7 +132,11 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Làm thẻ cư dân (người thuê)",
-        "required_documents": ["cccd", "hop_dong_thue", "giay_uy_quyen"],
+        # KB ghi giấy uỷ quyền là ĐIỀU KIỆN ("nếu BQL yêu cầu" —
+        # data/kb/web/vsc-the-cu-dan.md:54, và 3 chỗ khác nói tương tự).
+        # Liệt kê như bắt buộc thì mọi người thuê nộp đủ CCCD + hợp đồng
+        # vẫn bị báo thiếu — đúng lỗi mà D1 sinh ra để tránh.
+        "required_documents": ["cccd", "hop_dong_thue"],
         "description": "Nộp CCCD, hợp đồng thuê nhà và giấy uỷ quyền của chủ hộ, kèm ảnh 3x4.",
         "category": "Giấy tờ cư dân",
         "conditions": {"ownership_type": "renter"},
@@ -166,7 +170,9 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Đăng ký thẻ xe",
-        "required_documents": ["cccd", "dang_ky_xe"],
+        # Mục 3 trong KB là lựa chọn (biên bản bàn giao HOẶC hợp đồng thuê) nên
+        # bỏ — phép đối chiếu là AND, không diễn đạt được "hoặc".
+        "required_documents": ["cccd", "dang_ky_xe", "the_cu_dan"],
         "description": "Đăng ký thẻ ra vào hầm gửi xe cho ô tô hoặc xe máy.",
         "category": "Phương tiện",
         "conditions": {"has_car": True},

@@ -3,14 +3,19 @@
 Nhãn nằm ở ĐÂY, trong code, không nằm trong DB: sửa một chữ hiển thị không nên
 phải viết migration. DB chỉ lưu mã.
 
-Danh sách mã rút từ mục "Giấy tờ cần mang" trong `data/kb/bql/`. Đóng chứ không
+Danh sách mã rút từ mục "Giấy tờ cần mang" trong `data/kb/bql/`, riêng hai mục
+thẻ cư dân lấy từ `data/kb/web/vsc-the-cu-dan.md` (KB nội bộ không có mục này).
+Đóng chứ không
 phải chuỗi tự do — cùng lý do đã áp cho `AmenityPackage`: giá trị gõ lệch sẽ
 không khớp gì cả và im lặng biến mất, không báo lỗi.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 DOCUMENT_LABELS: dict[str, str] = {
     "cccd": "CCCD hoặc hộ chiếu",
@@ -54,6 +59,15 @@ def evaluate_documents(
     vì Ban quản lý nhìn vào tưởng cư dân chưa nộp và đi đòi thứ đã có.
     """
     unlabelled = sum(1 for a in attached if a is None)
+
+    # Mã lạ bị bỏ qua, nhưng KHÔNG được im lặng: nó nghĩa là cấu hình hỏng —
+    # thường do đổi tên khoá trong DOCUMENT_LABELS mà quên dữ liệu cũ trong
+    # `checklist_items`. Không kêu thì thủ tục đó vĩnh viễn không đòi giấy tờ
+    # gì và không ai biết, đúng kiểu lỗi im lặng mà CLAUDE.md cảnh báo.
+    stale = [c for c in (required or []) if c not in DOCUMENT_LABELS]
+    if stale:
+        logger.warning("Mã giấy tờ không còn trong DOCUMENT_LABELS: %s", stale)
+
     needed = [c for c in (required or []) if c in DOCUMENT_LABELS]
 
     if not needed:

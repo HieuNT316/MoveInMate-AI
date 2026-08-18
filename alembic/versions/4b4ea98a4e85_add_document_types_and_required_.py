@@ -24,8 +24,8 @@ depends_on: Union[str, Sequence[str], None] = None
 REQUIRED_DOCUMENTS = {
     "Ký nội quy toà nhà": ["cccd"],
     "Làm thẻ cư dân (chủ hộ)": ["cccd", "bien_ban_ban_giao"],
-    "Làm thẻ cư dân (người thuê)": ["cccd", "hop_dong_thue", "giay_uy_quyen"],
-    "Đăng ký thẻ xe": ["cccd", "dang_ky_xe"],
+    "Làm thẻ cư dân (người thuê)": ["cccd", "hop_dong_thue"],
+    "Đăng ký thẻ xe": ["cccd", "dang_ky_xe", "the_cu_dan"],
     "Đăng ký chỗ đỗ xe cố định": ["cccd", "the_xe", "don_dang_ky"],
     "Kích hoạt thẻ bể bơi": ["cccd", "the_cu_dan"],
     "Kích hoạt thẻ phòng gym": ["cccd", "the_cu_dan"],

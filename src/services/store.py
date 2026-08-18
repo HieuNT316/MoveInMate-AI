@@ -446,7 +446,7 @@ def update_application_status(
 
 
 def set_attachment_type(
-    db: Session, application_id: int, attachment_id: int, document_type: str
+    db: Session, application_id: int, attachment_id: int, document_type: str | None
 ) -> dict[str, Any] | None:
     """Gán lại loại cho một tệp đã tải lên.
 
