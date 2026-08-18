@@ -32,7 +32,7 @@ export default function BQLSidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-[#E2E8F0] bg-white text-[#1E293B]">
+    <aside className="hidden lg:flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-[#E2E8F0] bg-white text-[#1E293B]">
       <div className="border-b border-[#E2E8F0] px-7 py-8">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2563EB]">

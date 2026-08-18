@@ -30,7 +30,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-72 shrink-0 bg-surface text-ink h-screen flex flex-col overflow-y-auto border-r border-border">
+    <aside className="hidden lg:flex w-72 shrink-0 bg-surface text-ink h-screen flex-col overflow-y-auto border-r border-border">
       {/* Logo */}
       <div className="px-7 py-8 border-b border-border">
         <div className="flex items-center gap-3">
