@@ -1325,3 +1325,48 @@ async def test_profile_khong_lo_auth_user_id(client):
     r = await client.get("/api/v1/profile", headers=OWNER)
     assert r.status_code == 200
     assert "auth_user_id" not in r.json()
+
+
+@pytest.mark.asyncio
+async def test_bql_xem_duoc_chi_tiet_mot_cu_dan(client):
+    await _create(client, CAR_CARD_ITEM)
+
+    r = await client.get("/api/v1/admin/residents/2", headers=ADMIN)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["profile"]["full_name"] == "Trần Văn An"
+    assert body["account_status"] == "active"
+    assert len(body["checklist"]["items"]) > 0
+    assert len(body["applications"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_phan_anh_muc_da_hoan_thanh(client):
+    """conftest đánh dấu user 2 đã xong mục 1."""
+    body = (await client.get("/api/v1/admin/residents/2", headers=ADMIN)).json()
+    done = [i["id"] for i in body["checklist"]["items"] if i["completed"]]
+    assert 1 in done
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_xem_duoc_chi_tiet_nguoi_khac(client):
+    r = await client.get("/api/v1/admin/residents/3", headers=OWNER)
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_tai_khoan_bql_tra_404(client):
+    r = await client.get("/api/v1/admin/residents/1", headers=ADMIN)
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_cu_dan_khong_ton_tai_tra_404(client):
+    r = await client.get("/api/v1/admin/residents/9999", headers=ADMIN)
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_dashboard_bql_co_trang_thai_tai_khoan(client):
+    rows = (await client.get("/api/v1/admin/dashboard", headers=ADMIN)).json()
+    assert all("account_status" in r for r in rows["residents"])

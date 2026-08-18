@@ -674,6 +674,7 @@ async def dashboard(
                 "ownership_type": resident["ownership_type"],
                 "onboarded": resident["onboarding_completed_at"] is not None,
                 "bql_scope": summarize_progress(matched, done_ids),
+                "account_status": resident["account_status"],
             }
         )
     return DashboardResponse(residents=residents, total_residents=len(residents))
@@ -812,3 +813,17 @@ async def reset_resident_password(
             detail=f"Không đặt lại được mật khẩu: {exc}",
         ) from exc
     return TemporaryPasswordResponse(temporary_password=password)
+
+
+@router.get("/admin/residents/{user_id}", response_model=ResidentDetailResponse)
+async def resident_detail(
+    user_id: int,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ResidentDetailResponse:
+    """Toàn cảnh một cư dân — chỗ nối hai bảng phẳng của khu BQL lại với nhau.
+
+    Không thêm endpoint danh sách: `GET /admin/dashboard` đã trả toàn bộ cư dân
+    kèm tiến độ. 41 cư dân thì lọc và tìm kiếm làm ở client.
+    """
+    return _build_resident_detail(db, user_id)

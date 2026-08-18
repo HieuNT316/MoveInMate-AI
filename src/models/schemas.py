@@ -270,6 +270,7 @@ class ResidentProgress(BaseModel):
     ownership_type: OwnershipType | None
     onboarded: bool
     bql_scope: ProgressSummary
+    account_status: AccountStatus
 
 
 class DashboardResponse(BaseModel):
