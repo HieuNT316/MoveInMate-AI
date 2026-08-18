@@ -23,6 +23,23 @@ AnswerSource = Literal["faq", "rag", "no_context"]
 AmenityPackage = Literal["pool", "gym", "tennis", "bbq", "kids_area"]
 
 
+DocumentType = Literal[
+    "cccd", "bien_ban_ban_giao", "hop_dong_thue", "giay_uy_quyen", "dang_ky_xe",
+    "the_cu_dan", "the_xe", "don_dang_ky", "to_khai_ct01", "anh_vneid", "khac",
+]
+
+
+class RequiredDocument(BaseModel):
+    """Một loại giấy tờ, kèm nhãn hiển thị.
+
+    Trả cả `label` chứ không riêng `code`: nếu chỉ trả mã thì frontend lại phải
+    giữ một bảng nhãn riêng — đúng chỗ nhân đôi mà D1 đi xoá.
+    """
+
+    code: DocumentType
+    label: str
+
+
 class OnboardingRequest(BaseModel):
     """US-02 — dữ liệu form onboarding, dùng để lọc checklist."""
 
@@ -108,6 +125,10 @@ class ChecklistItemResponse(BaseModel):
     order_index: int
     completed: bool
     completed_at: datetime | None = None
+    required_documents: list[RequiredDocument] = Field(
+        default_factory=list,
+        description="Giấy tờ thủ tục này yêu cầu; rỗng nghĩa là không đòi gì.",
+    )
 
     # US-13 — định tuyến, đủ để hiện "Bộ phận · Nơi nộp · Thời hạn" ngay trong
     # checklist kể cả khi chưa nộp gì. `null` với `third_party_info`: công an
@@ -270,6 +291,11 @@ ApplicationStatus = Literal[
 # minh chứng cho thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận chứ không xử lý.
 ApplicationKind = Literal["bql_processing", "self_declared"]
 
+class AttachmentTypeUpdateRequest(BaseModel):
+    """Gán lại loại cho tệp đã tải lên — dùng khi gán nhầm hoặc chưa gán."""
+
+    document_type: DocumentType
+
 
 class AttachmentResponse(BaseModel):
     """Ảnh/PDF minh chứng đã tải lên.
@@ -281,6 +307,10 @@ class AttachmentResponse(BaseModel):
     attachment_id: int
     filename: str
     content_type: str
+    document_type: DocumentType | None = Field(
+        default=None,
+        description="`null` = CHƯA phân loại, khác `khac` (đã gán, không thuộc loại nào).",
+    )
     size_bytes: int
     url: str | None = None
     uploaded_at: datetime
@@ -316,6 +346,15 @@ class ApplicationResponse(BaseModel):
         )
     )
     attachments: list[AttachmentResponse] = Field(default_factory=list)
+    missing_documents: list[RequiredDocument] | None = Field(
+        default=None,
+        description=(
+            "Giấy tờ còn thiếu. **`null` nghĩa là CHƯA KẾT LUẬN ĐƯỢC** vì hồ sơ "
+            "còn tệp chưa phân loại — đừng hiển thị thành 'không thiếu gì'. Khi "
+            "đó dùng `unlabelled_count` để nói 'N tệp chưa phân loại'."
+        ),
+    )
+    unlabelled_count: int = 0
     handling_department: str | None = None
     submission_location: str | None = None
     processing_time: str | None = None

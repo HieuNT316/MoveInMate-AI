@@ -32,6 +32,7 @@ from src.config import get_settings, safe_database_url
 from src.database import SessionLocal
 from src.models.db import ChecklistCompletion, ChecklistItem, User
 from src.services.checklist import matches, validate_conditions
+from src.services.documents import DOCUMENT_LABELS
 
 SEED = 20260808
 
@@ -82,9 +83,32 @@ def validate_routing(item: dict[str, Any]) -> None:
         )
 
 
+def validate_documents(item: dict[str, Any]) -> None:
+    """Mã giấy tờ phải nằm trong bảng nhãn, và thủ tục ngoài phạm vi BQL thì
+    không được khai giấy tờ bắt buộc.
+
+    Vì sao mục `third_party_info` để rỗng: KB đòi CT01 *hoặc* ảnh VNeID, mà
+    phép đối chiếu là AND — ép một loại cụ thể sẽ báo "thiếu" sai cho người đã
+    nộp bằng cách hợp lệ khác. Ràng buộc "phải có ít nhất một ảnh mới ghi nhận
+    được" đã canh phần này rồi.
+    """
+    codes = item.get("required_documents") or []
+
+    unknown = sorted(set(codes) - set(DOCUMENT_LABELS))
+    if unknown:
+        raise ValueError(f"{item['task_name']!r} dùng mã giấy tờ lạ: {unknown}")
+
+    if item["item_type"] == "third_party_info" and codes:
+        raise ValueError(
+            f"{item['task_name']!r} ngoài phạm vi BQL nhưng lại khai giấy tờ "
+            f"bắt buộc: {codes}"
+        )
+
+
 CHECKLIST_ITEMS = [
     {
         "task_name": "Ký nội quy toà nhà",
+        "required_documents": ["cccd"],
         "description": "Đọc và ký xác nhận nội quy sử dụng căn hộ tại văn phòng BQL.",
         "category": "Thủ tục chung",
         "conditions": {},
@@ -96,6 +120,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Làm thẻ cư dân (chủ hộ)",
+        "required_documents": ["cccd", "bien_ban_ban_giao"],
         "description": "Nộp CCCD và giấy tờ chứng minh quyền sở hữu căn hộ, kèm ảnh 3x4.",
         "category": "Giấy tờ cư dân",
         "conditions": {"ownership_type": "owner"},
@@ -107,6 +132,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Làm thẻ cư dân (người thuê)",
+        "required_documents": ["cccd", "hop_dong_thue", "giay_uy_quyen"],
         "description": "Nộp CCCD, hợp đồng thuê nhà và giấy uỷ quyền của chủ hộ, kèm ảnh 3x4.",
         "category": "Giấy tờ cư dân",
         "conditions": {"ownership_type": "renter"},
@@ -140,6 +166,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Đăng ký thẻ xe",
+        "required_documents": ["cccd", "dang_ky_xe"],
         "description": "Đăng ký thẻ ra vào hầm gửi xe cho ô tô hoặc xe máy.",
         "category": "Phương tiện",
         "conditions": {"has_car": True},
@@ -151,6 +178,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Đăng ký chỗ đỗ xe cố định",
+        "required_documents": ["cccd", "the_xe", "don_dang_ky"],
         "description": "Đăng ký vị trí đỗ xe theo tháng tại hầm B1-B3.",
         "category": "Phương tiện",
         "conditions": {"has_car": True},
@@ -165,6 +193,7 @@ CHECKLIST_ITEMS = [
         # Trước 13/08 mục này tên "hồ bơi" còn KB dùng "bể bơi" ở cả 10 chỗ —
         # lệch tên là hồ sơ không tra được bộ phận xử lý.
         "task_name": "Kích hoạt thẻ bể bơi",
+        "required_documents": ["cccd", "the_cu_dan"],
         "description": "Kích hoạt quyền sử dụng bể bơi theo gói tiện ích đã đăng ký.",
         "category": "Tiện ích",
         "conditions": {"amenity_packages": "pool"},
@@ -176,6 +205,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Kích hoạt thẻ phòng gym",
+        "required_documents": ["cccd", "the_cu_dan"],
         "description": "Kích hoạt quyền sử dụng phòng gym theo gói tiện ích đã đăng ký.",
         "category": "Tiện ích",
         "conditions": {"amenity_packages": "gym"},
@@ -187,6 +217,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Đăng ký thẻ thang máy",
+        "required_documents": ["cccd", "the_cu_dan"],
         "description": "Kích hoạt thẻ thang máy theo tầng căn hộ.",
         "category": "Thủ tục chung",
         "conditions": {},
@@ -209,6 +240,7 @@ CHECKLIST_ITEMS = [
     },
     {
         "task_name": "Đăng ký chuyển đồ vào căn hộ",
+        "required_documents": ["cccd", "don_dang_ky"],
         "description": "Đặt lịch dùng thang tải hàng và đăng ký thời gian chuyển đồ.",
         "category": "Thủ tục chung",
         "conditions": {},
@@ -345,6 +377,7 @@ def main() -> None:
     for item in CHECKLIST_ITEMS:
         validate_conditions(item["conditions"])
         validate_routing(item)
+        validate_documents(item)
 
     rng = random.Random(SEED)
     session = SessionLocal()

@@ -10,7 +10,16 @@ import unicodedata
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
@@ -24,6 +33,7 @@ from src.models.schemas import (
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
     AttachmentResponse,
+    AttachmentTypeUpdateRequest,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -41,6 +51,7 @@ from src.models.schemas import (
 )
 from src.services import storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
+from src.services.documents import DOCUMENT_LABELS
 from src.services.storage import ALLOWED_CONTENT_TYPES
 from src.services.supabase_admin import (
     SupabaseAdminError,
@@ -272,6 +283,7 @@ async def submit_application(
 async def upload_attachment(
     application_id: int,
     file: UploadFile = File(...),
+    document_type: str | None = Form(default=None),
     user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> Any:
@@ -290,6 +302,14 @@ async def upload_attachment(
     if app is None or app.user_id != user["user_id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ này."
+        )
+
+    # Bỏ trống là hợp lệ — tệp vào diện "chưa phân loại", và hệ thống sẽ KHÔNG
+    # kết luận hồ sơ thiếu giấy tờ gì (xem services/documents.py).
+    if document_type is not None and document_type not in DOCUMENT_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Loại giấy tờ không hợp lệ. Hợp lệ: {', '.join(DOCUMENT_LABELS)}",
         )
 
     if file.content_type not in ALLOWED_CONTENT_TYPES:
@@ -325,8 +345,36 @@ async def upload_attachment(
     # tới tệp không tồn tại.
     return store.add_attachment(
         db, application_id, storage.display_name(file.filename), file.content_type,
-        len(data), path,
+        len(data), path, document_type,
     )
+
+
+@router.patch(
+    "/admin/applications/{application_id}/attachments/{attachment_id}",
+    response_model=AttachmentResponse,
+)
+async def set_attachment_document_type(
+    application_id: int,
+    attachment_id: int,
+    payload: AttachmentTypeUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13/D1 — Ban quản lý gán lại loại giấy tờ cho một tệp đã tải lên.
+
+    Không phải tiện nghi: gán nhầm (hoặc cư dân chưa gán) thì hồ sơ kẹt ở trạng
+    thái "thiếu giấy tờ đã nộp rồi" — BQL nhìn thấy tệp trên màn hình mà hệ thống
+    vẫn kêu thiếu, và không ai sửa được. Đây cũng là đường dọn cho những tệp tải
+    lên trước khi có `document_type`.
+    """
+    updated = store.set_attachment_type(
+        db, application_id, attachment_id, payload.document_type
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+    return updated
 
 
 @router.get("/applications", response_model=list[ApplicationResponse])

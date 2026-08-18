@@ -36,6 +36,10 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# Mã giấy tờ; nhãn hiển thị nằm ở đó luôn, không ở DB — sửa một chữ hiển thị
+# không nên phải viết migration.
+from src.services.documents import DOCUMENT_CODES
+
 JSONType = JSON().with_variant(JSONB, "postgresql")
 
 ROLES = ("resident", "admin")
@@ -149,6 +153,11 @@ class ChecklistItem(Base):
     submission_location: Mapped[str | None] = mapped_column(String(255))
     processing_time: Mapped[str | None] = mapped_column(String(100))
 
+    # US-13/D1 — mã giấy tờ thủ tục này yêu cầu, chép từ mục "Giấy tờ cần mang"
+    # trong data/kb/bql/. Rỗng = không đòi giấy tờ nào. `seed_data` kiểm mã hợp
+    # lệ lúc nạp.
+    required_documents: Mapped[list[str]] = mapped_column(JSONType, default=list)
+
 
 class ChecklistCompletion(Base):
     """Chỉ lưu mục ĐÃ xong. Không có dòng = chưa xong, không cần cột trạng thái."""
@@ -238,6 +247,14 @@ class ApplicationAttachment(Base):
     )
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(100))
+
+    # NULL = CHƯA PHÂN LOẠI, khác hẳn `khac` (cư dân đã gán, chỉ là không thuộc
+    # loại nào). Gộp hai thứ này lại là mất khả năng phân biệt "chưa ai gán"
+    # với "đã xem và xếp vào loại khác" — mà đó chính là thứ quyết định hệ
+    # thống có được phép kết luận "thiếu giấy tờ" hay không.
+    document_type: Mapped[str | None] = mapped_column(
+        SAEnum(*DOCUMENT_CODES, name="document_type", native_enum=False)
+    )
     size_bytes: Mapped[int] = mapped_column(Integer)
     storage_path: Mapped[str] = mapped_column(String(512))
     uploaded_at: Mapped[datetime] = mapped_column(

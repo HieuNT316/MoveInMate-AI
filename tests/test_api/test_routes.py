@@ -1000,3 +1000,139 @@ async def test_bql_thay_duoc_minh_chung_cua_cu_dan(client):
     assert row["kind"] == "self_declared"
     assert len(row["attachments"]) == 1
     assert row["attachments"][0]["url"]
+
+
+# --- Loại giấy tờ & "còn thiếu gì" (US-13 / D1) --------------------------
+
+
+@pytest.mark.asyncio
+async def test_checklist_kem_danh_sach_giay_to_can_nop(client):
+    items = (await client.get("/api/v1/checklist", headers=OWNER)).json()["items"]
+    car = next(i for i in items if i["id"] == CAR_CARD_ITEM)
+
+    assert [d["code"] for d in car["required_documents"]] == ["cccd", "dang_ky_xe"]
+    # Kèm nhãn để frontend khỏi phải giữ bảng riêng.
+    assert all(d["label"] for d in car["required_documents"])
+
+
+@pytest.mark.asyncio
+async def test_thu_tuc_ngoai_pham_vi_khong_khai_giay_to_bat_buoc(client):
+    """KB đòi CT01 *hoặc* VNeID — phép đối chiếu là AND nên ép một loại cụ thể
+    sẽ báo thiếu sai cho người nộp bằng cách hợp lệ khác."""
+    items = (await client.get("/api/v1/checklist", headers=OWNER)).json()["items"]
+    outside = next(i for i in items if i["id"] == RESIDENCY_ITEM)
+    assert outside["required_documents"] == []
+
+
+@pytest.mark.asyncio
+async def test_tai_len_kem_loai_giay_to(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("cavet.png", PNG, "image/png")},
+        data={"document_type": "dang_ky_xe"},
+        headers=OWNER,
+    )
+    assert r.status_code == 201
+    assert r.json()["document_type"] == "dang_ky_xe"
+
+
+@pytest.mark.asyncio
+async def test_loai_giay_to_khong_hop_le_bi_tu_choi(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("x.png", PNG, "image/png")},
+        data={"document_type": "so_do_giay_to_la"},
+        headers=OWNER,
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_du_giay_to_thi_bao_khong_thieu(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    for code in ("cccd", "dang_ky_xe"):
+        await client.post(
+            f"/api/v1/applications/{aid}/attachments",
+            files={"file": (f"{code}.png", PNG, "image/png")},
+            data={"document_type": code},
+            headers=OWNER,
+        )
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["missing_documents"] == []
+    assert mine["unlabelled_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_thieu_mot_loai_thi_bao_dung_loai_do(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("cccd.png", PNG, "image/png")},
+        data={"document_type": "cccd"},
+        headers=OWNER,
+    )
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert [d["code"] for d in mine["missing_documents"]] == ["dang_ky_xe"]
+
+
+@pytest.mark.asyncio
+async def test_tep_chua_phan_loai_thi_khong_ket_luan_thieu_gi(client):
+    """Điểm cốt lõi của D1: hồ sơ ĐANG CÓ ảnh mà báo "thiếu" thì Ban quản lý
+    tưởng cư dân chưa nộp và đi đòi thứ đã có."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])  # không gửi document_type
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["missing_documents"] is None
+    assert mine["unlabelled_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_bql_gan_lai_loai_thi_tinh_lai_duoc_con_thieu_gi(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    up = await _upload(client, aid, name="anh-cavet.png")
+    att_id = up.json()["attachment_id"]
+
+    fixed = await client.patch(
+        f"/api/v1/admin/applications/{aid}/attachments/{att_id}",
+        json={"document_type": "dang_ky_xe"},
+        headers=ADMIN,
+    )
+    assert fixed.status_code == 200
+    assert fixed.json()["document_type"] == "dang_ky_xe"
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["unlabelled_count"] == 0
+    assert [d["code"] for d in mine["missing_documents"]] == ["cccd"]
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_gan_lai_loai_duoc(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    up = await _upload(client, app["application_id"])
+    r = await client.patch(
+        f"/api/v1/admin/applications/{app['application_id']}/attachments/"
+        f"{up.json()['attachment_id']}",
+        json={"document_type": "cccd"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_gan_lai_tep_khong_ton_tai_tra_404(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.patch(
+        f"/api/v1/applications/{app['application_id']}/attachments/9999".replace(
+            "/api/v1/applications", "/api/v1/admin/applications"
+        ),
+        json={"document_type": "cccd"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 404

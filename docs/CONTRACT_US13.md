@@ -62,6 +62,23 @@ hay *Đã trả kết quả* khi chưa có ảnh nào (**409**).
 Ba trường này đủ để hiện dòng **"Bộ phận · Nơi nộp · Thời hạn"** ngay trong
 checklist, kể cả khi cư dân chưa nộp gì.
 
+Từ 18/08 mỗi item còn có `required_documents` — giấy tờ thủ tục đó yêu cầu, kèm
+nhãn sẵn để FE khỏi giữ bảng riêng:
+
+```jsonc
+"required_documents": [
+  { "code": "cccd",       "label": "CCCD hoặc hộ chiếu" },
+  { "code": "dang_ky_xe", "label": "Đăng ký xe (cà vẹt)" }
+]
+```
+
+Rỗng nghĩa là không đòi giấy tờ nào. **Thủ tục ngoài phạm vi BQL luôn rỗng** —
+KB đòi CT01 *hoặc* ảnh VNeID, mà phép đối chiếu là AND nên ép một loại cụ thể sẽ
+báo thiếu sai cho người nộp bằng cách hợp lệ khác.
+
+Đây là chỗ thay cho `REQUIRED_DOCUMENTS` đang nằm trong `web/lib/applicationForms.ts`
+— xoá bảng đó đi, dùng dữ liệu từ API.
+
 ## 4. Sáu trạng thái
 
 Bám đúng quy trình đã mô tả trong KB, không tự đặt thêm:
@@ -101,8 +118,9 @@ Backend trả **mã**; nhãn tiếng Việt do giao diện quyết định.
 }
 ```
 
-Lỗi: **400** mục ngoài phạm vi BQL · **404** mục không có trong checklist của
-chính người này · **409** đã có hồ sơ đang mở cho đúng mục đó.
+Lỗi: **404** mục không có trong checklist của chính người này · **409** đã có hồ
+sơ đang mở cho đúng mục đó. *(Quy tắc "400 với thủ tục ngoài phạm vi BQL" ở bản
+13/08 đã bỏ từ 15/08 — nay mọi mục đều nộp được, backend tự gắn `kind`.)*
 
 ### `GET /api/v1/applications` — cư dân xem hồ sơ của mình
 
@@ -152,12 +170,44 @@ bằng JSON như cũ, **rồi** đính tệp.
 }
 ```
 
+Gửi kèm `document_type` (field dạng form, **tuỳ chọn**) để nói tệp này là giấy
+tờ gì. Mã hợp lệ:
+
+`cccd` · `bien_ban_ban_giao` · `hop_dong_thue` · `giay_uy_quyen` · `dang_ky_xe` ·
+`the_cu_dan` · `the_xe` · `don_dang_ky` · `to_khai_ct01` · `anh_vneid` · `khac`
+
 Giới hạn: **5MB**, chỉ nhận `image/jpeg` · `image/png` · `application/pdf`.
 
 Lỗi: **404** hồ sơ không tồn tại hoặc không phải của mình · **415** sai định
 dạng · **413** quá lớn · **400** tệp rỗng · **502** lưu trữ lỗi.
 
-Mọi hồ sơ trả về đều có `attachments: []` với cùng hình dạng trên.
+Mọi hồ sơ trả về đều có `attachments: []` với cùng hình dạng trên, cộng thêm:
+
+```jsonc
+"missing_documents": [ { "code": "cccd", "label": "CCCD hoặc hộ chiếu" } ],
+"unlabelled_count": 0
+```
+
+### ⚠️ `missing_documents: null` KHÔNG phải "không thiếu gì"
+
+`null` nghĩa là **chưa kết luận được**, vì hồ sơ còn tệp chưa phân loại. Khi đó
+dùng `unlabelled_count` và hiển thị *"2 tệp chưa phân loại"* — **đừng** hiển thị
+"đã đủ giấy tờ".
+
+Lý do quy tắc này tồn tại: hồ sơ đang có ảnh cà vẹt mà báo *"thiếu đăng ký xe"*
+thì tệ hơn không báo gì — Ban quản lý nhìn vào tưởng cư dân chưa nộp và đi đòi
+thứ đã có. Hệ thống chỉ nói chắc điều nó biết chắc.
+
+`document_type` của tệp cũng có ba trạng thái, đừng gộp: **`null`** = chưa ai
+phân loại · **`khac`** = đã phân loại, không thuộc loại nào · một mã cụ thể.
+
+### `PATCH /api/v1/admin/applications/{id}/attachments/{attachment_id}`
+
+BQL gán lại loại cho một tệp: `{ "document_type": "dang_ky_xe" }`.
+
+Cần thiết chứ không phải tiện nghi: gán nhầm hoặc chưa gán thì hồ sơ kẹt ở trạng
+thái "thiếu giấy tờ đã nộp rồi" mà không ai sửa được. Cũng là đường dọn cho các
+tệp tải lên trước 18/08 (hiện có 5 tệp như vậy trên production).
 
 ### Hai điều FE cần nhớ
 

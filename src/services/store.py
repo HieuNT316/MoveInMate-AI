@@ -27,6 +27,7 @@ from src.models.db import (
     User,
 )
 from src.services import storage
+from src.services.documents import describe, evaluate_documents
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -74,6 +75,7 @@ def _item_dict(item: ChecklistItem) -> dict[str, Any]:
         "handling_department": item.handling_department,
         "submission_location": item.submission_location,
         "processing_time": item.processing_time,
+        "required_documents": describe(item.required_documents),
     }
 
 
@@ -281,6 +283,9 @@ def _application_dict(app: Application) -> dict[str, Any]:
         "note": app.note,
         "bql_note": app.bql_note,
         "attachments": [_attachment_dict(a) for a in app.attachments],
+        **evaluate_documents(
+            app.item.required_documents, [a.document_type for a in app.attachments]
+        ),
         "created_at": _as_utc(app.created_at),
         "updated_at": _as_utc(app.updated_at),
     }
@@ -296,6 +301,7 @@ def _attachment_dict(att: ApplicationAttachment) -> dict[str, Any]:
     return {
         "attachment_id": att.attachment_id,
         "filename": att.filename,
+        "document_type": att.document_type,
         "content_type": att.content_type,
         "size_bytes": att.size_bytes,
         "url": storage.signed_url(att.storage_path),
@@ -347,6 +353,7 @@ def add_attachment(
     content_type: str,
     size_bytes: int,
     storage_path: str,
+    document_type: str | None = None,
 ) -> dict[str, Any]:
     att = ApplicationAttachment(
         application_id=application_id,
@@ -354,6 +361,7 @@ def add_attachment(
         content_type=content_type,
         size_bytes=size_bytes,
         storage_path=storage_path,
+        document_type=document_type,
     )
     db.add(att)
     db.commit()
@@ -435,3 +443,28 @@ def update_application_status(
     db.commit()
     db.refresh(app)
     return _application_dict(app)
+
+
+def set_attachment_type(
+    db: Session, application_id: int, attachment_id: int, document_type: str
+) -> dict[str, Any] | None:
+    """Gán lại loại cho một tệp đã tải lên.
+
+    Cần thiết chứ không phải tiện nghi: gán nhầm loại (hoặc chưa gán) thì hồ sơ
+    kẹt ở trạng thái "thiếu giấy tờ đã nộp rồi" — Ban quản lý nhìn thấy tệp trên
+    màn hình mà hệ thống vẫn kêu thiếu, và không ai sửa được. Đây cũng là đường
+    dọn cho các tệp tải lên trước khi có `document_type`.
+    """
+    att = db.scalar(
+        select(ApplicationAttachment).where(
+            ApplicationAttachment.attachment_id == attachment_id,
+            ApplicationAttachment.application_id == application_id,
+        )
+    )
+    if att is None:
+        return None
+
+    att.document_type = document_type
+    db.commit()
+    db.refresh(att)
+    return _attachment_dict(att)
