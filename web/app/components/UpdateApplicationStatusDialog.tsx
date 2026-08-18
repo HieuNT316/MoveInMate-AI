@@ -9,6 +9,7 @@ import {
   type AdminApplication,
   type ApplicationStatus,
 } from "../../lib/api";
+import { useToast } from "./Toast";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
   { value: "received", label: "Đã tiếp nhận" },
@@ -35,6 +36,7 @@ export default function UpdateApplicationStatusDialog({
   onClose: () => void;
   onUpdated: () => void;
 }) {
+  const toast = useToast();
   const [status, setStatus] = useState<ApplicationStatus>(application.status);
   const [bqlNote, setBqlNote] = useState(application.bql_note ?? "");
   const [saving, setSaving] = useState(false);
@@ -50,6 +52,7 @@ export default function UpdateApplicationStatusDialog({
         bql_note: bqlNote.trim() || undefined,
       });
       onUpdated();
+      toast.show("Đã lưu thay đổi");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError(
@@ -58,6 +61,7 @@ export default function UpdateApplicationStatusDialog({
       } else {
         setError("Không cập nhật được trạng thái, thử lại sau.");
       }
+      toast.show("Cập nhật trạng thái hồ sơ không thành công", "error");
     } finally {
       setSaving(false);
     }

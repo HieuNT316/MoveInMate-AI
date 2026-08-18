@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { FileText, Loader2, Paperclip } from "lucide-react";
 
 import { api, ApiError, type Attachment } from "../../lib/api";
+import { useToast } from "./Toast";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -32,6 +33,7 @@ export default function AttachmentUploader({
   required?: boolean;
   onUploaded: () => void;
 }) {
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,7 @@ export default function AttachmentUploader({
     try {
       await api.uploadAttachment(userId, applicationId, file);
       onUploaded();
+      toast.show("Đã lưu thay đổi");
     } catch (err) {
       if (err instanceof ApiError && err.status === 415) {
         setError("Chỉ nhận ảnh JPG, PNG hoặc file PDF.");
@@ -61,6 +64,7 @@ export default function AttachmentUploader({
       } else {
         setError("Không tải lên được lúc này, thử lại sau.");
       }
+      toast.show("Tải ảnh minh chứng không thành công", "error");
     } finally {
       setUploading(false);
     }
