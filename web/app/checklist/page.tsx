@@ -65,7 +65,11 @@ function ChecklistContent() {
       }
       setError(null);
     } catch {
-      setError("Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?");
+      setError(
+        process.env.NODE_ENV === "development"
+          ? "Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?"
+          : "Không tải được checklist. Kiểm tra kết nối mạng rồi thử lại.",
+      );
     }
   }, [userId, router]);
 
