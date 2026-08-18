@@ -29,6 +29,43 @@ async def test_health(client):
 
 
 @pytest.mark.asyncio
+async def test_health_deep_bao_so_chunk_trong_chroma(client, monkeypatch):
+    from src.services import vectorstore
+
+    class _FakeCollection:
+        def count(self) -> int:
+            return 42
+
+    class _FakeStore:
+        _collection = _FakeCollection()
+
+    monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: _FakeStore())
+
+    r = await client.get("/health/deep")
+    assert r.status_code == 200
+    assert r.json()["chroma"]["documents"] == 42
+
+
+@pytest.mark.asyncio
+async def test_health_deep_tra_503_khi_chroma_rong(client, monkeypatch):
+    """Chroma rỗng = trợ lý từ chối MỌI câu hỏi, mà không chỉ báo nào đỏ.
+    Đúng kiểu sự cố 11/08."""
+    from src.services import vectorstore
+
+    class _EmptyCollection:
+        def count(self) -> int:
+            return 0
+
+    class _FakeStore:
+        _collection = _EmptyCollection()
+
+    monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: _FakeStore())
+
+    r = await client.get("/health/deep")
+    assert r.status_code == 503
+
+
+@pytest.mark.asyncio
 async def test_khong_co_header_thi_bi_tu_choi(client):
     """401 chứ không phải 422: thiếu xác thực là chuyện quyền, không phải sai kiểu dữ liệu."""
     response = await client.get("/api/v1/checklist")
