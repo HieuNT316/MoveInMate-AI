@@ -11,6 +11,9 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 OwnershipType = Literal["owner", "renter"]
+# Khoá tài khoản chặn ở BACKEND, không đụng Supabase Auth: người bị khoá vẫn
+# đăng nhập được và vẫn có JWT hợp lệ, nhưng mọi lời gọi API trả 403.
+AccountStatus = Literal["active", "locked"]
 ApartmentType = Literal["studio", "1pn", "2pn", "3pn", "duplex"]
 ItemType = Literal["bql_actionable", "third_party_info"]
 DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"]

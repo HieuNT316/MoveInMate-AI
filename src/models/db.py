@@ -43,6 +43,7 @@ from src.services.documents import DOCUMENT_CODES
 JSONType = JSON().with_variant(JSONB, "postgresql")
 
 ROLES = ("resident", "admin")
+ACCOUNT_STATUSES = ("active", "locked")
 OWNERSHIP_TYPES = ("owner", "renter")
 ITEM_TYPES = ("bql_actionable", "third_party_info")
 ANSWER_SOURCES = ("faq", "rag", "no_context")
@@ -99,6 +100,15 @@ class User(Base):
     building: Mapped[str] = mapped_column(String(50))
     role: Mapped[str] = mapped_column(
         SAEnum(*ROLES, name="user_role", native_enum=False), default="resident"
+    )
+
+    # Khoá do BQL đặt. Kiểm trong `get_current_user` nên áp cho MỌI endpoint,
+    # không phải nhớ gắn từng chỗ.
+    account_status: Mapped[str] = mapped_column(
+        SAEnum(*ACCOUNT_STATUSES, name="account_status", native_enum=False),
+        default="active",
+        server_default="active",
+        nullable=False,
     )
 
     # --- Bốn field dưới đây là đầu vào của rule engine (src/services/checklist.py).

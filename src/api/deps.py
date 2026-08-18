@@ -25,6 +25,22 @@ _UNAUTHORIZED = HTTPException(
     headers={"WWW-Authenticate": "Bearer"},
 )
 
+_LOCKED = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="Tài khoản đã bị Ban quản lý tạm khoá",
+)
+
+
+def _ensure_active(user: dict[str, Any]) -> dict[str, Any]:
+    """Chặn tài khoản bị khoá, áp cho CẢ HAI nhánh xác thực.
+
+    Chỉ chặn nhánh JWT thì trên môi trường dev tài khoản bị khoá vẫn dùng được
+    — mà bản demo chạy đúng nhánh `X-User-Id` đó.
+    """
+    if user.get("account_status") == "locked":
+        raise _LOCKED
+    return user
+
 
 async def get_current_user(
     authorization: str | None = Header(default=None),
@@ -50,7 +66,7 @@ async def get_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Tài khoản chưa được Ban quản lý cấp hồ sơ cư dân",
             )
-        return user
+        return _ensure_active(user)
 
     if x_user_id is not None:
         if get_settings().app_env == "production":
@@ -58,7 +74,7 @@ async def get_current_user(
         user = store.get_user(db, x_user_id)
         if user is None:
             raise _UNAUTHORIZED
-        return user
+        return _ensure_active(user)
 
     raise _UNAUTHORIZED
 

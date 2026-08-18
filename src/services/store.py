@@ -52,6 +52,7 @@ def _user_dict(user: User) -> dict[str, Any]:
         "apartment": user.apartment,
         "building": user.building,
         "role": user.role,
+        "account_status": user.account_status,
         "ownership_type": user.ownership_type,
         "apartment_type": user.apartment_type,
         "has_car": user.has_car,
