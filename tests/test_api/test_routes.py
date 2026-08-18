@@ -895,7 +895,8 @@ async def test_tai_anh_minh_chung_len(client):
     assert att["filename"] == "vneid.png"
     assert att["content_type"] == "image/png"
     assert att["size_bytes"] == len(PNG)
-    assert att["url"]
+    # Từ 18/08 danh sách không ký URL nữa — xem GET .../attachments/{id}/url.
+    assert att["url"] is None
 
     mine = (await client.get("/api/v1/applications", headers=OWNER)).json()
     assert len(mine[0]["attachments"]) == 1
@@ -999,7 +1000,18 @@ async def test_bql_thay_duoc_minh_chung_cua_cu_dan(client):
     row = next(r for r in rows if r["application_id"] == app["application_id"])
     assert row["kind"] == "self_declared"
     assert len(row["attachments"]) == 1
-    assert row["attachments"][0]["url"]
+    # Từ 18/08 danh sách không ký URL nữa — xem GET .../attachments/{id}/url.
+    assert row["attachments"][0]["url"] is None
+
+
+@pytest.mark.asyncio
+async def test_danh_sach_ho_so_khong_ky_url(client):
+    """Ký ở đây là một lời gọi mạng đồng bộ cho MỖI tệp, chặn event loop."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["attachments"][0]["url"] is None
 
 
 # --- Loại giấy tờ & "còn thiếu gì" (US-13 / D1) --------------------------

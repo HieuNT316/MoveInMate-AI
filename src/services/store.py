@@ -26,7 +26,6 @@ from src.models.db import (
     ChecklistItem,
     User,
 )
-from src.services import storage
 from src.services.documents import describe, evaluate_documents
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
@@ -292,11 +291,14 @@ def _application_dict(app: Application) -> dict[str, Any]:
 
 
 def _attachment_dict(att: ApplicationAttachment) -> dict[str, Any]:
-    """Metadata tệp kèm URL đọc TẠM THỜI.
+    """Metadata tệp. `url` LUÔN None ở đây — ký theo yêu cầu (18/08).
 
-    URL ký lại mỗi lần đọc thay vì lưu sẵn: link hết hạn sau vài phút nên có
-    lọt ra ngoài cũng không dùng lại được. Ký hỏng thì trả None — thiếu một ảnh
-    còn hơn vỡ cả trang hồ sơ.
+    Trước đó mỗi tệp được ký ngay lúc đọc hồ sơ: một `httpx.post` ĐỒNG BỘ tới
+    Supabase, bên trong route `async`, một lần cho mỗi tệp. Vừa tuần tự vừa
+    chặn event loop nên mọi request của mọi người khác đều phải đợi.
+
+    Giữ lại trường thay vì xoá hẳn để giao diện chưa kịp đổi không vỡ vì thiếu
+    khoá — ảnh không hiện thì tốt hơn trang trắng.
     """
     return {
         "attachment_id": att.attachment_id,
@@ -304,7 +306,7 @@ def _attachment_dict(att: ApplicationAttachment) -> dict[str, Any]:
         "document_type": att.document_type,
         "content_type": att.content_type,
         "size_bytes": att.size_bytes,
-        "url": storage.signed_url(att.storage_path),
+        "url": None,
         "uploaded_at": _as_utc(att.uploaded_at),
     }
 
