@@ -5,8 +5,10 @@ onboarding.
 """
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from src.api import routes as api_routes
+from src.models.db import Application
 from src.services.vectorstore import RetrievalError
 
 ADMIN = {"X-User-Id": "1"}
@@ -762,6 +764,68 @@ async def test_ho_so_da_dong_thi_nop_lai_duoc(client):
 
     again = await client.post("/api/v1/applications", json=payload, headers=OWNER)
     assert again.status_code == 201
+
+
+def test_index_chan_insert_truc_tiep_khi_dang_mo(db_session):
+    """Đi thẳng qua session, bỏ qua `get_open_application` — nếu chỉ tầng ứng
+    dụng chặn thì insert này sẽ lọt qua êm ru. Đây là test lẽ ra sẽ đỏ nếu
+    index bị xoá khỏi model/migration, hoặc bị đổi thành non-partial."""
+    db_session.add(
+        Application(
+            user_id=2, checklist_item_id=CAR_CARD_ITEM, status="received", kind="bql_processing"
+        )
+    )
+    db_session.commit()
+
+    db_session.add(
+        Application(
+            user_id=2, checklist_item_id=CAR_CARD_ITEM, status="processing", kind="bql_processing"
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    # SQLite in-memory: session vẫn "bẩn" sau lỗi, không rollback thì mọi thao
+    # tác sau đó trong cùng transaction đều ăn theo lỗi này.
+    db_session.rollback()
+
+
+def test_index_khong_chan_insert_khi_ho_so_cu_da_dong(db_session):
+    """Companion của test trên — index phải là BỘ PHẬN, không phải toàn cục."""
+    first = Application(
+        user_id=2, checklist_item_id=CAR_CARD_ITEM, status="received", kind="bql_processing"
+    )
+    db_session.add(first)
+    db_session.commit()
+
+    first.status = "rejected"
+    db_session.commit()
+
+    db_session.add(
+        Application(
+            user_id=2, checklist_item_id=CAR_CARD_ITEM, status="received", kind="bql_processing"
+        )
+    )
+    db_session.commit()  # không raise — hồ sơ cũ đã đóng nên index không áp.
+
+
+@pytest.mark.asyncio
+async def test_dua_vao_index_van_tra_409_khong_phai_500(client, monkeypatch):
+    """Mô phỏng race: cả hai request đọc "chưa có hồ sơ mở" trước khi request
+    đầu commit. `get_open_application` bị giả để luôn trả None — giống hệt
+    tình huống request thứ hai đọc TRƯỚC khi request thứ nhất ghi xong — nên
+    `create_application` phải tự đụng `IntegrityError` từ index. Route phải
+    trả 409 giống hệt nhánh kiểm tuần tự, không phải 500."""
+    payload = {"checklist_item_id": CAR_CARD_ITEM}
+    first = await client.post("/api/v1/applications", json=payload, headers=OWNER)
+    assert first.status_code == 201
+
+    monkeypatch.setattr(api_routes.store, "get_open_application", lambda *a, **k: None)
+
+    second = await client.post("/api/v1/applications", json=payload, headers=OWNER)
+    assert second.status_code == 409
+    assert second.json()["detail"] == (
+        f"Bạn đã có hồ sơ đang xử lý cho “{first.json()['task_name']}”."
+    )
 
 
 @pytest.mark.asyncio

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
@@ -337,6 +338,16 @@ def get_open_application(db: Session, user_id: int, item_id: int) -> dict[str, A
     return _application_dict(app) if app else None
 
 
+class DuplicateApplicationError(Exception):
+    """`uq_open_application_per_item` (src/models/db.py) chặn insert.
+
+    `get_open_application` là đọc-rồi-ghi: hai request đến cùng lúc đều có thể
+    đọc "chưa có hồ sơ mở" trước khi request kia commit. Insert thua cuộc rơi
+    vào đây thay vì để `IntegrityError` thô bay lên route thành 500 — người
+    gọi (route) bắt exception này và trả đúng 409 như nhánh kiểm tuần tự.
+    """
+
+
 def create_application(
     db: Session, user_id: int, item_id: int, note: str | None, kind: str
 ) -> dict[str, Any]:
@@ -348,7 +359,11 @@ def create_application(
         kind=kind,
     )
     db.add(app)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise DuplicateApplicationError() from None
     db.refresh(app)
     return _application_dict(app)
 

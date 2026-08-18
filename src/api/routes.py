@@ -275,17 +275,28 @@ async def submit_application(
             detail="Mục này không có trong checklist của bạn.",
         )
 
-    if store.get_open_application(db, user["user_id"], item["id"]):
+    def _raise_da_co_ho_so_mo() -> None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Bạn đã có hồ sơ đang xử lý cho “{item['task_name']}”.",
         )
 
+    if store.get_open_application(db, user["user_id"], item["id"]):
+        _raise_da_co_ho_so_mo()
+
     # Loại hồ sơ suy ra từ THỦ TỤC, không do client khai: mục ngoài phạm vi BQL
     # (tạm trú, cập nhật cư trú) không có bộ phận nào tiếp nhận, nên hồ sơ chỉ
     # là cư dân tự khai kèm ảnh minh chứng.
     kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
-    return store.create_application(db, user["user_id"], item["id"], payload.note, kind)
+    try:
+        return store.create_application(db, user["user_id"], item["id"], payload.note, kind)
+    except store.DuplicateApplicationError:
+        # Race: request khác cũng đọc "chưa có hồ sơ mở" và commit trước —
+        # `uq_open_application_per_item` (src/models/db.py) chặn insert này ở
+        # tầng DB. Người dùng phải thấy đúng 409 như nhánh kiểm tuần tự ở
+        # trên, không phải 500 — dùng lại CHÍNH nhánh đó để hai đường tới
+        # cùng một kết quả không lệch câu chữ.
+        _raise_da_co_ho_so_mo()
 
 
 @router.post(
