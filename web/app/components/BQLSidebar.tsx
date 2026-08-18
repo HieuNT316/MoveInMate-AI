@@ -3,35 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Bot,
-  Building2,
-  ClipboardCheck,
-  Inbox,
-  LayoutDashboard,
-  Lock,
-  LogOut,
-} from "lucide-react";
+import { Building2, LogOut } from "lucide-react";
 
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
-
-/**
- * Sidebar riêng cho khu vực BQL (/bql/*) — xem docs/ROLES_AND_PLAN.md mục 10.
- * "Yêu cầu & Thủ tục" (US-13) đã nối backend nên là link thật; "Phê duyệt
- * HITL" và "Cấu hình AI" vẫn thuộc Phase 2, chưa có endpoint — hiện ở dạng
- * khoá "Sắp có" để không ai bấm vào rồi tưởng nhầm là đã hoạt động.
- */
-const menus = [
-  { title: "Tổng quan", icon: LayoutDashboard, href: "/bql/dashboard" },
-  { title: "Yêu cầu & Thủ tục", icon: Inbox, href: "/bql/applications" },
-];
-
-const comingSoon = [
-  { title: "Phê duyệt HITL", icon: ClipboardCheck },
-  { title: "Cấu hình AI", icon: Bot },
-];
+import { BQL_NAV } from "../lib/nav";
 
 export default function BQLSidebar() {
   const pathname = usePathname();
@@ -76,7 +53,7 @@ export default function BQLSidebar() {
         <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#94A3B8]">
           Điều hướng
         </p>
-        {menus.map((item) => {
+        {BQL_NAV.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
           return (
@@ -98,27 +75,6 @@ export default function BQLSidebar() {
                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
               )}
             </Link>
-          );
-        })}
-
-        <p className="px-3 pb-2 pt-6 text-[11px] font-medium uppercase tracking-[0.18em] text-[#94A3B8]">
-          Sắp có
-        </p>
-        {comingSoon.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.title}
-              title="Phase 2 — chưa có API, chưa hoạt động"
-              className="flex cursor-not-allowed items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm text-[#CBD5E1]"
-            >
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              <span>{item.title}</span>
-              <span className="ml-auto flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[10px] text-[#94A3B8]">
-                <Lock className="h-2.5 w-2.5" strokeWidth={2} />
-                Sắp có
-              </span>
-            </div>
           );
         })}
       </nav>
