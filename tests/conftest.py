@@ -124,18 +124,22 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def fake_auth_provisioning(monkeypatch):
     """Chặn mọi lời gọi Supabase Admin API trong test.
 
-    Không có fixture này, test tạo tài khoản sẽ đẻ user thật trong project
-    Supabase — đã xảy ra ngày 11/08 và phải đi dọn tay.
+    `autouse` từ 18/08. Trước đó là fixture tự chọn vì chỉ một test tạo tài
+    khoản. Nay còn có đặt lại mật khẩu, và hậu quả của việc quên nặng hơn hẳn:
+    không phải đẻ ra một user thừa rồi đi xoá tay (11/08), mà là đổi mật khẩu
+    của một tài khoản có thật — người đó mất quyền đăng nhập, không hoàn tác
+    được. Cùng lý do `fake_storage` là autouse.
     """
     from src.api import routes
 
     monkeypatch.setattr(
         routes, "create_auth_user", lambda _email, _password: uuid.uuid4()
     )
+    monkeypatch.setattr(routes, "update_auth_password", lambda _uid, _password: None)
 
 
 @pytest.fixture(autouse=True)

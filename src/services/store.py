@@ -53,6 +53,7 @@ def _user_dict(user: User) -> dict[str, Any]:
         "building": user.building,
         "role": user.role,
         "account_status": user.account_status,
+        "auth_user_id": user.auth_user_id,
         "ownership_type": user.ownership_type,
         "apartment_type": user.apartment_type,
         "has_car": user.has_car,
@@ -132,6 +133,13 @@ def save_onboarding(db: Session, user_id: int, payload: dict[str, Any]) -> dict[
     if user.onboarding_completed_at is None:
         user.onboarding_completed_at = datetime.now(UTC)
 
+    db.commit()
+    return _user_dict(user)
+
+
+def set_account_status(db: Session, user_id: int, account_status: str) -> dict[str, Any]:
+    user = db.get(User, user_id)
+    user.account_status = account_status
     db.commit()
     return _user_dict(user)
 

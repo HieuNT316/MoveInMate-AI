@@ -28,6 +28,7 @@ from src.config import get_settings
 from src.database import get_db
 from src.models.db import APPLICATION_STATUSES
 from src.models.schemas import (
+    AccountStatusUpdateRequest,
     AdminApplicationResponse,
     ApplicationCreateRequest,
     ApplicationResponse,
@@ -49,6 +50,8 @@ from src.models.schemas import (
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    ResidentDetailResponse,
+    TemporaryPasswordResponse,
 )
 from src.services import storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
@@ -58,6 +61,7 @@ from src.services.supabase_admin import (
     SupabaseAdminError,
     create_auth_user,
     generate_password,
+    update_auth_password,
 )
 from src.services.vectorstore import RetrievalError
 
@@ -733,3 +737,78 @@ async def update_application_status(
     return store.update_application_status(
         db, application_id, payload.status, payload.bql_note
     )
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+def _require_resident_record(db: Session, user_id: int) -> dict[str, Any]:
+    """Hồ sơ cư dân, hoặc 404.
+
+    Chặn luôn cả `role == "admin"`: mở thao tác quản trị lên một tài khoản BQL
+    sẽ cho phép BQL tự khoá mình ra khỏi hệ thống, và hiện một checklist nhận
+    nhà vô nghĩa — đúng lỗi mà `require_resident` sinh ra để chặn.
+    """
+    resident = store.get_user(db, user_id)
+    if resident is None or resident["role"] != "resident":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cư dân này."
+        )
+    return resident
+
+
+def _build_resident_detail(db: Session, user_id: int) -> ResidentDetailResponse:
+    """Toàn cảnh một cư dân. Task 9 dùng lại nguyên hàm này cho `GET`."""
+    resident = _require_resident_record(db, user_id)
+    return ResidentDetailResponse(
+        profile=ProfileResponse(**resident),
+        checklist=_build_checklist(db, resident),
+        applications=store.list_applications(db, user_id),
+        account_status=resident["account_status"],
+    )
+
+
+@router.patch(
+    "/admin/residents/{user_id}/status", response_model=ResidentDetailResponse
+)
+async def set_resident_account_status(
+    user_id: int,
+    payload: AccountStatusUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ResidentDetailResponse:
+    """Khoá hoặc mở tài khoản cư dân.
+
+    Trả về TOÀN BỘ chi tiết chứ không riêng trường vừa đổi, theo nếp của
+    `PATCH /checklist/{item_id}`: giao diện cập nhật cả trang trong một lượt.
+    """
+    _require_resident_record(db, user_id)
+    store.set_account_status(db, user_id, payload.account_status)
+    return _build_resident_detail(db, user_id)
+
+
+@router.post(
+    "/admin/residents/{user_id}/reset-password",
+    response_model=TemporaryPasswordResponse,
+)
+async def reset_resident_password(
+    user_id: int,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TemporaryPasswordResponse:
+    resident = _require_resident_record(db, user_id)
+    if resident["auth_user_id"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cư dân này chưa được cấp tài khoản đăng nhập.",
+        )
+
+    password = generate_password()
+    try:
+        update_auth_password(resident["auth_user_id"], password)
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Không đặt lại được mật khẩu: {exc}",
+        ) from exc
+    return TemporaryPasswordResponse(temporary_password=password)

@@ -406,3 +406,37 @@ class ApplicationStatusUpdateRequest(BaseModel):
             "không nói gì không nên làm mất lý do 'cần bổ sung' trước đó."
         ),
     )
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+class AccountStatusUpdateRequest(BaseModel):
+    account_status: AccountStatus
+
+
+class ResidentDetailResponse(BaseModel):
+    """Toàn cảnh một cư dân, cho trang BQL.
+
+    Ghép ba schema đã có thay vì bịa một schema phẳng mới: giao diện đã có sẵn
+    component render checklist và hồ sơ ở khu cư dân, nên trang BQL dùng lại
+    được, không phải viết lại logic hiển thị.
+
+    Dùng `ApplicationResponse` chứ không phải `AdminApplicationResponse` — đã
+    biết đang xem ai thì user_id/full_name/apartment là thừa.
+    """
+
+    profile: ProfileResponse
+    checklist: ChecklistResponse
+    applications: list[ApplicationResponse]
+    account_status: AccountStatus
+
+
+class TemporaryPasswordResponse(BaseModel):
+    """Mật khẩu tạm sau khi đặt lại.
+
+    Chỉ xuất hiện đúng một lần ở phản hồi này; hệ thống không lưu và không có
+    cách xem lại. Quên nữa thì đặt lại tiếp.
+    """
+
+    temporary_password: str

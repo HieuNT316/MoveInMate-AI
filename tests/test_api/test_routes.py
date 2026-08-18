@@ -1253,3 +1253,75 @@ async def test_id_tep_cua_ho_so_khac_tra_404(client):
         headers=OWNER,
     )
     assert r.status_code == 404
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bql_khoa_va_mo_tai_khoan(client):
+    locked = await client.patch(
+        "/api/v1/admin/residents/2/status",
+        json={"account_status": "locked"},
+        headers=ADMIN,
+    )
+    assert locked.status_code == 200
+    assert locked.json()["account_status"] == "locked"
+
+    assert (await client.get("/api/v1/profile", headers=OWNER)).status_code == 403
+
+    await client.patch(
+        "/api/v1/admin/residents/2/status",
+        json={"account_status": "active"},
+        headers=ADMIN,
+    )
+    assert (await client.get("/api/v1/profile", headers=OWNER)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_khong_khoa_duoc_tai_khoan_bql(client):
+    """User 1 là BQL. Quy tắc 'chỉ cư dân' gánh luôn việc BQL không tự khoá mình."""
+    r = await client.patch(
+        "/api/v1/admin/residents/1/status",
+        json={"account_status": "locked"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_khoa_duoc_ai(client):
+    r = await client.patch(
+        "/api/v1/admin/residents/3/status",
+        json={"account_status": "locked"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dat_lai_mat_khau_tra_mat_khau_tam(client):
+    """User 2 đã gắn auth_user_id trong conftest."""
+    r = await client.post("/api/v1/admin/residents/2/reset-password", headers=ADMIN)
+    assert r.status_code == 200
+    assert len(r.json()["temporary_password"]) >= 12
+
+
+@pytest.mark.asyncio
+async def test_dat_lai_mat_khau_khi_chua_co_tai_khoan_dang_nhap_tra_409(client):
+    """User 3 chưa có auth_user_id — không có mật khẩu nào để đặt lại.
+
+    Không phải trường hợp lý thuyết: `seed_data` xoá sạch auth_user_id, ai chạy
+    seed mà quên `provision_auth` là rơi vào đúng đây.
+    """
+    r = await client.post("/api/v1/admin/residents/3/reset-password", headers=ADMIN)
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_profile_khong_lo_auth_user_id(client):
+    """`_user_dict` nay trả `auth_user_id` để route quản trị dùng, nhưng
+    `ProfileResponse` không khai trường này nên nó không được lọt ra API."""
+    r = await client.get("/api/v1/profile", headers=OWNER)
+    assert r.status_code == 200
+    assert "auth_user_id" not in r.json()
