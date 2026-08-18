@@ -8,7 +8,7 @@ import { Building2, LogOut } from "lucide-react";
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
-import { BQL_NAV } from "../lib/nav";
+import { BQL_NAV } from "../../lib/nav";
 
 export default function BQLSidebar() {
   const pathname = usePathname();

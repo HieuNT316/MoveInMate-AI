@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import type { NavItem } from "../lib/nav";
+import type { NavItem } from "../../lib/nav";
 
 /**
  * Điều hướng cho màn hình nhỏ. Ẩn từ `lg` trở lên, nơi sidebar tiếp quản.

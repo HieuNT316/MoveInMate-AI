@@ -8,7 +8,7 @@ import { Building2, LogOut, Plus } from "lucide-react";
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
-import { RESIDENT_NAV } from "../lib/nav";
+import { RESIDENT_NAV } from "../../lib/nav";
 
 export default function Sidebar() {
   const pathname = usePathname();
