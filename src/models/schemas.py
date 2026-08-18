@@ -31,6 +31,8 @@ DocumentType = Literal[
     "the_cu_dan", "the_xe", "don_dang_ky", "to_khai_ct01", "anh_vneid", "khac",
 ]
 
+EmbedStatus = Literal["pending", "processing", "ready", "failed"]
+
 
 class RequiredDocument(BaseModel):
     """Một loại giấy tờ, kèm nhãn hiển thị.

@@ -44,6 +44,7 @@ JSONType = JSON().with_variant(JSONB, "postgresql")
 
 ROLES = ("resident", "admin")
 ACCOUNT_STATUSES = ("active", "locked")
+EMBED_STATUSES = ("pending", "processing", "ready", "failed")
 OWNERSHIP_TYPES = ("owner", "renter")
 ITEM_TYPES = ("bql_actionable", "third_party_info")
 ANSWER_SOURCES = ("faq", "rag", "no_context")
@@ -311,6 +312,15 @@ class Document(Base):
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    # Embed mất từ nửa phút tới vài phút (15 chunk mỗi lượt, nghỉ 12 giây) nên
+    # chạy nền. Container chết giữa chừng thì bản ghi kẹt ở `processing` và BQL
+    # bấm nạp lại — đủ cho phạm vi này, không dựng hàng đợi.
+    embed_status: Mapped[str] = mapped_column(
+        SAEnum(*EMBED_STATUSES, name="embed_status", native_enum=False),
+        default="ready",
+        server_default="ready",
+        nullable=False,
     )
 
 
