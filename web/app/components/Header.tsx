@@ -28,13 +28,13 @@ export default function Header() {
   const current = titles[pathname] ?? { title: "MoveInMate AI", subtitle: "" };
 
   return (
-    <header className="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-border bg-surface/90 px-8 backdrop-blur">
-      <div>
-        <h2 className="font-display text-2xl font-semibold text-ink">
+    <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-surface/90 px-4 backdrop-blur lg:h-20 lg:px-8">
+      <div className="min-w-0">
+        <h2 className="truncate font-display text-lg font-semibold text-ink lg:text-2xl">
           {current.title}
         </h2>
         {current.subtitle && (
-          <p className="text-sm text-muted">{current.subtitle}</p>
+          <p className="hidden text-sm text-muted lg:block">{current.subtitle}</p>
         )}
       </div>
 

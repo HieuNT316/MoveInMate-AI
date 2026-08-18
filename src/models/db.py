@@ -36,9 +36,15 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# Mã giấy tờ; nhãn hiển thị nằm ở đó luôn, không ở DB — sửa một chữ hiển thị
+# không nên phải viết migration.
+from src.services.documents import DOCUMENT_CODES
+
 JSONType = JSON().with_variant(JSONB, "postgresql")
 
 ROLES = ("resident", "admin")
+ACCOUNT_STATUSES = ("active", "locked")
+EMBED_STATUSES = ("pending", "processing", "ready", "failed")
 OWNERSHIP_TYPES = ("owner", "renter")
 ITEM_TYPES = ("bql_actionable", "third_party_info")
 ANSWER_SOURCES = ("faq", "rag", "no_context")
@@ -97,6 +103,15 @@ class User(Base):
         SAEnum(*ROLES, name="user_role", native_enum=False), default="resident"
     )
 
+    # Khoá do BQL đặt. Kiểm trong `get_current_user` nên áp cho MỌI endpoint,
+    # không phải nhớ gắn từng chỗ.
+    account_status: Mapped[str] = mapped_column(
+        SAEnum(*ACCOUNT_STATUSES, name="account_status", native_enum=False),
+        default="active",
+        server_default="active",
+        nullable=False,
+    )
+
     # --- Bốn field dưới đây là đầu vào của rule engine (src/services/checklist.py).
     # Đổi tên/kiểu ở đây là phá vỡ PROFILE_FIELDS bên đó.
     ownership_type: Mapped[str | None] = mapped_column(
@@ -148,6 +163,11 @@ class ChecklistItem(Base):
     handling_department: Mapped[str | None] = mapped_column(String(100))
     submission_location: Mapped[str | None] = mapped_column(String(255))
     processing_time: Mapped[str | None] = mapped_column(String(100))
+
+    # US-13/D1 — mã giấy tờ thủ tục này yêu cầu, chép từ mục "Giấy tờ cần mang"
+    # trong data/kb/bql/. Rỗng = không đòi giấy tờ nào. `seed_data` kiểm mã hợp
+    # lệ lúc nạp.
+    required_documents: Mapped[list[str]] = mapped_column(JSONType, default=list)
 
 
 class ChecklistCompletion(Base):
@@ -238,6 +258,14 @@ class ApplicationAttachment(Base):
     )
     filename: Mapped[str] = mapped_column(String(255))
     content_type: Mapped[str] = mapped_column(String(100))
+
+    # NULL = CHƯA PHÂN LOẠI, khác hẳn `khac` (cư dân đã gán, chỉ là không thuộc
+    # loại nào). Gộp hai thứ này lại là mất khả năng phân biệt "chưa ai gán"
+    # với "đã xem và xếp vào loại khác" — mà đó chính là thứ quyết định hệ
+    # thống có được phép kết luận "thiếu giấy tờ" hay không.
+    document_type: Mapped[str | None] = mapped_column(
+        SAEnum(*DOCUMENT_CODES, name="document_type", native_enum=False)
+    )
     size_bytes: Mapped[int] = mapped_column(Integer)
     storage_path: Mapped[str] = mapped_column(String(512))
     uploaded_at: Mapped[datetime] = mapped_column(
@@ -284,6 +312,15 @@ class Document(Base):
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    # Embed mất từ nửa phút tới vài phút (15 chunk mỗi lượt, nghỉ 12 giây) nên
+    # chạy nền. Container chết giữa chừng thì bản ghi kẹt ở `processing` và BQL
+    # bấm nạp lại — đủ cho phạm vi này, không dựng hàng đợi.
+    embed_status: Mapped[str] = mapped_column(
+        SAEnum(*EMBED_STATUSES, name="embed_status", native_enum=False),
+        default="ready",
+        server_default="ready",
+        nullable=False,
     )
 
 

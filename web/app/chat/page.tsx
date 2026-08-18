@@ -188,7 +188,7 @@ export default function ChatPage() {
           onNew={startNewConversation}
         />
 
-        <div className="flex h-[calc(100vh-9rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:h-[calc(100vh-9rem)]">
           <div className="flex items-center gap-3 border-b border-border px-6 py-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ink">
               <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
@@ -317,7 +317,7 @@ export default function ChatPage() {
             )}
 
             {!loadingMessages && messages.length === 1 && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                 {SUGGESTIONS.map(({ icon: Icon, text }) => (
                   <button
                     key={text}
@@ -398,7 +398,7 @@ function ConversationSidebar({
   onNew: () => void;
 }) {
   return (
-    <div className="flex w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+    <div className="hidden w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:flex">
       <div className="border-b border-border p-3">
         <button
           onClick={onNew}

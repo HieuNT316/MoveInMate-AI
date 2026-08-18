@@ -62,3 +62,26 @@ def create_auth_user(email: str, password: str) -> uuid.UUID:
         raise SupabaseAdminError(f"Supabase từ chối tạo tài khoản: {detail}")
 
     return uuid.UUID(response.json()["id"])
+
+
+def update_auth_password(auth_user_id: uuid.UUID, password: str) -> None:
+    """Đặt lại mật khẩu cho một tài khoản đã có. Dùng khi cư dân quên mật khẩu.
+
+    Không gửi thư đặt lại: tài khoản demo dùng tên miền @moveinmate.demo không
+    tồn tại nên thư không bao giờ tới. BQL đọc mật khẩu tạm cho cư dân, đúng
+    nguyên tắc "BQL cấp tài khoản, cư dân không tự đăng ký".
+    """
+    base, headers = _config()
+    try:
+        response = httpx.put(
+            f"{base}/admin/users/{auth_user_id}",
+            headers=headers,
+            json={"password": password},
+            timeout=30,
+        )
+    except httpx.HTTPError as exc:
+        raise SupabaseAdminError(f"Không gọi được Supabase: {exc}") from exc
+
+    if response.status_code >= 400:
+        detail = response.json().get("msg") or response.text
+        raise SupabaseAdminError(f"Supabase từ chối đổi mật khẩu: {detail}")

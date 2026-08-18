@@ -104,3 +104,22 @@ async def test_header_dev_bi_tu_choi_o_production(client, monkeypatch):
 async def test_header_dev_van_chay_ngoai_production(client):
     response = await client.get("/api/v1/profile", headers={"X-User-Id": "2"})
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_tai_khoan_bi_khoa_khong_goi_duoc_api(client, db_session):
+    from src.models.db import User
+
+    user = db_session.get(User, 2)
+    user.account_status = "locked"
+    db_session.commit()
+
+    r = await client.get("/api/v1/profile", headers={"X-User-Id": "2"})
+    assert r.status_code == 403
+    assert "tạm khoá" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_tai_khoan_binh_thuong_van_goi_duoc(client):
+    r = await client.get("/api/v1/profile", headers={"X-User-Id": "2"})
+    assert r.status_code == 200

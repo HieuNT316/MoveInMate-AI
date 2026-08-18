@@ -29,6 +29,43 @@ async def test_health(client):
 
 
 @pytest.mark.asyncio
+async def test_health_deep_bao_so_chunk_trong_chroma(client, monkeypatch):
+    from src.services import vectorstore
+
+    class _FakeCollection:
+        def count(self) -> int:
+            return 42
+
+    class _FakeStore:
+        _collection = _FakeCollection()
+
+    monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: _FakeStore())
+
+    r = await client.get("/health/deep")
+    assert r.status_code == 200
+    assert r.json()["chroma"]["documents"] == 42
+
+
+@pytest.mark.asyncio
+async def test_health_deep_tra_503_khi_chroma_rong(client, monkeypatch):
+    """Chroma rỗng = trợ lý từ chối MỌI câu hỏi, mà không chỉ báo nào đỏ.
+    Đúng kiểu sự cố 11/08."""
+    from src.services import vectorstore
+
+    class _EmptyCollection:
+        def count(self) -> int:
+            return 0
+
+    class _FakeStore:
+        _collection = _EmptyCollection()
+
+    monkeypatch.setattr(vectorstore, "get_vectorstore", lambda: _FakeStore())
+
+    r = await client.get("/health/deep")
+    assert r.status_code == 503
+
+
+@pytest.mark.asyncio
 async def test_khong_co_header_thi_bi_tu_choi(client):
     """401 chứ không phải 422: thiếu xác thực là chuyện quyền, không phải sai kiểu dữ liệu."""
     response = await client.get("/api/v1/checklist")
@@ -895,7 +932,8 @@ async def test_tai_anh_minh_chung_len(client):
     assert att["filename"] == "vneid.png"
     assert att["content_type"] == "image/png"
     assert att["size_bytes"] == len(PNG)
-    assert att["url"]
+    # Từ 18/08 danh sách không ký URL nữa — xem GET .../attachments/{id}/url.
+    assert att["url"] is None
 
     mine = (await client.get("/api/v1/applications", headers=OWNER)).json()
     assert len(mine[0]["attachments"]) == 1
@@ -999,4 +1037,498 @@ async def test_bql_thay_duoc_minh_chung_cua_cu_dan(client):
     row = next(r for r in rows if r["application_id"] == app["application_id"])
     assert row["kind"] == "self_declared"
     assert len(row["attachments"]) == 1
-    assert row["attachments"][0]["url"]
+    # Từ 18/08 danh sách không ký URL nữa — xem GET .../attachments/{id}/url.
+    assert row["attachments"][0]["url"] is None
+
+
+@pytest.mark.asyncio
+async def test_danh_sach_ho_so_khong_ky_url(client):
+    """Ký ở đây là một lời gọi mạng đồng bộ cho MỖI tệp, chặn event loop."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["attachments"][0]["url"] is None
+
+
+# --- Loại giấy tờ & "còn thiếu gì" (US-13 / D1) --------------------------
+
+
+@pytest.mark.asyncio
+async def test_checklist_kem_danh_sach_giay_to_can_nop(client):
+    items = (await client.get("/api/v1/checklist", headers=OWNER)).json()["items"]
+    car = next(i for i in items if i["id"] == CAR_CARD_ITEM)
+
+    assert [d["code"] for d in car["required_documents"]] == [
+        "cccd", "dang_ky_xe", "the_cu_dan",
+    ]
+    # Kèm nhãn để frontend khỏi phải giữ bảng riêng.
+    assert all(d["label"] for d in car["required_documents"])
+
+
+@pytest.mark.asyncio
+async def test_thu_tuc_ngoai_pham_vi_khong_khai_giay_to_bat_buoc(client):
+    """KB đòi CT01 *hoặc* VNeID — phép đối chiếu là AND nên ép một loại cụ thể
+    sẽ báo thiếu sai cho người nộp bằng cách hợp lệ khác."""
+    items = (await client.get("/api/v1/checklist", headers=OWNER)).json()["items"]
+    outside = next(i for i in items if i["id"] == RESIDENCY_ITEM)
+    assert outside["required_documents"] == []
+
+
+@pytest.mark.asyncio
+async def test_tai_len_kem_loai_giay_to(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("cavet.png", PNG, "image/png")},
+        data={"document_type": "dang_ky_xe"},
+        headers=OWNER,
+    )
+    assert r.status_code == 201
+    assert r.json()["document_type"] == "dang_ky_xe"
+
+
+@pytest.mark.asyncio
+async def test_loai_giay_to_khong_hop_le_bi_tu_choi(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("x.png", PNG, "image/png")},
+        data={"document_type": "so_do_giay_to_la"},
+        headers=OWNER,
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_du_giay_to_thi_bao_khong_thieu(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    for code in ("cccd", "dang_ky_xe", "the_cu_dan"):
+        await client.post(
+            f"/api/v1/applications/{aid}/attachments",
+            files={"file": (f"{code}.png", PNG, "image/png")},
+            data={"document_type": code},
+            headers=OWNER,
+        )
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["missing_documents"] == []
+    assert mine["unlabelled_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_thieu_mot_loai_thi_bao_dung_loai_do(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    await client.post(
+        f"/api/v1/applications/{app['application_id']}/attachments",
+        files={"file": ("cccd.png", PNG, "image/png")},
+        data={"document_type": "cccd"},
+        headers=OWNER,
+    )
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert [d["code"] for d in mine["missing_documents"]] == ["dang_ky_xe", "the_cu_dan"]
+
+
+@pytest.mark.asyncio
+async def test_tep_chua_phan_loai_thi_khong_ket_luan_thieu_gi(client):
+    """Điểm cốt lõi của D1: hồ sơ ĐANG CÓ ảnh mà báo "thiếu" thì Ban quản lý
+    tưởng cư dân chưa nộp và đi đòi thứ đã có."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])  # không gửi document_type
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["missing_documents"] is None
+    assert mine["unlabelled_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_bql_gan_lai_loai_thi_tinh_lai_duoc_con_thieu_gi(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    up = await _upload(client, aid, name="anh-cavet.png")
+    att_id = up.json()["attachment_id"]
+
+    fixed = await client.patch(
+        f"/api/v1/admin/applications/{aid}/attachments/{att_id}",
+        json={"document_type": "dang_ky_xe"},
+        headers=ADMIN,
+    )
+    assert fixed.status_code == 200
+    assert fixed.json()["document_type"] == "dang_ky_xe"
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["unlabelled_count"] == 0
+    assert [d["code"] for d in mine["missing_documents"]] == ["cccd", "the_cu_dan"]
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_gan_lai_loai_duoc(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    up = await _upload(client, app["application_id"])
+    r = await client.patch(
+        f"/api/v1/admin/applications/{app['application_id']}/attachments/"
+        f"{up.json()['attachment_id']}",
+        json={"document_type": "cccd"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_gan_lai_tep_khong_ton_tai_tra_404(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    r = await client.patch(
+        f"/api/v1/admin/applications/{app['application_id']}/attachments/9999",
+        json={"document_type": "cccd"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_bql_cung_thay_con_thieu_gi(client):
+    """Dashboard BQL mới là nơi chính dùng tính năng này — phải kiểm riêng,
+    không dựa vào việc nó dùng chung hàm với danh sách của cư dân."""
+    app = await _create(client, CAR_CARD_ITEM)
+    await _upload(client, app["application_id"])
+
+    row = next(
+        r for r in (await client.get("/api/v1/admin/applications", headers=ADMIN)).json()
+        if r["application_id"] == app["application_id"]
+    )
+    assert row["missing_documents"] is None
+    assert row["unlabelled_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_khong_gan_lai_duoc_tep_thuoc_ho_so_khac(client):
+    """Đây mới là phép thử về quyền: id tệp có thật, nhưng thuộc hồ sơ khác.
+    Chỉ kiểm id không tồn tại thì không chứng minh được gì."""
+    first = await _create(client, CAR_CARD_ITEM)
+    second = await _create(client, 1)
+    att_id = (await _upload(client, first["application_id"])).json()["attachment_id"]
+
+    response = await client.patch(
+        f"/api/v1/admin/applications/{second['application_id']}/attachments/{att_id}",
+        json={"document_type": "cccd"},
+        headers=ADMIN,
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_go_loai_ve_chua_phan_loai(client):
+    """Gán nhầm phải quay lại được trạng thái trung thực "chưa ai xem"."""
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    url = f"/api/v1/admin/applications/{aid}/attachments/{att_id}"
+    await client.patch(url, json={"document_type": "cccd"}, headers=ADMIN)
+    cleared = await client.patch(url, json={"document_type": None}, headers=ADMIN)
+
+    assert cleared.status_code == 200
+    assert cleared.json()["document_type"] is None
+
+    mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
+    assert mine["unlabelled_count"] == 1
+    assert mine["missing_documents"] is None
+
+
+# --- Ký URL theo yêu cầu (18/08) ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chu_ho_so_lay_duoc_link_xem_anh(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=OWNER
+    )
+    assert r.status_code == 200
+    assert r.json()["url"].startswith("https://")
+
+
+@pytest.mark.asyncio
+async def test_bql_lay_duoc_link_cua_moi_ho_so(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=ADMIN
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khac_khong_lay_duoc_link(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=RENTER
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_id_tep_cua_ho_so_khac_tra_404(client):
+    """Không kiểm cặp (hồ sơ, tệp) thì đoán được id tệp là đọc được ảnh CCCD
+    của người khác. Đúng lỗi bản review D1 đã bắt ở endpoint gán loại."""
+    first = await _create(client, CAR_CARD_ITEM)
+    second = await _create(client, RESIDENCY_ITEM)
+    att_id = (await _upload(client, first["application_id"])).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{second['application_id']}/attachments/{att_id}/url",
+        headers=OWNER,
+    )
+    assert r.status_code == 404
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bql_khoa_va_mo_tai_khoan(client):
+    locked = await client.patch(
+        "/api/v1/admin/residents/2/status",
+        json={"account_status": "locked"},
+        headers=ADMIN,
+    )
+    assert locked.status_code == 200
+    assert locked.json()["account_status"] == "locked"
+
+    assert (await client.get("/api/v1/profile", headers=OWNER)).status_code == 403
+
+    await client.patch(
+        "/api/v1/admin/residents/2/status",
+        json={"account_status": "active"},
+        headers=ADMIN,
+    )
+    assert (await client.get("/api/v1/profile", headers=OWNER)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_khong_khoa_duoc_tai_khoan_bql(client):
+    """User 1 là BQL. Quy tắc 'chỉ cư dân' gánh luôn việc BQL không tự khoá mình."""
+    r = await client.patch(
+        "/api/v1/admin/residents/1/status",
+        json={"account_status": "locked"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_khoa_duoc_ai(client):
+    r = await client.patch(
+        "/api/v1/admin/residents/3/status",
+        json={"account_status": "locked"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_dat_lai_mat_khau_tra_mat_khau_tam(client):
+    """User 2 đã gắn auth_user_id trong conftest."""
+    r = await client.post("/api/v1/admin/residents/2/reset-password", headers=ADMIN)
+    assert r.status_code == 200
+    assert len(r.json()["temporary_password"]) >= 12
+
+
+@pytest.mark.asyncio
+async def test_dat_lai_mat_khau_khi_chua_co_tai_khoan_dang_nhap_tra_409(client):
+    """User 3 chưa có auth_user_id — không có mật khẩu nào để đặt lại.
+
+    Không phải trường hợp lý thuyết: `seed_data` xoá sạch auth_user_id, ai chạy
+    seed mà quên `provision_auth` là rơi vào đúng đây.
+    """
+    r = await client.post("/api/v1/admin/residents/3/reset-password", headers=ADMIN)
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_profile_khong_lo_auth_user_id(client):
+    """`_user_dict` nay trả `auth_user_id` để route quản trị dùng, nhưng
+    `ProfileResponse` không khai trường này nên nó không được lọt ra API."""
+    r = await client.get("/api/v1/profile", headers=OWNER)
+    assert r.status_code == 200
+    assert "auth_user_id" not in r.json()
+
+
+@pytest.mark.asyncio
+async def test_bql_xem_duoc_chi_tiet_mot_cu_dan(client):
+    await _create(client, CAR_CARD_ITEM)
+
+    r = await client.get("/api/v1/admin/residents/2", headers=ADMIN)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["profile"]["full_name"] == "Trần Văn An"
+    assert body["account_status"] == "active"
+    assert len(body["checklist"]["items"]) > 0
+    assert len(body["applications"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_phan_anh_muc_da_hoan_thanh(client):
+    """conftest đánh dấu user 2 đã xong mục 1."""
+    body = (await client.get("/api/v1/admin/residents/2", headers=ADMIN)).json()
+    done = [i["id"] for i in body["checklist"]["items"] if i["completed"]]
+    assert 1 in done
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_xem_duoc_chi_tiet_nguoi_khac(client):
+    r = await client.get("/api/v1/admin/residents/3", headers=OWNER)
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_tai_khoan_bql_tra_404(client):
+    r = await client.get("/api/v1/admin/residents/1", headers=ADMIN)
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chi_tiet_cu_dan_khong_ton_tai_tra_404(client):
+    r = await client.get("/api/v1/admin/residents/9999", headers=ADMIN)
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_dashboard_bql_co_trang_thai_tai_khoan(client):
+    rows = (await client.get("/api/v1/admin/dashboard", headers=ADMIN)).json()
+    assert all("account_status" in r for r in rows["residents"])
+
+
+# --- BQL nạp tài liệu (US-08) -------------------------------------------
+#
+# `fake_ingest` (autouse, tests/conftest.py) chặn cả `ingest_file` thật lẫn
+# `SessionLocal` thật — job nền không được chạm production DB hay Google
+# embedding API. Vẫn khai rõ tham số ở đây cho dễ đọc dù không bắt buộc.
+#
+# Route ghi file `.md` THẬT vào `data/kb/bql/` trước khi tạo bản ghi DB (đó là
+# phần route không mock được qua fixture) — nên các test dưới đây tự dọn tệp
+# mình tạo ra, để `git status` sạch sau khi chạy.
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_bql_kb_files():
+    from src.services.ingest import KB_DIR
+
+    bql_dir = KB_DIR / "bql"
+    before = set(bql_dir.iterdir())
+    yield
+    for path in set(bql_dir.iterdir()) - before:
+        path.unlink()
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_moi(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình mới", "content": "# Quy trình\n\nNội dung."},
+        headers=ADMIN,
+    )
+    assert r.status_code == 201
+    assert r.json()["title"] == "Quy trình mới"
+    # Response của POST là snapshot NGAY LÚC TẠO — trước khi job nền chạy
+    # (BackgroundTasks chỉ chạy SAU khi body đã gửi), nên luôn là "pending" ở
+    # đây. Trạng thái sau embed được kiểm ở test riêng bên dưới bằng cách
+    # tra lại qua GET.
+    assert r.json()["embed_status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_thanh_cong_chuyen_sang_ready(client, fake_ingest):
+    """State machine pending -> processing -> ready phải QUAN SÁT ĐƯỢC.
+
+    `fake_ingest` trỏ `SessionLocal` giả về CHÍNH `db_session` của test, nên
+    `_embed_document` ghi trạng thái vào đúng nơi test đọc lại được. Xoá hẳn
+    `_embed_document` (hoặc quên gọi `set_embed_status(..., "ready")`) sẽ làm
+    assertion dưới đây đỏ — khác với round trước, lúc "ready" nằm trong set
+    ba giá trị nên test không bao giờ fail dù job nền bị xoá.
+
+    `await client.post(...)` đã chạy xong nghĩa là background task cũng đã
+    chạy xong: `ASGITransport` thực thi `BackgroundTasks` như một phần của
+    cùng lệnh gọi ASGI app mà `client.post` await, không phải một luồng/task
+    tách biệt — nên không cần chờ gì thêm trước khi GET lại.
+    """
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình embed thành công", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    document_id = r.json()["document_id"]
+
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    updated = next((d for d in rows if d["document_id"] == document_id), None)
+    assert updated is not None
+    assert updated["embed_status"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_loi_embed_chuyen_sang_failed(client, fake_ingest, monkeypatch):
+    """`ingest_file` lỗi thì trạng thái phải dừng ở "failed", KHÔNG mất dòng.
+
+    Ghi đè lại `routes.ingest_file` (đã được `fake_ingest` gắn sẵn) thành hàm
+    luôn raise, mô phỏng lỗi thật (Google API lỗi, file hỏng, v.v.) mà không
+    chạm mạng.
+    """
+    from src.api import routes
+
+    def _raise(_db, _path):
+        raise RuntimeError("giả lập lỗi embed")
+
+    monkeypatch.setattr(routes, "ingest_file", _raise)
+
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình embed lỗi", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    document_id = r.json()["document_id"]
+
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    updated = next((d for d in rows if d["document_id"] == document_id), None)
+    assert updated is not None
+    assert updated["embed_status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_nap_duoc_tai_lieu(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "X", "content": "Y"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_tai_lieu_rong_bi_tu_choi(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "X", "content": "   "},
+        headers=ADMIN,
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_bql_xem_duoc_danh_sach_tai_lieu(client, fake_ingest):
+    await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình mới", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    assert any(d["title"] == "Quy trình mới" for d in rows)

@@ -24,9 +24,10 @@ from src.models.db import (
     ChatHistory,
     ChecklistCompletion,
     ChecklistItem,
+    Document,
     User,
 )
-from src.services import storage
+from src.services.documents import describe, evaluate_documents
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -52,6 +53,8 @@ def _user_dict(user: User) -> dict[str, Any]:
         "apartment": user.apartment,
         "building": user.building,
         "role": user.role,
+        "account_status": user.account_status,
+        "auth_user_id": user.auth_user_id,
         "ownership_type": user.ownership_type,
         "apartment_type": user.apartment_type,
         "has_car": user.has_car,
@@ -74,6 +77,7 @@ def _item_dict(item: ChecklistItem) -> dict[str, Any]:
         "handling_department": item.handling_department,
         "submission_location": item.submission_location,
         "processing_time": item.processing_time,
+        "required_documents": describe(item.required_documents),
     }
 
 
@@ -130,6 +134,13 @@ def save_onboarding(db: Session, user_id: int, payload: dict[str, Any]) -> dict[
     if user.onboarding_completed_at is None:
         user.onboarding_completed_at = datetime.now(UTC)
 
+    db.commit()
+    return _user_dict(user)
+
+
+def set_account_status(db: Session, user_id: int, account_status: str) -> dict[str, Any]:
+    user = db.get(User, user_id)
+    user.account_status = account_status
     db.commit()
     return _user_dict(user)
 
@@ -281,24 +292,31 @@ def _application_dict(app: Application) -> dict[str, Any]:
         "note": app.note,
         "bql_note": app.bql_note,
         "attachments": [_attachment_dict(a) for a in app.attachments],
+        **evaluate_documents(
+            app.item.required_documents, [a.document_type for a in app.attachments]
+        ),
         "created_at": _as_utc(app.created_at),
         "updated_at": _as_utc(app.updated_at),
     }
 
 
 def _attachment_dict(att: ApplicationAttachment) -> dict[str, Any]:
-    """Metadata tệp kèm URL đọc TẠM THỜI.
+    """Metadata tệp. `url` LUÔN None ở đây — ký theo yêu cầu (18/08).
 
-    URL ký lại mỗi lần đọc thay vì lưu sẵn: link hết hạn sau vài phút nên có
-    lọt ra ngoài cũng không dùng lại được. Ký hỏng thì trả None — thiếu một ảnh
-    còn hơn vỡ cả trang hồ sơ.
+    Trước đó mỗi tệp được ký ngay lúc đọc hồ sơ: một `httpx.post` ĐỒNG BỘ tới
+    Supabase, bên trong route `async`, một lần cho mỗi tệp. Vừa tuần tự vừa
+    chặn event loop nên mọi request của mọi người khác đều phải đợi.
+
+    Giữ lại trường thay vì xoá hẳn để giao diện chưa kịp đổi không vỡ vì thiếu
+    khoá — ảnh không hiện thì tốt hơn trang trắng.
     """
     return {
         "attachment_id": att.attachment_id,
         "filename": att.filename,
+        "document_type": att.document_type,
         "content_type": att.content_type,
         "size_bytes": att.size_bytes,
-        "url": storage.signed_url(att.storage_path),
+        "url": None,
         "uploaded_at": _as_utc(att.uploaded_at),
     }
 
@@ -340,6 +358,22 @@ def get_application(db: Session, application_id: int) -> Application | None:
     return db.scalar(select(Application).where(Application.application_id == application_id))
 
 
+def get_attachment(
+    db: Session, application_id: int, attachment_id: int
+) -> ApplicationAttachment | None:
+    """Tệp đính kèm, tra theo CẢ HAI khoá.
+
+    Thiếu điều kiện `application_id` thì đoán được id tệp là đọc được ảnh giấy
+    tờ của người khác — quyền phải kiểm trên cặp, không phải trên một id.
+    """
+    return db.scalar(
+        select(ApplicationAttachment).where(
+            ApplicationAttachment.attachment_id == attachment_id,
+            ApplicationAttachment.application_id == application_id,
+        )
+    )
+
+
 def add_attachment(
     db: Session,
     application_id: int,
@@ -347,6 +381,7 @@ def add_attachment(
     content_type: str,
     size_bytes: int,
     storage_path: str,
+    document_type: str | None = None,
 ) -> dict[str, Any]:
     att = ApplicationAttachment(
         application_id=application_id,
@@ -354,6 +389,7 @@ def add_attachment(
         content_type=content_type,
         size_bytes=size_bytes,
         storage_path=storage_path,
+        document_type=document_type,
     )
     db.add(att)
     db.commit()
@@ -435,3 +471,64 @@ def update_application_status(
     db.commit()
     db.refresh(app)
     return _application_dict(app)
+
+
+def set_attachment_type(
+    db: Session, application_id: int, attachment_id: int, document_type: str | None
+) -> dict[str, Any] | None:
+    """Gán lại loại cho một tệp đã tải lên.
+
+    Cần thiết chứ không phải tiện nghi: gán nhầm loại (hoặc chưa gán) thì hồ sơ
+    kẹt ở trạng thái "thiếu giấy tờ đã nộp rồi" — Ban quản lý nhìn thấy tệp trên
+    màn hình mà hệ thống vẫn kêu thiếu, và không ai sửa được. Đây cũng là đường
+    dọn cho các tệp tải lên trước khi có `document_type`.
+    """
+    att = db.scalar(
+        select(ApplicationAttachment).where(
+            ApplicationAttachment.attachment_id == attachment_id,
+            ApplicationAttachment.application_id == application_id,
+        )
+    )
+    if att is None:
+        return None
+
+    att.document_type = document_type
+    db.commit()
+    db.refresh(att)
+    return _attachment_dict(att)
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+def _document_dict(doc: Document) -> dict[str, Any]:
+    return {
+        "document_id": doc.document_id,
+        "title": doc.title,
+        "file_path": doc.file_path,
+        "embed_status": doc.embed_status,
+        "uploaded_at": _as_utc(doc.uploaded_at),
+    }
+
+
+def create_document_record(
+    db: Session, file_path: str, title: str, embed_status: str
+) -> dict[str, Any]:
+    doc = Document(file_path=file_path, title=title, embed_status=embed_status)
+    db.add(doc)
+    db.commit()
+    return _document_dict(doc)
+
+
+def set_embed_status(db: Session, document_id: int, embed_status: str) -> None:
+    doc = db.get(Document, document_id)
+    if doc is not None:
+        doc.embed_status = embed_status
+        db.commit()
+
+
+def list_documents(db: Session) -> list[dict[str, Any]]:
+    return [
+        _document_dict(d)
+        for d in db.scalars(select(Document).order_by(Document.document_id.desc()))
+    ]

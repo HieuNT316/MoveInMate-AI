@@ -124,18 +124,22 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def fake_auth_provisioning(monkeypatch):
     """Chặn mọi lời gọi Supabase Admin API trong test.
 
-    Không có fixture này, test tạo tài khoản sẽ đẻ user thật trong project
-    Supabase — đã xảy ra ngày 11/08 và phải đi dọn tay.
+    `autouse` từ 18/08. Trước đó là fixture tự chọn vì chỉ một test tạo tài
+    khoản. Nay còn có đặt lại mật khẩu, và hậu quả của việc quên nặng hơn hẳn:
+    không phải đẻ ra một user thừa rồi đi xoá tay (11/08), mà là đổi mật khẩu
+    của một tài khoản có thật — người đó mất quyền đăng nhập, không hoàn tác
+    được. Cùng lý do `fake_storage` là autouse.
     """
     from src.api import routes
 
     monkeypatch.setattr(
         routes, "create_auth_user", lambda _email, _password: uuid.uuid4()
     )
+    monkeypatch.setattr(routes, "update_auth_password", lambda _uid, _password: None)
 
 
 @pytest.fixture(autouse=True)
@@ -162,3 +166,67 @@ def fake_storage(monkeypatch):
     monkeypatch.setattr(storage, "signed_url", lambda path: f"https://fake.test/{path}")
     monkeypatch.setattr(storage, "ensure_bucket", lambda: None)
     return uploaded
+
+
+@pytest.fixture(autouse=True)
+def fake_ingest(monkeypatch, db_session):
+    """Chặn embed thật VÀ chặn kết nối DB thật của job nạp tài liệu nền.
+
+    `POST /admin/documents` chạy `_embed_document` trong `BackgroundTasks`.
+    Hàm đó tự mở `SessionLocal()` vì session của request đã đóng lúc job nền
+    chạy — và `SessionLocal` KHÔNG đi qua `app.dependency_overrides[get_db]`
+    mà fixture `client` dùng. `httpx.ASGITransport` CHẠY background task thật
+    trước khi trả response, nên nếu không patch ở đây, `SessionLocal()` sẽ nối
+    thẳng `DATABASE_URL` thật (Supabase PRODUCTION trong `.env` của repo này)
+    và `ingest_file` thật sẽ gọi Google embedding API — ghi hàng thật vào
+    production và tiêu hạn mức 1000 request/ngày dùng chung cả nhóm. Cùng bài
+    học sự cố 11/08 khiến `fake_auth_provisioning`/`fake_storage` là autouse.
+
+    `autouse=True` như hai fixture trên: hậu quả quên gắn nặng hơn hẳn một
+    test lỡ tay, không thể để tuỳ chọn.
+
+    Patch trên MODULE `routes` (`from src.api import routes`), KHÔNG patch
+    `src.services.ingest.ingest_file` hay `src.database.SessionLocal`:
+    `routes.py` import hai tên này ở mức module (`from src.services.ingest
+    import ingest_file` / `from src.database import SessionLocal`), nên
+    `routes.ingest_file` và `routes.SessionLocal` là hai tham chiếu riêng đã
+    bind sẵn — patch ở module nguồn sẽ không đổi được thứ `routes.py` gọi.
+
+    `SessionLocal` giả trỏ THẲNG vào `db_session` — CHÍNH session mà fixture
+    `client` dùng qua `get_db` — chứ không phải một DB in-memory rời rạc như
+    bản trước. Bản trước (round 1) dùng DB rời để giữ fixture nhẹ, không ép
+    `db_session` lên mọi test trong bộ; nhưng hậu quả là mọi lượt
+    `set_embed_status` của job nền ghi vào một DB không ai đọc lại được —
+    `pending -> processing -> ready/failed` không có test nào QUAN SÁT được,
+    nên xoá hẳn `_embed_document` vẫn không làm assertion nào đỏ. Task 14/15
+    tồn tại chính vì state machine này, nên "không kiểm được" = không kiểm.
+    Đổi lại trỏ về `db_session` thật để trạng thái ghi ra observable được từ
+    test, đánh đổi lấy việc `fake_ingest` giờ kéo `db_session` vào MỌI test
+    trong bộ (kể cả test không đụng DB) — chấp nhận được vì SQLite in-memory
+    dựng lại rất rẻ, và cái giá đó nhỏ hơn nhiều so với một state machine
+    không kiểm chứng được.
+
+    `with SessionLocal() as db:` trong `_embed_document` gọi `__exit__` khi
+    thoát khối — với một session THẬT được tự mở riêng thì đóng ở đó là đúng,
+    nhưng ở đây `SessionLocal()` trả về CHÍNH `db_session` dùng chung cho cả
+    phần còn lại của test, nên đóng nó sẽ phá mọi truy vấn SAU khi job nền
+    chạy (kể cả GET tiếp theo trong cùng test). `_NonClosingSession` bọc
+    `db_session` trong một context manager nuốt `close()`, chỉ nhả ra
+    `db_session` y nguyên lúc `__enter__`.
+    """
+    from src.api import routes
+
+    called: list[str] = []
+    monkeypatch.setattr(
+        routes, "ingest_file", lambda _db, path: called.append(str(path)) or 3
+    )
+
+    class _NonClosingSession:
+        def __enter__(self):
+            return db_session
+
+        def __exit__(self, *exc_info):
+            return False
+
+    monkeypatch.setattr(routes, "SessionLocal", lambda: _NonClosingSession())
+    return called
