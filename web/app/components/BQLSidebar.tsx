@@ -18,19 +18,18 @@ import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
 
 /**
- * Sidebar riêng cho khu vực BQL (/bql/*). Chỉ có "Tổng quan" là link thật —
- * xem docs/ROLES_AND_PLAN.md mục 10 (Dashboard BQL tối giản, W4). Các mục
- * còn lại (duyệt HITL, yêu cầu & thủ tục, cấu hình AI) thuộc Phase 2, backend
- * chưa có endpoint — hiện ở dạng khoá "Sắp có", không phải Link thật, để
- * không ai bấm vào rồi tưởng nhầm là đã hoạt động.
+ * Sidebar riêng cho khu vực BQL (/bql/*) — xem docs/ROLES_AND_PLAN.md mục 10.
+ * "Yêu cầu & Thủ tục" (US-13) đã nối backend nên là link thật; "Phê duyệt
+ * HITL" và "Cấu hình AI" vẫn thuộc Phase 2, chưa có endpoint — hiện ở dạng
+ * khoá "Sắp có" để không ai bấm vào rồi tưởng nhầm là đã hoạt động.
  */
 const menus = [
   { title: "Tổng quan", icon: LayoutDashboard, href: "/bql/dashboard" },
+  { title: "Yêu cầu & Thủ tục", icon: Inbox, href: "/bql/applications" },
 ];
 
 const comingSoon = [
   { title: "Phê duyệt HITL", icon: ClipboardCheck },
-  { title: "Yêu cầu & Thủ tục", icon: Inbox },
   { title: "Cấu hình AI", icon: Bot },
 ];
 

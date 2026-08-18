@@ -48,6 +48,10 @@ export type ChecklistItem = {
   order_index: number;
   completed: boolean;
   completed_at: string | null;
+  /** US-13 — null với `third_party_info` (không có bộ phận BQL nào phụ trách). */
+  handling_department: string | null;
+  submission_location: string | null;
+  processing_time: string | null;
 };
 
 export type ProgressSummary = {
@@ -137,6 +141,66 @@ export type ResidentProgress = {
 export type Dashboard = {
   residents: ResidentProgress[];
   total_residents: number;
+};
+
+// --- Hồ sơ nộp trực tuyến (US-13) — xem docs/CONTRACT_US13.md ------------
+
+export type ApplicationStatus =
+  | "received"
+  | "processing"
+  | "needs_info"
+  | "approved"
+  | "delivered"
+  | "rejected";
+
+/**
+ * `bql_processing` — BQL thật sự xử lý. `self_declared` — thủ tục làm ở cơ
+ * quan khác (vd tạm trú), cư dân tự nộp ảnh minh chứng, BQL chỉ ghi nhận.
+ * Giao diện KHÔNG được nói "Ban quản lý đang xử lý" với loại sau — mạo nhận
+ * quy trình của cơ quan khác.
+ */
+export type ApplicationKind = "bql_processing" | "self_declared";
+
+export type Attachment = {
+  attachment_id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  /** Link đọc tạm thời, hết hạn sau vài phút — không cache, không chia sẻ. */
+  url: string | null;
+  uploaded_at: string;
+};
+
+export type Application = {
+  application_id: number;
+  checklist_item_id: number;
+  task_name: string;
+  status: ApplicationStatus;
+  kind: ApplicationKind;
+  attachments: Attachment[];
+  handling_department: string | null;
+  submission_location: string | null;
+  processing_time: string | null;
+  note: string | null;
+  bql_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminApplication = Application & {
+  user_id: number;
+  full_name: string;
+  apartment: string;
+};
+
+export type CreateApplicationPayload = {
+  checklist_item_id: number;
+  note?: string;
+};
+
+export type UpdateApplicationStatusPayload = {
+  status: ApplicationStatus;
+  bql_note?: string;
 };
 
 export type CreateUserPayload = {
@@ -270,6 +334,30 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+/**
+ * Như `request`, nhưng KHÔNG set `Content-Type` cứng — để trình duyệt tự
+ * gắn boundary của `multipart/form-data` khi `body` là `FormData`. Set tay
+ * `Content-Type: multipart/form-data` sẽ thiếu boundary, backend không parse
+ * được. Chỉ dùng cho upload tệp (`POST /applications/{id}/attachments`).
+ */
+async function requestMultipart<T>(
+  path: string,
+  userId: number,
+  body: FormData,
+): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: await authHeaders(userId),
+    body,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
+  }
+  return response.json() as Promise<T>;
+}
+
 /** Gọi endpoint không cần danh tính — chỉ dùng cho luồng đăng nhập. */
 async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -338,6 +426,57 @@ export const api = {
   createResident: (userId: number, payload: CreateUserPayload) =>
     request<CreatedUser>("/admin/users", userId, {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** US-13 — nộp hồ sơ cho một mục checklist. 409 nếu mục đó đã có hồ sơ
+   * đang mở, 404 nếu mục không thuộc checklist của chính người gọi. */
+  createApplication: (userId: number, payload: CreateApplicationPayload) =>
+    request<Application>("/applications", userId, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /** Hồ sơ của chính cư dân đang đăng nhập, mới nhất trước. */
+  getApplications: (userId: number) =>
+    request<Application[]>("/applications", userId),
+
+  /** US-13 mục 7 — tải một tệp minh chứng (CCCD, VNeID...) lên cho một hồ sơ
+   * đã nộp. Giới hạn 5MB, chỉ nhận jpg/png/pdf — backend chặn lại (415/413)
+   * dù FE có kiểm tay trước để phản hồi nhanh hơn. */
+  uploadAttachment: (userId: number, applicationId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return requestMultipart<Attachment>(
+      `/applications/${applicationId}/attachments`,
+      userId,
+      form,
+    );
+  },
+
+  /** BQL xem hồ sơ của mọi cư dân. `status`/`department` là bộ lọc tuỳ chọn
+   * — bỏ trống để lấy tất cả. Yêu cầu role admin, backend tự chặn 403. */
+  getAdminApplications: (
+    userId: number,
+    filter?: { status?: ApplicationStatus; department?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (filter?.status) params.set("status", filter.status);
+    if (filter?.department) params.set("department", filter.department);
+    const qs = params.toString();
+    return request<AdminApplication[]>(`/admin/applications${qs ? `?${qs}` : ""}`, userId);
+  },
+
+  /** US-13 — BQL đổi trạng thái một hồ sơ. Backend không ép thứ tự chuyển
+   * trạng thái (có thể quay lại `needs_info` sau khi đã `approved`), và chặn
+   * 409 nếu duyệt hồ sơ `self_declared` chưa có ảnh minh chứng nào. */
+  updateApplicationStatus: (
+    userId: number,
+    applicationId: number,
+    payload: UpdateApplicationStatusPayload,
+  ) =>
+    request<Application>(`/admin/applications/${applicationId}`, userId, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     }),
 };

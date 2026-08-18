@@ -130,11 +130,12 @@ export default function DashboardPage() {
           icon={ClipboardList}
           tone="text-ink"
         />
-        <Stat
-          label="Trạng thái"
+        <StatusStatCard
           value={profile.onboarding_completed_at ? "Đang nhận nhà" : "Chưa thiết lập hồ sơ"}
-          icon={BadgeCheck}
-          tone="text-emerald"
+          // Bước "hiện tại" = mục chưa hoàn thành gần đầu checklist nhất.
+          // `items` lấy từ CÙNG api.getChecklist() render ở /checklist —
+          // không hardcode id riêng, tránh lệch khi thêm/bớt bước sau này.
+          nextItemId={checklist?.items.find((item) => !item.completed)?.id ?? null}
         />
       </section>
 
@@ -243,6 +244,40 @@ function AdminView({ dashboard }: { dashboard: Dashboard | null }) {
         </table>
       </div>
     </>
+  );
+}
+
+/**
+ * Ô "Trạng thái" ở Tổng quan — thêm nút "Xem lộ trình →" trỏ sang Checklist
+ * kèm `?item=<id>`, tái dùng đúng cơ chế tự cuộn + highlight mà `/checklist`
+ * đã có sẵn cho nút "Đến mục này" trong chat (`checklist/page.tsx`), không
+ * phải cơ chế mới. Không có bước nào dở dang (`nextItemId` null, vd đã xong
+ * hết checklist) thì ẩn nút — không đưa tới id không tồn tại.
+ */
+function StatusStatCard({
+  value,
+  nextItemId,
+}: {
+  value: string;
+  nextItemId: number | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted">Trạng thái</p>
+        <BadgeCheck className="h-4 w-4 text-emerald" strokeWidth={1.75} />
+      </div>
+      <h2 className="font-display mt-3 text-xl font-semibold text-emerald">{value}</h2>
+
+      {nextItemId !== null && (
+        <Link
+          href={`/checklist?item=${nextItemId}`}
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-gold transition hover:text-gold-soft"
+        >
+          Xem lộ trình →
+        </Link>
+      )}
+    </div>
   );
 }
 

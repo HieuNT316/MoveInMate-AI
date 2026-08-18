@@ -1,4 +1,15 @@
-const CACHE_NAME = "moveinmate-shell-v1";
+// Sinh service worker tại build time thay vì file tĩnh trong `public/`, để
+// CACHE_NAME đổi theo mỗi lần deploy (mã commit Vercel, hoặc mốc build lúc
+// `next build` chạy nếu không có mã commit — ví dụ chạy local).
+// Trước đây CACHE_NAME cố định "moveinmate-shell-v1" nên ai đã từng mở trang
+// sẽ tiếp tục thấy bản cũ sau mọi lần deploy, kể cả Ctrl+F5, vì service
+// worker chỉ dọn cache có tên khác CACHE_NAME — mà tên đó không bao giờ đổi.
+export const dynamic = "force-static";
+
+const VERSION = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ?? String(Date.now());
+
+const SCRIPT = `
+const CACHE_NAME = "moveinmate-shell-${VERSION}";
 const APP_SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -51,3 +62,16 @@ self.addEventListener("fetch", (event) => {
     ),
   );
 });
+`;
+
+export async function GET() {
+  return new Response(SCRIPT, {
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      // Trình duyệt phải luôn revalidate file sw.js gốc để phát hiện bản mới —
+      // cache-control dài hạn ở đây sẽ tái tạo đúng lỗi mà việc này định sửa.
+      "Cache-Control": "no-cache",
+      "Service-Worker-Allowed": "/",
+    },
+  });
+}

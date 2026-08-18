@@ -2,11 +2,23 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  Check,
+  Clock3,
+  ExternalLink,
+  FileUp,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 
 import Layout from "../components/Layout";
-import { api, type Checklist } from "../../lib/api";
+import AttachmentUploader from "../components/AttachmentUploader";
+import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
+import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
 
 export default function ChecklistPage() {
   return (
@@ -24,8 +36,10 @@ function ChecklistContent() {
   const { userId, ready } = useDemoUser();
 
   const [data, setData] = useState<Checklist | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  const [submittingFor, setSubmittingFor] = useState<ChecklistItem | null>(null);
 
   // Đích tới từ nút "Đến mục này" trong chat (SuggestedAction) — cuộn và
   // đánh dấu đúng mục một lần sau khi checklist tải xong.
@@ -40,6 +54,13 @@ function ChecklistContent() {
         return;
       }
       setData(checklist);
+      // Lỗi tải hồ sơ không được chặn cả trang checklist — cư dân vẫn xem và
+      // tick được các mục khác dù danh sách hồ sơ đã nộp tải hỏng.
+      try {
+        setApplications(await api.getApplications(userId));
+      } catch (err) {
+        console.error("[checklist] không tải được danh sách hồ sơ đã nộp:", err);
+      }
       setError(null);
     } catch {
       setError("Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?");
@@ -94,6 +115,16 @@ function ChecklistContent() {
 
   const { items, overall, bql_scope } = data;
 
+  // Mỗi mục chỉ có MỘT hồ sơ đang mở — `applications` trả mới nhất trước nên
+  // giữ bản ghi đầu tiên gặp cho mỗi `checklist_item_id` là đủ, không cần lọc
+  // theo trạng thái "đang mở" ở FE (backend đã tự chặn nộp trùng bằng 409).
+  const applicationByItem = new Map<number, Application>();
+  for (const app of applications) {
+    if (!applicationByItem.has(app.checklist_item_id)) {
+      applicationByItem.set(app.checklist_item_id, app);
+    }
+  }
+
   return (
     <Layout>
       <div className="mx-auto max-w-3xl">
@@ -138,12 +169,20 @@ function ChecklistContent() {
           <ol className="space-y-0">
             {items.map((item, index) => {
               const external = item.item_type === "third_party_info";
+              // Cập nhật 15/08 (CONTRACT_US13.md mục 2): mọi mục đều nộp
+              // được — backend tự gắn kind theo item_type (routes.py), mục
+              // "ngoài phạm vi BQL" (tạm trú, cập nhật cư trú) thành hồ sơ
+              // self_declared, cư dân chỉ cần nộp ảnh minh chứng.
+              const submittable = true;
+              const application = applicationByItem.get(item.id);
               return (
                 <li
                   key={item.id}
                   id={`checklist-item-${item.id}`}
                   className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
-                    highlighted === item.id ? "bg-gold-tint/60 ring-1 ring-gold/40" : ""
+                    highlighted === item.id
+                      ? "animate-[pulse_0.7s_ease-in-out_2] bg-gold-tint/60 ring-1 ring-gold/40"
+                      : ""
                   }`}
                 >
                   {index !== items.length - 1 && (
@@ -191,6 +230,69 @@ function ChecklistContent() {
                     <p className="mt-1.5 text-sm leading-relaxed text-muted">
                       {item.description}
                     </p>
+
+                    {/* US-13: 3 trường chỉ có ở mục `bql_actionable` — mục
+                        third_party_info không có bộ phận nào của BQL phụ
+                        trách nên backend luôn trả null cho cả ba. */}
+                    {item.handling_department && (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                          {item.handling_department}
+                        </span>
+                        {item.submission_location && (
+                          <span className="flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            {item.submission_location}
+                          </span>
+                        )}
+                        {item.processing_time && (
+                          <span className="flex items-center gap-1.5">
+                            <Clock3 className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            {item.processing_time}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {submittable && (
+                      <div className="mt-3">
+                        {application ? (
+                          <div
+                            className={`flex flex-col gap-1 rounded-xl border px-3.5 py-2.5 text-xs ${applicationStatusTone(application.status)}`}
+                          >
+                            <span className="flex items-center gap-1.5 font-medium">
+                              {(application.status === "needs_info" ||
+                                application.status === "rejected") && (
+                                <AlertCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+                              )}
+                              {applicationStatusLabel(application)}
+                            </span>
+                            {application.bql_note &&
+                              (application.status === "needs_info" ||
+                                application.status === "rejected") && (
+                                <span className="opacity-90">{application.bql_note}</span>
+                              )}
+
+                            <AttachmentUploader
+                              userId={userId}
+                              applicationId={application.application_id}
+                              attachments={application.attachments}
+                              required={application.kind === "self_declared"}
+                              onUploaded={load}
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setSubmittingFor(item)}
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
+                          >
+                            <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                            Nộp hồ sơ
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               );
@@ -198,6 +300,18 @@ function ChecklistContent() {
           </ol>
         </div>
       </div>
+
+      {submittingFor && (
+        <SubmitApplicationDialog
+          userId={userId}
+          item={submittingFor}
+          onClose={() => setSubmittingFor(null)}
+          onSubmitted={() => {
+            setSubmittingFor(null);
+            load();
+          }}
+        />
+      )}
     </Layout>
   );
 }

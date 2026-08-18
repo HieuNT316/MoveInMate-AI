@@ -342,7 +342,7 @@ làm tốt lên hay tệ đi.**
 > **Cách dùng:** tự tick `[x]` việc của mình và ghi ngày. Ai đổi trạng thái thì
 > commit luôn file này để hai người kia thấy — đừng báo miệng rồi quên.
 >
-> Lập sau rà soát sáng 15/08. Thay thế các mốc "trước thứ Bảy" ở mục 11.
+> ⚠️ **Đã qua — giữ làm hồ sơ.** GATE 2 demo xong 15/08; kế hoạch đang theo là [mục 13](#13-kế-hoạch-tuần-182408--sau-gate-2).
 
 ### Đang ở đâu
 
@@ -499,3 +499,104 @@ Thu tự viết bản khác. Cả hai chạy được, nhưng một bản thành
 
 **Đừng bấm nút "Đổi" ở trang Hồ sơ trên bản deploy khi đang thử.** Nó sửa dữ liệu
 thật và làm lệch persona demo. Đã phải vá tay hai lần.
+
+---
+
+## 13. Kế hoạch tuần 18–24/08 — sau GATE 2
+
+> Lập sáng **thứ Ba 18/08**, sau khi GATE 2 đã demo xong. Thay thế mục 12 (kế
+> hoạch ngày demo — giữ lại làm hồ sơ, đừng theo nữa).
+>
+> **Cách dùng:** tự tick `[x]` việc của mình rồi commit file này.
+
+### Ba mốc còn lại
+
+| Mốc | Ngày | Còn |
+|---|---|---|
+| **W4 kết thúc** — Phase 1 chạy dữ liệu thật, hết mock | **19/08** | **1 ngày** |
+| Phase 2 | 20–26/08 | 7 ngày |
+| **Demo Day** | **01/09** | 14 ngày |
+
+### Đang ở đâu
+
+| | |
+|---|---|
+| US-13 nộp hồ sơ + upload minh chứng | **Xong cả BE lẫn FE**, đã chạy trên production |
+| US-10 duyệt hồ sơ (charter xếp Phase 2) | **Đã xong sớm** — vòng đời trạng thái đầy đủ + trang BQL |
+| US-12-mini dashboard BQL · PWA | Xong |
+| V7 nút 👍/👎 | Xong (Thu, 14/08) |
+| **Eval** | **32/35 đo ngày 12/08 — TRƯỚC khi có `rewrite_query`.** Chưa đo lại |
+| Test | 121 pass · coverage 82% |
+| CI | Vẫn đỏ vì tài khoản tổ chức vướng thanh toán |
+
+### Ưu tiên 1 — trả nợ trung thực (hôm nay, 18/08)
+
+Ba việc này rẻ nhưng để lâu thì thành nói sai với mentor và BTC.
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| C1 | **Chạy lại `run_eval`.** Số 32/35 vừa dùng ở GATE 2 đo trên kiến trúc cũ. Nếu Demo Day dùng lại số này mà bị hỏi "đo lúc nào" thì không trả lời được | **Hải** | 30' | [ ] |
+| C2 | **V3 — guard vùng biên.** Câu "đúng lĩnh vực nhưng KB không có" vẫn hiện trích dẫn dưới câu "tôi không biết". Gộp luôn với US-05 (hiệu chỉnh ngưỡng) — cùng một bài toán, đừng tách hai việc | **Hải** | 2h | [ ] |
+| C3 | **V2 — rate limiting.** Hoãn qua GATE 2 là đúng, giờ hết lý do hoãn: URL công khai, key trả tiền, hạn mức Google dùng chung cả nhóm | **Hiếu** | 1h | [ ] |
+| C4 | **Cập nhật tài liệu cho khớp code.** Charter vẫn ghi `APPLICATIONS` là Phase 2 và "chưa migrate"; `architecture_diagram.md` cũng vậy; README thiếu 6 endpoint mới; `.env.example` thiếu `rag_history_turns` và ba biến storage | **Hiếu** | 1h | [ ] |
+
+### Ưu tiên 2 — yêu cầu của FE (19–20/08)
+
+Thu đã nêu ba việc. Đánh giá và phạm vi đã chốt:
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| D1 | **`document_type` + `required_documents`.** Không chỉ thêm cột: chuyển bảng "thủ tục nào cần giấy tờ gì" từ FE (`applicationForms.ts`) xuống `checklist_items`, nguồn là KB — giống hệt cách đã làm với định tuyến. API trả thêm `required_documents` (trên mục checklist) và `missing_documents` (trên hồ sơ) | **Hiếu** | 1h30 | [ ] |
+| D2 | FE bỏ cơ chế mở khoá tuần tự, hiện đủ ô giấy tờ cùng lúc, đánh dấu ô đã có / còn thiếu theo `missing_documents` | **Thu** | 1h | [ ] |
+| D3 | **`account_status` (active/locked) + endpoint khoá/mở.** Kiểm ngay trong `get_current_user` → khoá thì 403. Chặn ở server, không cần đụng Supabase Auth | **Hiếu** | 1h | [ ] |
+| D4 | **Đặt lại mật khẩu**, trả về mật khẩu tạm mới. ⚠️ **Không làm "gửi lại link kích hoạt"** — tài khoản demo dùng tên miền `@moveinmate.demo` không tồn tại, thư không bao giờ tới | **Hiếu** | 45' | [ ] |
+| D5 | Trang "Quản lý cư dân" cho BQL — dùng D3/D4 | **Thu** | 2h | [ ] |
+
+**Không làm: chuyển sang email invite.** Lý do đã ghi sẵn trong
+`src/services/supabase_admin.py` từ lúc dựng — `invite_user_by_email` cần SMTP
+và địa chỉ email có thật. Đổi bây giờ là **mất khả năng đăng nhập của cả 41 tài
+khoản demo**. Để dành khi triển khai thật với email cư dân thật.
+
+### Ưu tiên 3 — chốt phạm vi W4 (quyết hôm nay, hạn 19/08)
+
+Charter xếp bốn việc vào W4. Còn một ngày, ba người. Phải chọn, và **ghi rõ cái
+gì không làm** thay vì im lặng để nó trôi.
+
+| ID | Charter | Quyết | Vì sao |
+|---|---|---|---|
+| US-05 FAQ + ngưỡng | ~10h | **Gộp vào C2** | Chi phí thật nằm ở hiệu chỉnh ngưỡng, đúng thứ C2 đang làm |
+| US-08 BQL nạp tài liệu | ~8h | **Giữ, làm 20–21/08** | Câu chuyện sản phẩm mạnh: BQL tự cập nhật quy trình. Cần Hải vì đụng ingest + quota |
+| US-09 CRUD FAQ | ~6h | **BỎ — ghi vào charter** | Nhánh FAQ chưa bật; làm CRUD cho thứ chưa ai đọc là công vô ích |
+| US-12-mini · PWA | ~10h | Xong | |
+
+### Ưu tiên 4 — vận hành (21–22/08)
+
+| | Việc | Ai | Ước | Xong |
+|---|---|---|---|---|
+| E1 | **V8 — che PII trước khi ghi `chat_history`.** Quan trọng hơn trước: hệ thống nay còn giữ ảnh CCCD/VNeID | Hiếu | 1h | [ ] |
+| E2 | **V4 — `/health/deep`** kiểm DB + Chroma, trả 503 khi thành phần chết. Tiền lệ: index Chroma hỏng 11/08 mà mọi chỉ báo vẫn xanh | Hiếu | 1h | [ ] |
+| E3 | **V1 — LangSmith.** Khai là deliverable BTC ở 4 nơi, `src/` không có dòng nào | **Hải** | 30' | [ ] |
+| E4 | V5 log có cấu trúc + V9 bắt lỗi tập trung | Hiếu | 3h | [ ] |
+| E5 | Partial unique index chống nộp trùng hồ sơ | Hiếu | 20' | [ ] |
+| E6 | Gỡ `web/app/prototypes/action-card/` — trang thử nghiệm đang sống trên production | Thu | 10' | [ ] |
+
+### Ưu tiên 5 — deliverable Demo Day (23–24/08, đừng để tới 31/08)
+
+| | Việc | Ai | Xong |
+|---|---|---|---|
+| F1 | **Video Demo** — quay theo kịch bản đã chạy ở GATE 2, thêm đoạn nộp hồ sơ + upload | Cả nhóm | [ ] |
+| F2 | **Pitch Deck** (`presentation/`) | Cả nhóm | [ ] |
+| F3 | Chạy lại `run_eval` lần cuối trước khi chốt số cho slide | Hải | [ ] |
+
+Hai deliverable này là thứ duy nhất còn thiếu trong 9 mục BTC chấm. Để tới tuần
+sau mới làm là tự đặt mình vào thế không sửa được gì nếu quay hỏng.
+
+### Nguyên tắc giữ cho tuần này
+
+**Đo lại sau mỗi lần đổi KB hoặc ngưỡng.** Đây là V10, và tuần trước đã trả giá:
+sửa graph mà không đo lại nên suốt 6 ngày cả nhóm báo cáo một con số không còn
+đúng với hệ thống đang chạy.
+
+**Chốt hợp đồng bằng văn bản trước khi hai vai code song song** (charter mục 12).
+US-13 làm đúng cách này và chạy trơn: Thu code giao diện trong khi backend đang
+viết, không ai phải chờ ai, và ráp vào khớp ngay lần đầu.
