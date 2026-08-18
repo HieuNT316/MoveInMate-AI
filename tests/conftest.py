@@ -169,7 +169,7 @@ def fake_storage(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def fake_ingest(monkeypatch):
+def fake_ingest(monkeypatch, db_session):
     """Chặn embed thật VÀ chặn kết nối DB thật của job nạp tài liệu nền.
 
     `POST /admin/documents` chạy `_embed_document` trong `BackgroundTasks`.
@@ -192,14 +192,27 @@ def fake_ingest(monkeypatch):
     `routes.ingest_file` và `routes.SessionLocal` là hai tham chiếu riêng đã
     bind sẵn — patch ở module nguồn sẽ không đổi được thứ `routes.py` gọi.
 
-    `SessionLocal` giả trỏ tới một SQLite in-memory HOÀN TOÀN RIÊNG (không
-    phải `db_session` của test): job nền chạy tách khỏi fixture `db_session`,
-    và việc này giữ `fake_ingest` nhẹ như `fake_auth_provisioning`/
-    `fake_storage` — không kéo DB vào những test không đụng tới nó (vd.
-    `tests/test_services/test_checklist.py`). Vì DB giả này rỗng, thao tác
-    `store.set_embed_status` bên trong `_embed_document` không tìm thấy dòng
-    nào và tự bỏ qua (xem `store.py`) — không lỗi, chỉ đơn giản không cập nhật
-    trạng thái, điều test ở đây không cần kiểm.
+    `SessionLocal` giả trỏ THẲNG vào `db_session` — CHÍNH session mà fixture
+    `client` dùng qua `get_db` — chứ không phải một DB in-memory rời rạc như
+    bản trước. Bản trước (round 1) dùng DB rời để giữ fixture nhẹ, không ép
+    `db_session` lên mọi test trong bộ; nhưng hậu quả là mọi lượt
+    `set_embed_status` của job nền ghi vào một DB không ai đọc lại được —
+    `pending -> processing -> ready/failed` không có test nào QUAN SÁT được,
+    nên xoá hẳn `_embed_document` vẫn không làm assertion nào đỏ. Task 14/15
+    tồn tại chính vì state machine này, nên "không kiểm được" = không kiểm.
+    Đổi lại trỏ về `db_session` thật để trạng thái ghi ra observable được từ
+    test, đánh đổi lấy việc `fake_ingest` giờ kéo `db_session` vào MỌI test
+    trong bộ (kể cả test không đụng DB) — chấp nhận được vì SQLite in-memory
+    dựng lại rất rẻ, và cái giá đó nhỏ hơn nhiều so với một state machine
+    không kiểm chứng được.
+
+    `with SessionLocal() as db:` trong `_embed_document` gọi `__exit__` khi
+    thoát khối — với một session THẬT được tự mở riêng thì đóng ở đó là đúng,
+    nhưng ở đây `SessionLocal()` trả về CHÍNH `db_session` dùng chung cho cả
+    phần còn lại của test, nên đóng nó sẽ phá mọi truy vấn SAU khi job nền
+    chạy (kể cả GET tiếp theo trong cùng test). `_NonClosingSession` bọc
+    `db_session` trong một context manager nuốt `close()`, chỉ nhả ra
+    `db_session` y nguyên lúc `__enter__`.
     """
     from src.api import routes
 
@@ -208,12 +221,12 @@ def fake_ingest(monkeypatch):
         routes, "ingest_file", lambda _db, path: called.append(str(path)) or 3
     )
 
-    def _fake_session_local():
-        engine = create_engine(
-            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-        )
-        Base.metadata.create_all(engine)
-        return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+    class _NonClosingSession:
+        def __enter__(self):
+            return db_session
 
-    monkeypatch.setattr(routes, "SessionLocal", _fake_session_local)
+        def __exit__(self, *exc_info):
+            return False
+
+    monkeypatch.setattr(routes, "SessionLocal", lambda: _NonClosingSession())
     return called

@@ -1440,7 +1440,67 @@ async def test_bql_nap_tai_lieu_moi(client, fake_ingest):
     )
     assert r.status_code == 201
     assert r.json()["title"] == "Quy trình mới"
-    assert r.json()["embed_status"] in ("pending", "processing", "ready")
+    # Response của POST là snapshot NGAY LÚC TẠO — trước khi job nền chạy
+    # (BackgroundTasks chỉ chạy SAU khi body đã gửi), nên luôn là "pending" ở
+    # đây. Trạng thái sau embed được kiểm ở test riêng bên dưới bằng cách
+    # tra lại qua GET.
+    assert r.json()["embed_status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_thanh_cong_chuyen_sang_ready(client, fake_ingest):
+    """State machine pending -> processing -> ready phải QUAN SÁT ĐƯỢC.
+
+    `fake_ingest` trỏ `SessionLocal` giả về CHÍNH `db_session` của test, nên
+    `_embed_document` ghi trạng thái vào đúng nơi test đọc lại được. Xoá hẳn
+    `_embed_document` (hoặc quên gọi `set_embed_status(..., "ready")`) sẽ làm
+    assertion dưới đây đỏ — khác với round trước, lúc "ready" nằm trong set
+    ba giá trị nên test không bao giờ fail dù job nền bị xoá.
+
+    `await client.post(...)` đã chạy xong nghĩa là background task cũng đã
+    chạy xong: `ASGITransport` thực thi `BackgroundTasks` như một phần của
+    cùng lệnh gọi ASGI app mà `client.post` await, không phải một luồng/task
+    tách biệt — nên không cần chờ gì thêm trước khi GET lại.
+    """
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình embed thành công", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    document_id = r.json()["document_id"]
+
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    updated = next((d for d in rows if d["document_id"] == document_id), None)
+    assert updated is not None
+    assert updated["embed_status"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_loi_embed_chuyen_sang_failed(client, fake_ingest, monkeypatch):
+    """`ingest_file` lỗi thì trạng thái phải dừng ở "failed", KHÔNG mất dòng.
+
+    Ghi đè lại `routes.ingest_file` (đã được `fake_ingest` gắn sẵn) thành hàm
+    luôn raise, mô phỏng lỗi thật (Google API lỗi, file hỏng, v.v.) mà không
+    chạm mạng.
+    """
+    from src.api import routes
+
+    def _raise(_db, _path):
+        raise RuntimeError("giả lập lỗi embed")
+
+    monkeypatch.setattr(routes, "ingest_file", _raise)
+
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình embed lỗi", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    document_id = r.json()["document_id"]
+
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    updated = next((d for d in rows if d["document_id"] == document_id), None)
+    assert updated is not None
+    assert updated["embed_status"] == "failed"
 
 
 @pytest.mark.asyncio
