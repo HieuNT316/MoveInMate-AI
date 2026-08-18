@@ -224,8 +224,8 @@ tệp tải lên trước 18/08 (hiện có 5 tệp như vậy trên production)
 
 ### Hai điều FE cần nhớ
 
-**`url` hết hạn sau 5 phút** — ký lại mỗi lần đọc hồ sơ. Đừng cache vào
-localStorage hay share ra ngoài; tải lại trang là có link mới.
+**URL từ `GET .../url` hết hạn sau 5 phút** — gọi lại mỗi lần cần xem ảnh mới. Đừng cache vào
+localStorage hay share ra ngoài; gọi lại endpoint khi cần link tươi.
 
 **Đây là giấy tờ tuỳ thân** (CCCD, VNeID). Bucket private, không có URL công
 khai. Đừng hiện ảnh ở trang nào không kiểm đăng nhập, đừng ghi ra log.
