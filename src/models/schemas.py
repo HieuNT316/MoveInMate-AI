@@ -306,8 +306,9 @@ class AttachmentTypeUpdateRequest(BaseModel):
 class AttachmentResponse(BaseModel):
     """Ảnh/PDF minh chứng đã tải lên.
 
-    `url` là link ĐỌC TẠM THỜI, ký lại mỗi lần đọc và hết hạn sau vài phút —
-    đừng lưu lại hay chia sẻ. `null` nghĩa là ký link hỏng, thử tải lại trang.
+    `url` luôn `null` ở đây — xem `GET /api/v1/applications/{id}/attachments/{aid}/url`
+    để lấy link đọc tạm thời. Giữ trường này thay vì xoá hẳn để giao diện chưa kịp
+    đổi không vỡ vì thiếu khoá; ảnh không hiện thì tốt hơn trang trắng.
     """
 
     attachment_id: int
