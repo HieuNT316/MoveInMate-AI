@@ -32,7 +32,15 @@ def ensure_seeded(persist_dir: str, seed_dir: str) -> bool:
         # KHÔNG chép đè: sẽ xoá mất tài liệu BQL vừa nạp trên production.
         return False
 
-    target.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(seed, target, dirs_exist_ok=True)
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(seed, target, dirs_exist_ok=True)
+    except Exception:
+        # Chép dở dang trông giống "đã seed" ở lần khởi động sau — dọn sạch để
+        # lần sau còn thử lại, thay vì kẹt mãi với dữ liệu chép nửa chừng.
+        shutil.rmtree(target, ignore_errors=True)
+        logger.error("Chép mồi Chroma thất bại, đã dọn %s", target)
+        raise
+
     logger.info("Đã nạp mồi Chroma từ %s", seed)
     return True
