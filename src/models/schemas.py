@@ -322,6 +322,16 @@ class AttachmentResponse(BaseModel):
     uploaded_at: datetime
 
 
+class AttachmentUrlResponse(BaseModel):
+    """Link đọc tạm thời, ký khi người dùng thật sự mở ảnh.
+
+    Tách khỏi phản hồi danh sách vì ký là một lời gọi mạng đồng bộ tới Supabase:
+    ký sẵn cho mọi tệp mỗi lần đọc hồ sơ sẽ chặn event loop.
+    """
+
+    url: str
+
+
 class ApplicationCreateRequest(BaseModel):
     """US-13 — cư dân nộp hồ sơ cho một thủ tục trong checklist của chính mình."""
 

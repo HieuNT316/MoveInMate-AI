@@ -1186,3 +1186,58 @@ async def test_go_loai_ve_chua_phan_loai(client):
     mine = (await client.get("/api/v1/applications", headers=OWNER)).json()[0]
     assert mine["unlabelled_count"] == 1
     assert mine["missing_documents"] is None
+
+
+# --- Ký URL theo yêu cầu (18/08) ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chu_ho_so_lay_duoc_link_xem_anh(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=OWNER
+    )
+    assert r.status_code == 200
+    assert r.json()["url"].startswith("https://")
+
+
+@pytest.mark.asyncio
+async def test_bql_lay_duoc_link_cua_moi_ho_so(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=ADMIN
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khac_khong_lay_duoc_link(client):
+    app = await _create(client, CAR_CARD_ITEM)
+    aid = app["application_id"]
+    att_id = (await _upload(client, aid)).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{aid}/attachments/{att_id}/url", headers=RENTER
+    )
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_id_tep_cua_ho_so_khac_tra_404(client):
+    """Không kiểm cặp (hồ sơ, tệp) thì đoán được id tệp là đọc được ảnh CCCD
+    của người khác. Đúng lỗi bản review D1 đã bắt ở endpoint gán loại."""
+    first = await _create(client, CAR_CARD_ITEM)
+    second = await _create(client, RESIDENCY_ITEM)
+    att_id = (await _upload(client, first["application_id"])).json()["attachment_id"]
+
+    r = await client.get(
+        f"/api/v1/applications/{second['application_id']}/attachments/{att_id}/url",
+        headers=OWNER,
+    )
+    assert r.status_code == 404

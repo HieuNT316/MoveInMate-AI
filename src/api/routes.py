@@ -34,6 +34,7 @@ from src.models.schemas import (
     ApplicationStatusUpdateRequest,
     AttachmentResponse,
     AttachmentTypeUpdateRequest,
+    AttachmentUrlResponse,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -375,6 +376,42 @@ async def set_attachment_document_type(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
         )
     return updated
+
+
+@router.get(
+    "/applications/{application_id}/attachments/{attachment_id}/url",
+    response_model=AttachmentUrlResponse,
+)
+async def get_attachment_url(
+    application_id: int,
+    attachment_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AttachmentUrlResponse:
+    """Ký link đọc ảnh, chỉ khi người dùng thật sự mở nó.
+
+    Dùng `get_current_user` chứ KHÔNG phải `require_resident`: BQL cần xem đúng
+    những ảnh này để đối chiếu giấy tờ. Quyền kiểm trong thân hàm.
+    """
+    attachment = store.get_attachment(db, application_id, attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+
+    app = store.get_application(db, application_id)
+    if app is None or (user["role"] != "admin" and app.user_id != user["user_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+
+    url = storage.signed_url(attachment.storage_path)
+    if url is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không ký được link xem ảnh.",
+        )
+    return AttachmentUrlResponse(url=url)
 
 
 @router.get("/applications", response_model=list[ApplicationResponse])

@@ -346,6 +346,22 @@ def get_application(db: Session, application_id: int) -> Application | None:
     return db.scalar(select(Application).where(Application.application_id == application_id))
 
 
+def get_attachment(
+    db: Session, application_id: int, attachment_id: int
+) -> ApplicationAttachment | None:
+    """Tệp đính kèm, tra theo CẢ HAI khoá.
+
+    Thiếu điều kiện `application_id` thì đoán được id tệp là đọc được ảnh giấy
+    tờ của người khác — quyền phải kiểm trên cặp, không phải trên một id.
+    """
+    return db.scalar(
+        select(ApplicationAttachment).where(
+            ApplicationAttachment.attachment_id == attachment_id,
+            ApplicationAttachment.application_id == application_id,
+        )
+    )
+
+
 def add_attachment(
     db: Session,
     application_id: int,
