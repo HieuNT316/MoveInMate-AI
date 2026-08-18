@@ -23,6 +23,9 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Bản mồi Chroma. KHÔNG để ở /app/data/chroma — volume mount sẽ che khuất nó.
+RUN cp -r /app/data/chroma /app/data/chroma_seed
+
 # Create data directory with correct ownership
 RUN mkdir -p /app/data && chown -R appuser:appuser /app
 

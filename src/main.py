@@ -11,12 +11,14 @@ from src.api.routes import router
 from src.config import get_settings
 from src.database import get_db
 from src.services import vectorstore
+from src.services.chroma_seed import ensure_seeded
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"Starting {settings.app_name} in {settings.app_env} mode")
+    ensure_seeded(get_settings().chroma_persist_dir, "./data/chroma_seed")
     yield
     print("Shutting down...")
 
