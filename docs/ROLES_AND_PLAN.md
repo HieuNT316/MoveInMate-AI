@@ -562,6 +562,18 @@ khoản demo**. Để dành khi triển khai thật với email cư dân thật.
 Charter xếp bốn việc vào W4. Còn một ngày, ba người. Phải chọn, và **ghi rõ cái
 gì không làm** thay vì im lặng để nó trôi.
 
+### US-08 — chia việc giữa vai AI và vai BE (chốt 18/08)
+
+`ingest` thuộc vai AI. Phân chia:
+
+| Ai | Việc |
+|---|---|
+| **Hải** | Cho `ingest_file` nhận tài liệu do BQL gửi; xác nhận nhịp batch và backoff vẫn đúng khi gọi từ tiến trình web thay vì từ script |
+| **Hiếu** | Endpoint `POST /admin/documents`, cột `embed_status`, gắn Railway Volume, seed lúc khởi động, `/health/deep` |
+
+Không ai đụng file của vai kia. `data/chroma/` vẫn chỉ vai AI chạy `ingest_kb`
+thủ công; endpoint mới ghi vào cùng collection nhưng qua `ingest_file`.
+
 | ID | Charter | Quyết | Vì sao |
 |---|---|---|---|
 | US-05 FAQ + ngưỡng | ~10h | **Gộp vào C2** | Chi phí thật nằm ở hiệu chỉnh ngưỡng, đúng thứ C2 đang làm |
