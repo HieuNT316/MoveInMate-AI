@@ -24,6 +24,7 @@ from src.models.db import (
     ChatHistory,
     ChecklistCompletion,
     ChecklistItem,
+    Document,
     User,
 )
 from src.services.documents import describe, evaluate_documents
@@ -495,3 +496,39 @@ def set_attachment_type(
     db.commit()
     db.refresh(att)
     return _attachment_dict(att)
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+def _document_dict(doc: Document) -> dict[str, Any]:
+    return {
+        "document_id": doc.document_id,
+        "title": doc.title,
+        "file_path": doc.file_path,
+        "embed_status": doc.embed_status,
+        "uploaded_at": _as_utc(doc.uploaded_at),
+    }
+
+
+def create_document_record(
+    db: Session, file_path: str, title: str, embed_status: str
+) -> dict[str, Any]:
+    doc = Document(file_path=file_path, title=title, embed_status=embed_status)
+    db.add(doc)
+    db.commit()
+    return _document_dict(doc)
+
+
+def set_embed_status(db: Session, document_id: int, embed_status: str) -> None:
+    doc = db.get(Document, document_id)
+    if doc is not None:
+        doc.embed_status = embed_status
+        db.commit()
+
+
+def list_documents(db: Session) -> list[dict[str, Any]]:
+    return [
+        _document_dict(d)
+        for d in db.scalars(select(Document).order_by(Document.document_id.desc()))
+    ]

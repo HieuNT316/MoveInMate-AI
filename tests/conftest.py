@@ -166,3 +166,54 @@ def fake_storage(monkeypatch):
     monkeypatch.setattr(storage, "signed_url", lambda path: f"https://fake.test/{path}")
     monkeypatch.setattr(storage, "ensure_bucket", lambda: None)
     return uploaded
+
+
+@pytest.fixture(autouse=True)
+def fake_ingest(monkeypatch):
+    """Chặn embed thật VÀ chặn kết nối DB thật của job nạp tài liệu nền.
+
+    `POST /admin/documents` chạy `_embed_document` trong `BackgroundTasks`.
+    Hàm đó tự mở `SessionLocal()` vì session của request đã đóng lúc job nền
+    chạy — và `SessionLocal` KHÔNG đi qua `app.dependency_overrides[get_db]`
+    mà fixture `client` dùng. `httpx.ASGITransport` CHẠY background task thật
+    trước khi trả response, nên nếu không patch ở đây, `SessionLocal()` sẽ nối
+    thẳng `DATABASE_URL` thật (Supabase PRODUCTION trong `.env` của repo này)
+    và `ingest_file` thật sẽ gọi Google embedding API — ghi hàng thật vào
+    production và tiêu hạn mức 1000 request/ngày dùng chung cả nhóm. Cùng bài
+    học sự cố 11/08 khiến `fake_auth_provisioning`/`fake_storage` là autouse.
+
+    `autouse=True` như hai fixture trên: hậu quả quên gắn nặng hơn hẳn một
+    test lỡ tay, không thể để tuỳ chọn.
+
+    Patch trên MODULE `routes` (`from src.api import routes`), KHÔNG patch
+    `src.services.ingest.ingest_file` hay `src.database.SessionLocal`:
+    `routes.py` import hai tên này ở mức module (`from src.services.ingest
+    import ingest_file` / `from src.database import SessionLocal`), nên
+    `routes.ingest_file` và `routes.SessionLocal` là hai tham chiếu riêng đã
+    bind sẵn — patch ở module nguồn sẽ không đổi được thứ `routes.py` gọi.
+
+    `SessionLocal` giả trỏ tới một SQLite in-memory HOÀN TOÀN RIÊNG (không
+    phải `db_session` của test): job nền chạy tách khỏi fixture `db_session`,
+    và việc này giữ `fake_ingest` nhẹ như `fake_auth_provisioning`/
+    `fake_storage` — không kéo DB vào những test không đụng tới nó (vd.
+    `tests/test_services/test_checklist.py`). Vì DB giả này rỗng, thao tác
+    `store.set_embed_status` bên trong `_embed_document` không tìm thấy dòng
+    nào và tự bỏ qua (xem `store.py`) — không lỗi, chỉ đơn giản không cập nhật
+    trạng thái, điều test ở đây không cần kiểm.
+    """
+    from src.api import routes
+
+    called: list[str] = []
+    monkeypatch.setattr(
+        routes, "ingest_file", lambda _db, path: called.append(str(path)) or 3
+    )
+
+    def _fake_session_local():
+        engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        Base.metadata.create_all(engine)
+        return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+
+    monkeypatch.setattr(routes, "SessionLocal", _fake_session_local)
+    return called

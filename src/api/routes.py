@@ -5,13 +5,16 @@ tách thành package `src/api/routes/` như mô tả ở docs/architecture_diagr
 mục 3.2.
 """
 
+import logging
 import re
 import unicodedata
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -25,7 +28,7 @@ from sqlalchemy.orm import Session
 from src.agents.graph import chat_graph
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
-from src.database import get_db
+from src.database import SessionLocal, get_db
 from src.models.db import APPLICATION_STATUSES
 from src.models.schemas import (
     AccountStatusUpdateRequest,
@@ -47,6 +50,8 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
+    DocumentIngestRequest,
+    DocumentResponse,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -56,6 +61,7 @@ from src.models.schemas import (
 from src.services import storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
+from src.services.ingest import KB_DIR, ingest_file
 from src.services.storage import ALLOWED_CONTENT_TYPES
 from src.services.supabase_admin import (
     SupabaseAdminError,
@@ -64,6 +70,8 @@ from src.services.supabase_admin import (
     update_auth_password,
 )
 from src.services.vectorstore import RetrievalError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -827,3 +835,71 @@ async def resident_detail(
     kèm tiến độ. 41 cư dân thì lọc và tìm kiếm làm ở client.
     """
     return _build_resident_detail(db, user_id)
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+def slugify(text: str) -> str:
+    """Tên file an toàn cho hệ thống tệp: tái dùng `_normalize` (bỏ dấu, hạ chữ
+    thường) rồi thay khoảng trắng/ký tự lạ bằng '-'. Dùng cho `.md` do BQL tự
+    nạp vào `data/kb/bql/`.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", _normalize(text)).strip("-")
+    return slug or "tai-lieu"
+
+
+def _embed_document(document_id: int, path: Path) -> None:
+    """Chạy ngoài request. Tự mở session riêng — session của request đã đóng."""
+    with SessionLocal() as db:
+        store.set_embed_status(db, document_id, "processing")
+        try:
+            ingest_file(db, path)
+        except Exception:  # noqa: BLE001 — mọi lỗi đều phải hiện lên giao diện
+            logger.exception("Embed tài liệu %s thất bại", document_id)
+            store.set_embed_status(db, document_id, "failed")
+        else:
+            store.set_embed_status(db, document_id, "ready")
+
+
+@router.post(
+    "/admin/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def ingest_document(
+    payload: DocumentIngestRequest,
+    background: BackgroundTasks,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-08 — BQL tự cập nhật tri thức của trợ lý.
+
+    Embed chạy NỀN: 15 chunk mỗi lượt gọi, nghỉ 12 giây giữa các lượt, nên một
+    tài liệu dài mất vài phút. Giữ trong request sẽ timeout.
+    """
+    slug = slugify(payload.title)
+    path = KB_DIR / "bql" / f"{slug}.md"
+    if path.exists():
+        # Trùng slug (thường do trùng tiêu đề) không được đè file cũ: mỗi file
+        # `.md` ánh xạ 1-1 với một dòng `documents` qua `file_path` (xem
+        # `ingest._get_or_create_document`) — đè tệp làm tài liệu cũ "biến
+        # mất" khỏi Chroma mà không ai chủ ý chọn việc đó.
+        path = KB_DIR / "bql" / f"{slug}-{uuid.uuid4().hex[:8]}.md"
+    path.write_text(
+        f"---\ntitle: {payload.title}\nsource_type: bql_internal\n---\n\n{payload.content}",
+        encoding="utf-8",
+    )
+
+    record = store.create_document_record(db, str(path), payload.title, "pending")
+    background.add_task(_embed_document, record["document_id"], path)
+    return record
+
+
+@router.get("/admin/documents", response_model=list[DocumentResponse])
+async def list_documents(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-08 — danh sách tài liệu đã nạp, để BQL theo dõi trạng thái embed."""
+    return store.list_documents(db)

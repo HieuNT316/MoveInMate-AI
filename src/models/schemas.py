@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 OwnershipType = Literal["owner", "renter"]
 # Khoá tài khoản chặn ở BACKEND, không đụng Supabase Auth: người bị khoá vẫn
@@ -443,3 +443,33 @@ class TemporaryPasswordResponse(BaseModel):
     """
 
     temporary_password: str
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+class DocumentIngestRequest(BaseModel):
+    """BQL dán nội dung quy trình mới.
+
+    Dán chữ chứ không tải tệp: `ingest_file` đòi `.md` có frontmatter YAML hợp
+    lệ mà BQL không gõ YAML, và đọc PDF nằm ngoài phạm vi. Backend tự sinh
+    frontmatter với `source_type: bql_internal`.
+    """
+
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+    @field_validator("content")
+    @classmethod
+    def khong_duoc_toan_khoang_trang(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Nội dung tài liệu không được để trống")
+        return v
+
+
+class DocumentResponse(BaseModel):
+    document_id: int
+    title: str
+    file_path: str
+    embed_status: EmbedStatus
+    uploaded_at: datetime

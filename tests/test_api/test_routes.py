@@ -1407,3 +1407,68 @@ async def test_chi_tiet_cu_dan_khong_ton_tai_tra_404(client):
 async def test_dashboard_bql_co_trang_thai_tai_khoan(client):
     rows = (await client.get("/api/v1/admin/dashboard", headers=ADMIN)).json()
     assert all("account_status" in r for r in rows["residents"])
+
+
+# --- BQL nạp tài liệu (US-08) -------------------------------------------
+#
+# `fake_ingest` (autouse, tests/conftest.py) chặn cả `ingest_file` thật lẫn
+# `SessionLocal` thật — job nền không được chạm production DB hay Google
+# embedding API. Vẫn khai rõ tham số ở đây cho dễ đọc dù không bắt buộc.
+#
+# Route ghi file `.md` THẬT vào `data/kb/bql/` trước khi tạo bản ghi DB (đó là
+# phần route không mock được qua fixture) — nên các test dưới đây tự dọn tệp
+# mình tạo ra, để `git status` sạch sau khi chạy.
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_bql_kb_files():
+    from src.services.ingest import KB_DIR
+
+    bql_dir = KB_DIR / "bql"
+    before = set(bql_dir.iterdir())
+    yield
+    for path in set(bql_dir.iterdir()) - before:
+        path.unlink()
+
+
+@pytest.mark.asyncio
+async def test_bql_nap_tai_lieu_moi(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình mới", "content": "# Quy trình\n\nNội dung."},
+        headers=ADMIN,
+    )
+    assert r.status_code == 201
+    assert r.json()["title"] == "Quy trình mới"
+    assert r.json()["embed_status"] in ("pending", "processing", "ready")
+
+
+@pytest.mark.asyncio
+async def test_cu_dan_khong_nap_duoc_tai_lieu(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "X", "content": "Y"},
+        headers=OWNER,
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_tai_lieu_rong_bi_tu_choi(client, fake_ingest):
+    r = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "X", "content": "   "},
+        headers=ADMIN,
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_bql_xem_duoc_danh_sach_tai_lieu(client, fake_ingest):
+    await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình mới", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
+    assert any(d["title"] == "Quy trình mới" for d in rows)
