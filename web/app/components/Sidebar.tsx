@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, LogOut, Plus } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
 import { RESIDENT_NAV } from "../../lib/nav";
+import LogoMark from "./LogoMark";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -34,9 +35,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-7 py-8 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold">
-            <Building2 className="h-5 w-5 text-white" strokeWidth={1.5} />
-          </div>
+          <LogoMark size={52} />
           <div>
             <h1 className="font-display text-lg font-semibold tracking-wide text-ink">
               MoveInMate
