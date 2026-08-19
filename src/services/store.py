@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
@@ -28,6 +29,7 @@ from src.models.db import (
     User,
 )
 from src.services.documents import describe, evaluate_documents
+from src.services.pii import mask_answer, mask_question
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -197,12 +199,19 @@ def set_completion(db: Session, user_id: int, item_id: int, completed: bool) -> 
 def add_chat(
     db: Session, user_id: int, conversation_id: uuid.UUID, payload: dict[str, Any]
 ) -> None:
+    """Ghi một lượt hỏi đáp — nơi DUY NHẤT insert vào `chat_history`.
+
+    Che PII (V8, `src/services/pii.py`) ngay tại đây, trước insert: đảm bảo
+    này phải đứng ở code, không phải ở prompt, và đứng ở điểm ghi DUY NHẤT
+    này thì mọi lối gọi (hiện chỉ có `src/api/routes.py`) đều được bọc, không
+    cần nhớ gọi mask ở từng call site.
+    """
     db.add(
         ChatHistory(
             user_id=user_id,
             conversation_id=conversation_id,
-            question=payload["question"],
-            answer=payload["answer"],
+            question=mask_question(payload["question"]),
+            answer=mask_answer(payload["answer"]),
             answer_source=payload["answer_source"],
             sources=payload.get("sources") or [],
         )
@@ -337,6 +346,16 @@ def get_open_application(db: Session, user_id: int, item_id: int) -> dict[str, A
     return _application_dict(app) if app else None
 
 
+class DuplicateApplicationError(Exception):
+    """`uq_open_application_per_item` (src/models/db.py) chặn insert.
+
+    `get_open_application` là đọc-rồi-ghi: hai request đến cùng lúc đều có thể
+    đọc "chưa có hồ sơ mở" trước khi request kia commit. Insert thua cuộc rơi
+    vào đây thay vì để `IntegrityError` thô bay lên route thành 500 — người
+    gọi (route) bắt exception này và trả đúng 409 như nhánh kiểm tuần tự.
+    """
+
+
 def create_application(
     db: Session, user_id: int, item_id: int, note: str | None, kind: str
 ) -> dict[str, Any]:
@@ -348,7 +367,11 @@ def create_application(
         kind=kind,
     )
     db.add(app)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise DuplicateApplicationError() from None
     db.refresh(app)
     return _application_dict(app)
 

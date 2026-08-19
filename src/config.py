@@ -100,6 +100,14 @@ class Settings(BaseSettings):
     # thiếu (vd. "thẻ xe" hiện không có tài liệu riêng, dễ bị trả lời lạc đề).
     rag_max_distance: float = Field(default=0.35, ge=0.0, le=2.0)
 
+    # Giới hạn tốc độ theo IP (V2/C3, docs/ROLES_AND_PLAN.md) — chỉ chặn burst
+    # trên các endpoint TỐN TIỀN: chat gọi LLM + embedding, tải tệp/nạp tài
+    # liệu ghi vào storage. KHÔNG có trần tổng số request/ngày ở đây — xem
+    # src/services/rate_limit.py để biết lý do.
+    chat_rate_limit_per_minute: int = Field(default=10, ge=1)
+    chat_rate_limit_per_hour: int = Field(default=100, ge=1)
+    upload_rate_limit_per_minute: int = Field(default=20, ge=1)
+
     # Số lượt hỏi-đáp gần nhất (cùng cuộc hội thoại) đưa vào node `rewrite_query`
     # để viết lại câu hỏi mới thành độc lập ngữ cảnh. Chỉ dùng cho bước viết
     # lại — KHÔNG đưa vào `generate` (xem rewrite_query.py). Lấy ít vì mục

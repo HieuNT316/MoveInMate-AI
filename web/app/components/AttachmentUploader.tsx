@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Check, ExternalLink, FileText, Loader2, Paperclip } from "lucide-react";
 
 import { api, ApiError, type Attachment, type DocumentType, type RequiredDocument } from "../../lib/api";
+import { useToast } from "./Toast";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -41,6 +42,7 @@ export default function AttachmentUploader({
   requiredDocuments?: RequiredDocument[];
   onUploaded: (attachment: Attachment) => void;
 }) {
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   // Slot đang chờ chọn tệp — input file dùng chung cho mọi slot, cần nhớ
   // đang tải CHO mã nào để gắn `document_type` đúng lúc submit.
@@ -92,6 +94,7 @@ export default function AttachmentUploader({
         pendingSlotRef.current,
       );
       onUploaded(created);
+      toast.show("Đã lưu thay đổi");
     } catch (err) {
       if (err instanceof ApiError && err.status === 415) {
         setError("Chỉ nhận ảnh JPG, PNG hoặc file PDF.");
@@ -100,6 +103,7 @@ export default function AttachmentUploader({
       } else {
         setError("Không tải lên được lúc này, thử lại sau.");
       }
+      toast.show("Tải ảnh minh chứng không thành công", "error");
     } finally {
       setUploading(false);
     }

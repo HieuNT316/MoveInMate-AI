@@ -230,3 +230,20 @@ def fake_ingest(monkeypatch, db_session):
 
     monkeypatch.setattr(routes, "SessionLocal", lambda: _NonClosingSession())
     return called
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Bộ đếm rate limit (task 18, `src/services/rate_limit.py`) sống ở biến
+    MODULE-LEVEL, ngoài `db_session` — không tự dọn giữa các test.
+
+    `autouse`: nếu không reset, các test gọi `/chat` / tải tệp / nạp tài liệu
+    nhiều lần rải rác khắp file (không test nào tự nghĩ mình đang "dùng hết
+    hạn mức") sẽ CỘNG DỒN vào cùng bucket IP mặc định của `httpx.ASGITransport`
+    và bắt đầu ăn 429 một cách ngẫu nhiên tuỳ thứ tự chạy — sai hoàn toàn với
+    ý định của các test đó.
+    """
+    from src.services import rate_limit
+
+    rate_limit.reset_all()
+    yield

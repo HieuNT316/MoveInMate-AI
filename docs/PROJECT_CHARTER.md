@@ -5,7 +5,7 @@
 >
 > *(Bản tóm tắt bối cảnh cũ `MoveInMate_Context_Summary.md` đã được gỡ bỏ ngày 07/08 — nội dung của nó đã được chuẩn hoá và thay thế hoàn toàn bởi tài liệu này. Cần tra lịch sử thì xem git.)*
 
-**Cập nhật lần cuối:** 07/08/2026
+**Cập nhật lần cuối:** 19/08/2026 (rà soát đồng bộ tài liệu ↔ mã nguồn, Task 22)
 **Team:** P-225 — AI20K Build Phase, Cohort 3
 
 ---
@@ -87,8 +87,8 @@ Kế hoạch chi tiết theo ngày cho từng người: [`ROLES_AND_PLAN.md`](./
 | ID | Tính năng | Effort | Ghi chú |
 |---|---|---|---|
 | US-05 (phần còn lại) | Nhánh FAQ + hiệu chỉnh ngưỡng | ~10h | Chi phí thật ở hiệu chỉnh, cần dữ liệu thật |
-| US-08 | Giao diện BQL upload tài liệu | ~8h | |
-| US-09 | CRUD FAQ cho BQL | ~6h | |
+| US-08 | Giao diện BQL upload tài liệu | ~8h | **Đã xong (19/08)** — `POST/GET /api/v1/admin/documents`: BQL dán tiêu đề + nội dung, embed chạy nền, theo dõi qua `embed_status` |
+| US-09 | CRUD FAQ cho BQL | ~6h | Còn mở — chưa có route nào trong `src/api/routes.py` |
 | US-12-mini | Dashboard BQL tối giản (danh sách + % tiến độ) | ~5h | |
 | — | PWA: manifest + service worker + icon | ~5h | |
 
@@ -96,7 +96,7 @@ Kế hoạch chi tiết theo ngày cho từng người: [`ROLES_AND_PLAN.md`](./
 
 | ID | Tính năng | Effort | Ghi chú |
 |---|---|---|---|
-| US-10 | Duyệt hồ sơ/giấy tờ (APPLICATIONS: CCCD, hợp đồng, thanh toán) | 12h | **Cập nhật 11/08:** phần *nộp* (form online + `POST /applications` tối giản, mã theo dõi + trạng thái) kéo lên sớm phục vụ agent điều hướng — xem register. Phần *duyệt* (Approved/Rejected/HITL) vẫn Phase 2 |
+| US-10 | ~~Duyệt hồ sơ/giấy tờ (APPLICATIONS)~~ → **đã kéo lên Phase 1, xong 18-19/08** | — | Cả nộp lẫn duyệt đều xong. Phase 2 hoãn lại W4-W5. |
 | US-11 | Agent tạo ticket khi RAG không đủ tự tin | 14h | Lý do LangGraph tồn tại trong kiến trúc |
 | US-12 | Dashboard BQL nâng cao (biểu đồ, bộ lọc) — nối tiếp bản mini ở Phase 1 | 13h | Effort gốc 18h, trừ 5h đã làm bản mini ở Phase 1 |
 | US-13 | Định tuyến đa phòng ban | 10h | |
@@ -127,14 +127,14 @@ Kế hoạch chi tiết theo ngày cho từng người: [`ROLES_AND_PLAN.md`](./
 
 | ID | Actor | Muốn | Để |
 |---|---|---|---|
-| US-10 | BQL | Duyệt hồ sơ/giấy tờ cư dân | Kiểm tra CCCD/hợp đồng, cập nhật Pending/Approved/Need More Info/Rejected |
+| ~~US-10~~ | ~~BQL~~ | ~~Duyệt hồ sơ/giấy tờ cư dân~~ | ~~Kiểm tra CCCD/hợp đồng, cập nhật Pending/Approved/Need More Info/Rejected~~ → **đã kéo lên Phase 1 (xong 18-19/08): cả nộp lẫn duyệt đều chạy** |
 | US-11 | Agent | Tạo ticket khi không đủ tự tin trả lời | Chuyển cho BQL xử lý |
 | US-12 | BQL | Dashboard tổng quan | Theo dõi cư dân/hồ sơ |
 | US-13 | Agent | Định tuyến đúng phòng ban | Ticket tới đúng nơi xử lý |
 | US-14 | Cư dân | Nhận nhắc việc còn thiếu | Không bỏ sót thủ tục |
 
 ### Use Cases tương ứng
-UC00 BQL tạo/cấp tài khoản cư dân · UC01 Đăng nhập · UC02 Điền form onboarding · UC03 Xem Dashboard · UC04 Xem Checklist & tiến độ · UC05 Đánh dấu hoàn thành Checklist · UC06 Xem hồ sơ · UC07 Xem lịch sử chat · UC08 Hỏi AI (FAQ → RAG) · UC09 Upload tài liệu (BQL) · UC10 Quản lý FAQ (BQL) · UC11 Duyệt hồ sơ (BQL, Phase 2)
+UC00 BQL tạo/cấp tài khoản cư dân · UC01 Đăng nhập · UC02 Điền form onboarding · UC03 Xem Dashboard · UC04 Xem Checklist & tiến độ · UC05 Đánh dấu hoàn thành Checklist · UC06 Xem hồ sơ · UC07 Xem lịch sử chat · UC08 Hỏi AI (FAQ → RAG) · UC09 Upload tài liệu (BQL) · UC10 Quản lý FAQ (BQL) · UC11 Duyệt hồ sơ (BQL, **đã xong Phase 1**)
 
 ## 6. Data Model (đã sửa để khớp quyết định cá nhân hóa + Supabase Auth)
 
@@ -214,14 +214,35 @@ Vai trò: **fallback trước RAG** — LangGraph kiểm tra FAQ (match đơn gi
 
 Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ quản lý metadata.
 
-### APPLICATIONS (Phase 2 — giữ nguyên thiết kế gốc, chưa migrate ở GATE 2)
-| Field | Type |
-|---|---|
-| application_id | INT, PK |
-| user_id | FK → USERS |
-| id_card_file, contract_file, payment_file | VARCHAR |
-| status | ENUM(Pending, Approved, Need More Info, Rejected) |
-| note, submitted_at, reviewed_at, reviewed_by | TEXT / DATETIME / FK |
+### APPLICATIONS (US-13/US-10 — đã migrate và chạy đủ vòng đời, không còn là thiết kế Phase 2 gốc)
+
+Bảng gốc phía trên (id_card_file/contract_file/payment_file, ENUM 4 trạng thái) **chưa từng được xây** — thiết kế thật khác hẳn, chốt lúc US-13 được kéo lên sớm (mục 7) rồi hoàn thiện phần duyệt 18-19/08:
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| application_id | INT, PK | |
+| user_id | FK → USERS | |
+| checklist_item_id | FK → CHECKLIST_ITEMS | Không lưu bộ phận xử lý ở đây — tra thẳng từ mục checklist mỗi lần đọc |
+| status | ENUM(received, processing, needs_info, approved, delivered, rejected) | Không ràng buộc thứ tự chuyển — quy trình thật có thể quay lại (đã duyệt rồi phát hiện thiếu giấy tờ) |
+| kind | ENUM(bql_processing, self_declared) | Suy ra từ `item_type` của mục checklist lúc nộp, không do client khai. `self_declared` (tạm trú, cập nhật cư trú) là cư dân tự khai kèm ảnh, BQL không xử lý |
+| note | TEXT, nullable | Cư dân ghi khi nộp |
+| bql_note | TEXT, nullable | BQL ghi khi đổi trạng thái — tách riêng khỏi `note` để cư dân không sửa được lời BQL |
+| created_at, updated_at | TIMESTAMP | |
+| | UNIQUE PARTIAL(user_id, checklist_item_id) WHERE status NOT IN (delivered, rejected) | Chặn nộp trùng một hồ sơ đang mở cho cùng mục checklist — chốt ở tầng DB (task 20), không chỉ ở tầng ứng dụng |
+
+### APPLICATION_ATTACHMENTS
+
+Ảnh/PDF minh chứng, metadata only — nội dung tệp nằm trong bucket private của Supabase Storage.
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| attachment_id | INT, PK | |
+| application_id | FK → APPLICATIONS | |
+| filename, content_type, size_bytes, storage_path | VARCHAR / VARCHAR / INT / VARCHAR | `storage_path` do backend sinh bằng UUID, không dùng tên file client gửi |
+| document_type | ENUM giấy tờ, nullable | NULL = chưa phân loại, khác với đã gán "khác" — quyết định hệ thống có được kết luận "thiếu giấy tờ" hay không |
+| uploaded_at | TIMESTAMP | |
+
+Đọc lại ảnh chỉ qua `GET /applications/{id}/attachments/{aid}/url` — ký link hết hạn ngắn, không có URL công khai cho CCCD/VNeID. `attachment.url` trong mọi phản hồi danh sách luôn `null`.
 
 ## 7. Decisions & Assumptions Register
 
@@ -237,7 +258,7 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **`X-User-Id` giữ làm lối dev, chặn cứng khi `APP_ENV=production`** | **Đã chốt 11/08** | Không chặn thì ai cũng đặt `X-User-Id` của BQL để thành BQL. Giữ lại để bộ đổi persona demo còn chạy và FE chuyển dần không đứt | — | Gỡ hẳn khi bỏ `/auth/demo-accounts` |
 | **US-00 tạo tài khoản trả về mật khẩu tạm thay vì gửi email mời** | **Đã chốt 11/08** | `invite_user_by_email` cần SMTP và email có thật; dữ liệu demo dùng tên miền không tồn tại nên thư không bao giờ tới. Mật khẩu chỉ hiện đúng một lần, hệ thống không lưu | — | Xem lại khi có cư dân thật |
 | FAQ là fallback trước RAG | **Đã xác nhận** (07/08) | Quyết định team trong buổi này | — | Đã chốt |
-| APPLICATIONS (duyệt hồ sơ) giữ Phase 2 | **Đã xác nhận** (07/08) | Quyết định team trong buổi này — khớp với "HITL BQL duyệt hồ sơ" nằm trong mục Nâng cao của đề bài | — | Đã chốt |
+| ~~APPLICATIONS (duyệt hồ sơ) giữ Phase 2~~ → **ĐÃ KÉO LÊN PHASE 1, xong 18-19/08** | ~~Đã xác nhận (07/08) — giữ Phase 2~~ **Đảo ngược 10-11/08, hoàn tất 18-19/08** | Quyết định team trong buổi 07/08 giữ Phase 2; **đảo ngược 10-11/08** — cả nộp (US-13, `POST /applications`, checklist upload) lẫn duyệt (`PATCH /admin/applications/{id}`, 6 trạng thái) đều xong, không còn phần nào thuộc Phase 2. Khớp với dòng bên dưới. | — | Đã chốt |
 | Scope địa lý: **Vinhomes Smart City**, 1 khu duy nhất, không multi-khu | **Đã xác nhận — họp team 06/08** (cụ thể hóa từ quyết định "1 khu" trước đó) | Quyết định team | — | Đã chốt |
 | Giá trị cụ thể của `apartment_type` (những loại căn nào ở Smart City) | Còn mở | Cần dữ liệu thật khu Smart City | Cả team (data là việc chung) | 13/08 |
 | Nội dung checklist thật (thẻ cư dân, thẻ xe, tiện ích...) | Còn mở | Chờ team thu thập (việc chung) | Cả team / mentor | **13/08 (cổng quyết định)** |
@@ -258,14 +279,14 @@ Nội dung PDF xử lý thành embeddings lưu Chroma riêng; bảng này chỉ 
 | **`source_type` thứ tư: `synthetic_demo`** — quy trình do nhóm dựng, neo theo quy định thật (Điều 6/7/13 Quy chế) và hotline/bảng phí công khai; **số liệu phí KHÔNG được tự đặt**, phải trích nguồn công khai hoặc ghi rõ "đơn vị vận hành quy định" | **Đã thực hiện 11/08** | UI gắn nhãn "Quy trình mô phỏng (dữ liệu demo)" — minh bạch trước khi bị hỏi | — | Đã chốt |
 | **Chat LLM: mặc định gọi thẳng OpenAI (đúng stack BTC), OpenRouter là lựa chọn qua `CHAT_PROVIDER`** — cùng model gpt-4o-mini, chỉ khác đường gọi | **Đã thực hiện 11/08** — thay cấu hình chỉ-OpenRouter ngày 10/08 của AI | Key OpenAI (trả phí) đã có; kiểm chứng bằng gọi thật cả 2 đường | — | Đã chốt |
 | **Embeddings dùng Google `gemini-embedding-001` (3072 chiều)** — không phải OpenAI | Còn mở — **lệch stack BTC, cần mentor xác nhận** | OpenRouter không có endpoint embeddings (bối cảnh quyết định gốc của AI). CẢNH BÁO: `text-embedding-3-large` của OpenAI cũng 3072 chiều — đổi nguồn embed mà không re-ingest sẽ hỏng im lặng, Chroma không báo lỗi | Mentor | Trước 17/08 (mốc embed KB) |
-| **APPLICATIONS-mini kéo lên trước hạn: form nộp hồ sơ online (FE) + `POST /applications` tối giản (mã theo dõi, trạng thái)** — đảo một phần quyết định "giữ Phase 2" ngày 07/08 | **Quyết định nhóm trưởng 10-11/08** (chỉ đạo FE làm form; mentor muốn demo một phần agent điều hướng) | Điều kiện: chốt contract schema/API bằng văn bản TRƯỚC khi FE và BE code song song (mục 12). Phần duyệt hồ sơ đầy đủ (Pending/Approved/...) vẫn ở Phase 2 | — | Đã chốt |
-| **"Agent điều hướng" có BA nghĩa, phải gọi tách bạch:** (a) điều hướng trong app tới form/màn hình — tool `request_submission_navigation` (10/08); (b) **cho biết** đúng bộ phận, bước kế, thời hạn — chat trả lời được nhờ `data/kb/bql/` (11/08); (c) **nhận đơn online rồi chuyển tới đúng bộ phận BQL xử lý** — chính là **US-13 + US-10**, nguyên văn đề bài mục Nâng cao (mục 2), **Phase 2, chưa làm gì** | **Sửa 12/08** — bản ghi 11/08 chỉ nêu (a) và (b), bỏ sót (c) | Sai sót phân tích: định nghĩa thuật ngữ bằng code đang có thay vì tra ngược yêu cầu, dù US-13 nằm cùng file. (a) và (b) là *chỉ đường*; (c) là *thay mặt cư dân nộp* — khác nhau về bản chất. Việc gán đơn cho bộ phận **không cần LLM** (tra bảng, như rule engine checklist); chỗ cần agent là trả lời "hồ sơ tôi tới đâu rồi" | Nhóm trưởng | Quyết định có kéo US-13/US-10 lên Phase 1 hay không |
-| **`data/chroma/` commit vào git** (index đã embed, ~7.3MB nhị phân) | **Quyết định AI 10/08** — đã ghi đánh đổi trong `.gitignore` | Quy ước bắt buộc: CHỈ MỘT người chạy `ingest_kb` rồi commit; người khác chỉ pull. Bằng chứng rủi ro: 11/08 chính BE đã lỡ `git checkout -- data/chroma/` sau khi ingest → mất kết quả, phải chạy lại | — | Đã chốt, xem lại khi lên Railway Volume |
+| **APPLICATIONS-mini kéo lên trước hạn: form nộp hồ sơ online (FE) + `POST /applications` tối giản (mã theo dõi, trạng thái)** — đảo một phần quyết định "giữ Phase 2" ngày 07/08 | **Quyết định nhóm trưởng 10-11/08, hoàn tất 18-19/08** — cả nộp lẫn duyệt đều đã chạy, không còn phần nào thuộc Phase 2 | Điều kiện: chốt contract schema/API bằng văn bản TRƯỚC khi FE và BE code song song (mục 12). **Cập nhật 19/08:** phần duyệt (`PATCH /admin/applications/{id}`, 6 trạng thái) và index chặn nộp trùng (task 20) đã xong — mục 6 và mục 4 đã cập nhật, không còn ghi "Phase 2, chưa migrate" | — | Đã chốt và đã xong |
+| **"Agent điều hướng" có BA nghĩa, phải gọi tách bạch:** (a) điều hướng trong app tới form/màn hình — tool `request_submission_navigation` (10/08); (b) **cho biết** đúng bộ phận, bước kế, thời hạn — chat trả lời được nhờ `data/kb/bql/` (11/08); (c) **nhận đơn online rồi chuyển tới đúng bộ phận BQL xử lý** — chính là **US-13 + US-10**, **ĐÃ KÉO LÊN Phase 1 10-11/08, xong 18-19/08** | **Sửa 12/08** — bản ghi 11/08 chỉ nêu (a) và (b), bỏ sót (c); **cập nhật 19/08** — quyết định đã được đưa ra (kéo lên Phase 1, cả nộp lẫn duyệt đều xong) | (a)/(b) = *chỉ đường*, (c) = *thay mặt cư dân nộp* — khác nhau về bản chất. Việc gán đơn cho bộ phận **không cần LLM** (tra bảng, như rule engine checklist); chỗ cần agent là trả lời "hồ sơ tôi tới đâu rồi" | Nhóm trưởng | Đã chốt và đã xong (xem dòng 282) |
+| **`data/chroma/` commit vào git** (index đã embed, ~7.3MB nhị phân) | **Quyết định AI 10/08** — đã ghi đánh đổi trong `.gitignore` | Quy ước bắt buộc: CHỈ MỘT người chạy `ingest_kb` rồi commit; người khác chỉ pull. Bằng chứng rủi ro: 11/08 chính BE đã lỡ `git checkout -- data/chroma/` sau khi ingest → mất kết quả, phải chạy lại. **Cập nhật 18/08 — đã lên Railway Volume:** `data/chroma/` trong git giờ là BẢN MỒI, Dockerfile chép sang `/app/data/chroma_seed`, `src/services/chroma_seed.py` chép ngược vào volume đúng một lần lúc volume còn rỗng (không đè nếu BQL đã nạp tài liệu qua production) | — | Đã chốt, đã lên volume |
 | Góp ý UX của mentor (08/08): gamification khi hoàn thành thủ tục (huy hiệu/trang trí hồ sơ — KHÔNG hứa ưu đãi tiền thay BQL), câu trả lời chat có cấu trúc + hình minh hoạ | Ghi nhận — xếp W4, không bắt buộc GATE 2 | Ảnh trang nguồn là placeholder lazy-load không cào được; hướng đi: ảnh theo `category`, card có cấu trúc | Team | W4 |
 | **LangSmith đang được KHAI mà chưa làm** — README, `requirements.txt` và sơ đồ kiến trúc đều ghi, `src/` không có dòng nào | **Phát hiện 11/08 — phải xử lý** | Đây là deliverable #4 của BTC. Bật bằng biến môi trường, không phải sửa code (~30 phút) | Hải | Trước GATE 2 nếu kịp, chậm nhất W4 |
-| **Không có giới hạn tần suất trên URL công khai** | **Phát hiện 11/08 — rủi ro tiền thật** | Mỗi lượt `/chat` tốn 1 embedding + 1 LLM call trên key trả phí. Đề xuất `slowapi`, 20 lượt/phút/người | Hiếu | Trước khi công bố URL rộng rãi |
-| **`/health` không kiểm thành phần phụ thuộc** | **Phát hiện 11/08** | Trả `ok` kể cả khi DB/Chroma chết → Railway giữ instance hỏng trong vòng phục vụ. Tiền lệ: index Chroma hỏng 11/08 mà mọi chỉ báo vẫn xanh | Hiếu | W4 |
-| **Chưa có: log có cấu trúc, theo dõi chi phí, vòng phản hồi người dùng, che PII trong `chat_history`** | Ghi nhận 11/08 — xếp W4 | Chi tiết và mức ưu tiên: [`OPERATIONS.md`](./OPERATIONS.md) | Cả nhóm | W4-W5 |
+| **Không có giới hạn tần suất trên URL công khai** | **Phát hiện 11/08 — đã xử lý 19/08** | Bộ đếm tự viết (`src/services/rate_limit.py`, không Redis — một instance duy nhất): `/chat` 10/phút + 100/giờ, tải tệp và nạp tài liệu 20/phút mỗi loại. **Cố ý không có trần tổng/ngày** — xem README mục "Giới hạn tốc độ" để biết vì sao | Hiếu | Đã xong |
+| **`/health` không kiểm thành phần phụ thuộc** | **Phát hiện 11/08 — đã xử lý 19/08** | `GET /health/deep` kiểm DB (`SELECT 1`) và Chroma (`collection.count()`), trả 503 nếu một trong hai hỏng hoặc Chroma rỗng. `/health` gốc giữ nguyên là health nông cho load balancer | Hiếu | Đã xong |
+| **Chưa có: log có cấu trúc, theo dõi chi phí, vòng phản hồi người dùng, che PII trong `chat_history`** | Ghi nhận 11/08 — xếp W4. **Cập nhật 19/08:** log có cấu trúc (JSON, `request_id`/`X-Request-Id`, `src/observability.py`) và che PII (`src/services/pii.py`) đã xong. Theo dõi chi phí và vòng phản hồi người dùng vẫn chưa làm | Cả nhóm | W4-W5 |
 
 ## 8. Ràng buộc kỹ thuật
 

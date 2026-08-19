@@ -1,11 +1,11 @@
 # Hướng dẫn deploy
 
-**Cập nhật:** 11/08/2026
+**Cập nhật:** 19/08/2026 (rà soát đồng bộ tài liệu ↔ mã nguồn, Task 22)
 
 | Thành phần | Trạng thái | URL |
 |---|---|---|
 | Backend (Railway) | ✅ đang chạy | https://moveinmate-api-production.up.railway.app |
-| Frontend (Vercel) | ⏳ chưa deploy | — |
+| Frontend (Vercel) | ✅ đang chạy | https://web-ten-ruby-48.vercel.app |
 | Database (Supabase) | ✅ đang chạy | project `sjnpokwczrmyppwhtisu` |
 
 ---
@@ -208,6 +208,12 @@ Bấm thẳng vào tài khoản mẫu ở trang đăng nhập là tự điền e
 
 ## F. Việc còn nợ sau GATE 2
 
-- **Chroma đang nướng thẳng vào image.** Hải ingest thêm tài liệu thì phải build lại image bản deploy mới thấy. Hướng xử lý: gắn Railway Volume vào `/app/data/chroma`.
+- ~~**Chroma đang nướng thẳng vào image.**~~ **Đã xử lý 18/08** — gắn Railway Volume vào `/app/data/chroma`. Volume mới gắn thì rỗng, nên `src/services/chroma_seed.py` tự chép bản mồi (đóng gói sẵn trong image ở `/app/data/chroma_seed`) sang volume lúc khởi động nếu volume còn trống, không đè nếu BQL đã nạp tài liệu qua production. Chi tiết: `docs/architecture_diagram.md` mục 2.
 - **Không auto-deploy.** Xin BTC duyệt GitHub App cho org.
 - **Chỉ chạy được một instance.** Chroma nằm trong cùng tiến trình FastAPI; scale ngang sẽ khiến mỗi instance có một vector store riêng. Không bật auto-scale.
+
+## G. Log tự động che mật khẩu — giới hạn cần biết khi đổi mật khẩu DB
+
+`safe_database_url()` (`src/config.py`) và bộ lọc log JSON (`src/observability.py`) đều dùng chung một regex để che phần mật khẩu trong `DATABASE_URL` trước khi in ra: `(://[^:\s]+:)[^@\s]+(@)`. Class ký tự `[^@\s]+` dừng lại ở ký tự `@` ĐẦU TIÊN nó gặp — nếu mật khẩu tự nó chứa `@`, regex chỉ che được phần mật khẩu TRƯỚC ký tự `@` đó, phần còn lại lọt ra log nguyên văn.
+
+Mật khẩu Supabase hiện tại không chứa `@` nên chưa lộ gì. Nhưng ai đổi mật khẩu DB (xoay vòng credential) cần tránh chọn mật khẩu có `@`, hoặc phải vá regex trước — redaction hỏng ÂM THẦM, không có cảnh báo nào khi điều đó xảy ra.

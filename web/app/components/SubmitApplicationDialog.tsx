@@ -19,6 +19,7 @@ import {
   submitActionLabel,
 } from "../../lib/applicationForms";
 import AttachmentUploader from "./AttachmentUploader";
+import { useToast } from "./Toast";
 
 /**
  * US-13 — nộp hồ sơ cho một mục checklist, hai bước.
@@ -49,6 +50,7 @@ export default function SubmitApplicationDialog({
   onClose: () => void;
   onSubmitted: () => void;
 }) {
+  const toast = useToast();
   const isSelfDeclared = item.item_type !== "bql_actionable";
   const fields = isSelfDeclared ? null : getApplicationFormFields(item.task_name);
   // `item.required_documents` là NGUỒN THẬT duy nhất (checklist_items.required_documents,
@@ -92,6 +94,7 @@ export default function SubmitApplicationDialog({
         checklist_item_id: item.id,
         note: composedNote,
       });
+      toast.show("Đã lưu thay đổi");
       if (requiredDocuments.length > 0) {
         setCreatedApp(app);
       } else {
@@ -105,6 +108,7 @@ export default function SubmitApplicationDialog({
       } else {
         setError("Không nộp được hồ sơ lúc này, thử lại sau.");
       }
+      toast.show("Nộp hồ sơ không thành công", "error");
     } finally {
       setSaving(false);
     }

@@ -16,6 +16,7 @@ import {
 import Layout from "../components/Layout";
 import AttachmentUploader from "../components/AttachmentUploader";
 import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import { useToast } from "../components/Toast";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
@@ -37,6 +38,7 @@ function ChecklistContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { userId, ready } = useDemoUser();
+  const toast = useToast();
 
   const [data, setData] = useState<Checklist | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -66,7 +68,11 @@ function ChecklistContent() {
       }
       setError(null);
     } catch {
-      setError("Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?");
+      setError(
+        process.env.NODE_ENV === "development"
+          ? "Không kết nối được backend. Chạy `uvicorn src.main:app --reload` chưa?"
+          : "Không tải được checklist. Kiểm tra kết nối mạng rồi thử lại.",
+      );
     }
   }, [userId, router]);
 
@@ -88,8 +94,10 @@ function ChecklistContent() {
     setPending(itemId);
     try {
       setData(await api.setChecklistItem(userId, itemId, completed));
+      toast.show("Đã lưu thay đổi");
     } catch {
       setError("Không cập nhật được trạng thái.");
+      toast.show("Cập nhật checklist không thành công", "error");
     } finally {
       setPending(null);
     }

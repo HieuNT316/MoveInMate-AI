@@ -124,22 +124,56 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 
 ## API Endpoints
 
-| Method | Path | Mô tả | Giai đoạn |
-|--------|------|-------|-----------|
-| GET | `/health` | Health check | ✅ có |
-| GET | `/api/v1/auth/demo-accounts` | Persona mẫu để demo (⚠️ tạm thời) | ✅ có |
-| POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân | GATE 2 |
-| GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ | GATE 2 |
-| PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành | GATE 2 |
-| POST | `/api/v1/chat` | Hỏi đáp thủ tục (RAG có trích nguồn) | GATE 2 |
-| GET | `/api/v1/profile` · PATCH | Xem/sửa hồ sơ | GATE 2 |
-| GET | `/api/v1/chat/history` | Lịch sử hội thoại | GATE 2 |
-| POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân | GATE 2 |
-| POST | `/api/v1/admin/documents` | BQL nạp tài liệu | W4 |
-| CRUD | `/api/v1/admin/faq` | BQL quản lý FAQ | W4 |
-| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân | ✅ có |
+`src/api/routes.py` khai 23 endpoint dưới tiền tố `/api/v1`, cộng hai endpoint health ở `src/main.py`. Đánh dấu **mới** là phần Task 22 (18-19/08) thêm vào — trước đó README mới dừng ở 15 endpoint.
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| GET | `/health` | Health nông — chỉ kiểm tiến trình còn sống |
+| GET | `/health/deep` | Kiểm DB + Chroma thật, trả **503** nếu một trong hai hỏng hoặc Chroma rỗng |
+| GET | `/api/v1/auth/demo-accounts` | Persona mẫu để demo (⚠️ tạm thời) |
+| GET | `/api/v1/profile` · PATCH | Xem/sửa hồ sơ |
+| POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân |
+| GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ |
+| PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành |
+| POST | `/api/v1/applications` | Cư dân nộp hồ sơ trực tuyến cho một mục checklist (US-13) |
+| GET | `/api/v1/applications` | Hồ sơ của chính cư dân đang đăng nhập |
+| POST | `/api/v1/applications/{id}/attachments` | Tải ảnh/PDF minh chứng lên một hồ sơ |
+| GET | `/api/v1/applications/{id}/attachments/{aid}/url` | Ký link đọc ảnh tạm thời, hết hạn ngắn |
+| POST | `/api/v1/chat` | Hỏi đáp thủ tục (RAG có trích nguồn) |
+| GET | `/api/v1/chat/conversations` | Danh sách hội thoại đã lưu |
+| GET | `/api/v1/chat/conversations/{id}/messages` | Toàn bộ lượt hỏi đáp của một hội thoại |
+| POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân |
+| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân |
+| GET | `/api/v1/admin/residents/{id}` | **Mới.** Toàn cảnh một cư dân — hồ sơ + checklist + hồ sơ đã nộp |
+| PATCH | `/api/v1/admin/residents/{id}/status` | **Mới.** Khoá/mở tài khoản cư dân (`active`/`locked`) |
+| POST | `/api/v1/admin/residents/{id}/reset-password` | **Mới.** Đặt lại mật khẩu tạm; **409** nếu cư dân chưa có tài khoản đăng nhập |
+| GET | `/api/v1/admin/applications` | Hồ sơ cư dân đã nộp, lọc theo `status`/`department` |
+| PATCH | `/api/v1/admin/applications/{id}` | BQL chuyển trạng thái hồ sơ |
+| PATCH | `/api/v1/admin/applications/{id}/attachments/{aid}` | BQL gán lại loại giấy tờ cho một tệp đã tải lên |
+| POST | `/api/v1/admin/documents` | **Mới.** BQL dán tiêu đề + nội dung, nạp vào KB ở nền, theo dõi qua `embed_status` |
+| GET | `/api/v1/admin/documents` | **Mới.** Danh sách tài liệu đã nạp |
+
+`CRUD /api/v1/admin/faq` (US-09) từng liệt kê ở đây **chưa được code** — không có route nào trong `src/api/routes.py` khớp `/admin/faq`. Bỏ khỏi bảng để bảng phản ánh đúng endpoint có thật; US-09 vẫn nằm ở `[W4]` theo `docs/PROJECT_CHARTER.md` mục 4.
+
+**`attachment.url` trong mọi phản hồi danh sách nay luôn `null`.** Đọc ảnh phải gọi riêng `GET .../attachments/{id}/url` — ký khi người dùng thật sự mở ảnh, không ký sẵn hàng loạt cho cả danh sách (một lời gọi mạng đồng bộ tới Supabase mỗi tệp sẽ chặn event loop nếu ký sẵn).
 
 Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
+
+## Giới hạn tốc độ (rate limiting)
+
+Bộ đếm tự viết tay trong bộ nhớ tiến trình (`src/services/rate_limit.py`), **không** dùng `slowapi`/`limits` hay Redis — dịch vụ chạy MỘT instance duy nhất (Chroma sống trong tiến trình FastAPI, xem [`docs/DEPLOY.md`](./docs/DEPLOY.md) mục 213), nên một bộ đếm cục bộ là đủ đúng đắn.
+
+Chỉ áp cho các endpoint TỐN TIỀN (gọi LLM, gọi Google embedding, hoặc ghi tệp/nạp tài liệu); mọi endpoint đọc (checklist, dashboard, danh sách hồ sơ/tài liệu — kể cả endpoint frontend poll `embed_status`) **không** bị giới hạn.
+
+| Endpoint | Ngưỡng mặc định | Setting (`src/config.py`) |
+|---|---|---|
+| `POST /api/v1/chat` | 10 lượt/phút **và** 100 lượt/giờ | `CHAT_RATE_LIMIT_PER_MINUTE`, `CHAT_RATE_LIMIT_PER_HOUR` |
+| `POST /api/v1/applications/{id}/attachments` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
+| `POST /api/v1/admin/documents` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
+
+Khoá theo IP client thật (đọc mục đầu `X-Forwarded-For` do Railway forward, không phải IP của proxy — xem docstring `get_client_ip`). Vượt ngưỡng trả **429** kèm header `Retry-After` và thông điệp tiếng Việt yêu cầu chờ, không lộ chi tiết nội bộ.
+
+**Cố tình KHÔNG có trần tổng số request/ngày trên toàn hệ thống.** Đó mới là thứ thật sự bảo vệ hạn mức Google 1000 request/ngày dùng chung cả nhóm, nhưng một trần như vậy tự nó trở thành rủi ro: chạm ngưỡng giữa buổi demo là trợ lý im lặng với **mọi người**, đúng thảm hoạ đang cố tránh. Hạn mức ngày vẫn là rủi ro **được theo dõi thủ công**, không phải rủi ro được chặn bằng code.
 
 ## Deliverables Checklist
 
