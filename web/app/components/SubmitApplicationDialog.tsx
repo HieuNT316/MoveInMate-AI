@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { CheckCircle2, Loader2, MessageCircleQuestion, ShieldAlert, X } from "lucide-react";
 
@@ -77,6 +78,12 @@ export default function SubmitApplicationDialog({
   const requiredCount = requiredDocuments.length;
   const allUploaded = uploaded.length >= requiredCount;
 
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
   const missingRequired =
     fields?.some((f) => f.required && !values[f.key]?.trim()) ?? false;
 
@@ -119,9 +126,9 @@ export default function SubmitApplicationDialog({
   const closeAfterCreated = () => onSubmitted();
 
   if (createdApp) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-none bg-ink/40 p-4">
+        <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-6 shadow-xl">
           <div className="flex items-center justify-between">
             <h3 className="font-display text-lg font-semibold text-ink">
               Tải ảnh minh chứng
@@ -178,13 +185,14 @@ export default function SubmitApplicationDialog({
             </p>
           )}
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-none bg-ink/40 p-4">
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-ink">
             {isInPersonOnly
@@ -328,6 +336,7 @@ export default function SubmitApplicationDialog({
                   : submitActionLabel(item.task_name)}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
