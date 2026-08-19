@@ -1648,3 +1648,141 @@ async def test_bql_xem_duoc_danh_sach_tai_lieu(client, fake_ingest):
     )
     rows = (await client.get("/api/v1/admin/documents", headers=ADMIN)).json()
     assert any(d["title"] == "Quy trình mới" for d in rows)
+
+
+# --- Giới hạn tốc độ theo IP (task 18, guardrail V2/C3) -------------------
+#
+# `src/services/rate_limit.py` có test riêng cho phần thuần (cửa sổ cố định,
+# dọn bucket hết hạn) ở `tests/test_services/test_rate_limit.py`. Ở đây chỉ
+# kiểm hành vi qua HTTP thật: đúng endpoint bị chặn, đúng mã 429, IP tách theo
+# `X-Forwarded-For`, và endpoint KHÔNG bị giới hạn (polling) không bị vạ lây.
+#
+# Số lượt CỐ TÌNH viết cứng bằng đúng giá trị mặc định nêu trong task 18 (10
+# lượt/phút cho `/chat`, 20 lượt/phút cho tải tệp/nạp tài liệu) thay vì đọc lại
+# từ `get_settings()`: nếu đọc lại từ settings, test sẽ luôn tự khớp theo bất
+# kỳ giá trị nào đang cấu hình — kể cả khi cấu hình không thật sự được endpoint
+# tôn trọng — nên không bao giờ tự phát hiện được lỗi "trần đã bị nới lỏng".
+# Việc viết cứng đã được XÁC MINH bằng cách tạm nới `chat_rate_limit_per_minute`
+# trong `src/config.py` lên rất cao và quan sát đúng test dưới đây báo đỏ (xem
+# `.superpowers/sdd/2026-08-18-ux-va-console-bql/task-18-report.md`).
+#
+# `tests/conftest.py::_reset_rate_limits` (autouse) xoá sạch bộ đếm trước mỗi
+# test — nếu không, các test /chat rải rác phía trên (không test nào tự coi
+# mình đang "dùng hạn mức") sẽ cộng dồn vào cùng bucket IP mặc định của
+# `httpx.ASGITransport` và làm rớt 429 ngẫu nhiên tuỳ thứ tự chạy.
+
+CHAT_LIMIT_PER_MINUTE = 10
+UPLOAD_LIMIT_PER_MINUTE = 20
+
+
+@pytest.mark.asyncio
+async def test_chat_qua_han_muc_phut_tra_429_kem_retry_after(client, fake_chat_graph):
+    """Lượt thứ N+1 trong CÙNG một phút (N = 10, `chat_rate_limit_per_minute`
+    mặc định) phải bị chặn — không phải lượt thứ N hay N+2."""
+    for _ in range(CHAT_LIMIT_PER_MINUTE):
+        r = await client.post(
+            "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER
+        )
+        assert r.status_code == 200
+
+    blocked = await client.post(
+        "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER
+    )
+    assert blocked.status_code == 429
+    assert "Retry-After" in blocked.headers
+    detail = blocked.json()["detail"]
+    # Thông điệp cho người dùng, không phải chi tiết nội bộ.
+    assert "quota" not in detail.lower()
+    assert "hạn mức" not in detail.lower()
+    assert "đợi" in detail
+
+
+@pytest.mark.asyncio
+async def test_chat_qua_cua_so_thi_goi_lai_duoc(client, fake_chat_graph, monkeypatch):
+    """Đồng hồ giả (không `sleep()` thật) — sang cửa sổ mới thì được gọi lại."""
+    from src.services import rate_limit
+
+    state = {"now": 1_000_000.0}
+    monkeypatch.setattr(rate_limit, "clock", lambda: state["now"])
+
+    for _ in range(CHAT_LIMIT_PER_MINUTE):
+        r = await client.post(
+            "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER
+        )
+        assert r.status_code == 200
+    blocked = await client.post(
+        "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER
+    )
+    assert blocked.status_code == 429
+
+    state["now"] += 60  # sang cửa sổ phút kế tiếp
+    r = await client.post(
+        "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=OWNER
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_hai_ip_khac_nhau_khong_dung_chung_han_muc_chat(client, fake_chat_graph):
+    """Đây là test khoá lại đúng lỗi dễ mắc nhất: nếu limiter lỡ khoá theo IP
+    của proxy Railway (giống nhau cho mọi người) thay vì `X-Forwarded-For`,
+    IP thứ hai sẽ bị ăn ké hạn mức đã cạn của IP thứ nhất."""
+    ip1 = {**OWNER, "X-Forwarded-For": "203.0.113.10"}
+    ip2 = {**OWNER, "X-Forwarded-For": "203.0.113.20"}
+
+    for _ in range(CHAT_LIMIT_PER_MINUTE):
+        r = await client.post(
+            "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=ip1
+        )
+        assert r.status_code == 200
+    assert (
+        await client.post("/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=ip1)
+    ).status_code == 429
+
+    # IP thứ hai chưa từng gọi — không được phép bị chặn theo.
+    r = await client.post(
+        "/api/v1/chat", json={"message": "Thẻ xe cần gì?"}, headers=ip2
+    )
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_tai_anh_qua_han_muc_phut_bi_chan_429(client):
+    """Endpoint tải tệp minh chứng có ngưỡng riêng (`upload_rate_limit_per_minute`,
+    mặc định 20/phút), tách khỏi ngưỡng `/chat`."""
+    app = await _create(client, RESIDENCY_ITEM)
+    for _ in range(UPLOAD_LIMIT_PER_MINUTE):
+        r = await _upload(client, app["application_id"])
+        assert r.status_code == 201
+
+    r = await _upload(client, app["application_id"])
+    assert r.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_nap_tai_lieu_qua_han_muc_khong_lam_hong_polling_embed_status(
+    client, fake_ingest
+):
+    """Frontend poll `GET /admin/documents` liên tục trong lúc chờ embed —
+    endpoint đó KHÔNG bị giới hạn, kể cả khi `POST /admin/documents` đã bị
+    chặn 429. Đây là lằn ranh cố ý của task 18: chỉ chặn endpoint TỐN TIỀN,
+    không chặn endpoint đọc."""
+    for i in range(UPLOAD_LIMIT_PER_MINUTE):
+        r = await client.post(
+            "/api/v1/admin/documents",
+            json={"title": f"Quy trình giới hạn {i}", "content": "# A\n\nB."},
+            headers=ADMIN,
+        )
+        assert r.status_code == 201
+
+    blocked = await client.post(
+        "/api/v1/admin/documents",
+        json={"title": "Quy trình vượt hạn mức", "content": "# A\n\nB."},
+        headers=ADMIN,
+    )
+    assert blocked.status_code == 429
+
+    # GET không bị đụng tới — polling vẫn sống, không bị vạ lây.
+    for _ in range(5):
+        r = await client.get("/api/v1/admin/documents", headers=ADMIN)
+        assert r.status_code == 200

@@ -58,7 +58,7 @@ from src.models.schemas import (
     ResidentDetailResponse,
     TemporaryPasswordResponse,
 )
-from src.services import storage, store
+from src.services import rate_limit, storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
 from src.services.ingest import KB_DIR, ingest_file
@@ -303,6 +303,7 @@ async def submit_application(
     "/applications/{application_id}/attachments",
     response_model=AttachmentResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit.enforce_attachment_upload_rate_limit)],
 )
 async def upload_attachment(
     application_id: int,
@@ -530,7 +531,11 @@ def _match_checklist_item(
     return matches[0] if len(matches) == 1 else None
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit.enforce_chat_rate_limit)],
+)
 async def chat(
     payload: ChatRequest,
     user: dict[str, Any] = Depends(get_current_user),
@@ -877,6 +882,7 @@ def _embed_document(document_id: int, path: Path) -> None:
     "/admin/documents",
     response_model=DocumentResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit.enforce_document_ingest_rate_limit)],
 )
 async def ingest_document(
     payload: DocumentIngestRequest,

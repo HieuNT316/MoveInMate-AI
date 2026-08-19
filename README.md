@@ -141,6 +141,22 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 
 Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
 
+## Giới hạn tốc độ (rate limiting)
+
+Bộ đếm tự viết tay trong bộ nhớ tiến trình (`src/services/rate_limit.py`), **không** dùng `slowapi`/`limits` hay Redis — dịch vụ chạy MỘT instance duy nhất (Chroma sống trong tiến trình FastAPI, xem [`docs/DEPLOY.md`](./docs/DEPLOY.md) mục 213), nên một bộ đếm cục bộ là đủ đúng đắn.
+
+Chỉ áp cho các endpoint TỐN TIỀN (gọi LLM, gọi Google embedding, hoặc ghi tệp/nạp tài liệu); mọi endpoint đọc (checklist, dashboard, danh sách hồ sơ/tài liệu — kể cả endpoint frontend poll `embed_status`) **không** bị giới hạn.
+
+| Endpoint | Ngưỡng mặc định | Setting (`src/config.py`) |
+|---|---|---|
+| `POST /api/v1/chat` | 10 lượt/phút **và** 100 lượt/giờ | `CHAT_RATE_LIMIT_PER_MINUTE`, `CHAT_RATE_LIMIT_PER_HOUR` |
+| `POST /api/v1/applications/{id}/attachments` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
+| `POST /api/v1/admin/documents` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
+
+Khoá theo IP client thật (đọc mục đầu `X-Forwarded-For` do Railway forward, không phải IP của proxy — xem docstring `get_client_ip`). Vượt ngưỡng trả **429** kèm header `Retry-After` và thông điệp tiếng Việt yêu cầu chờ, không lộ chi tiết nội bộ.
+
+**Cố tình KHÔNG có trần tổng số request/ngày trên toàn hệ thống.** Đó mới là thứ thật sự bảo vệ hạn mức Google 1000 request/ngày dùng chung cả nhóm, nhưng một trần như vậy tự nó trở thành rủi ro: chạm ngưỡng giữa buổi demo là trợ lý im lặng với **mọi người**, đúng thảm hoạ đang cố tránh. Hạn mức ngày vẫn là rủi ro **được theo dõi thủ công**, không phải rủi ro được chặn bằng code.
+
 ## Deliverables Checklist
 
 - [x] Source Code (GitHub)
