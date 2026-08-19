@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
@@ -290,10 +291,15 @@ function ApplicationDetailDialog({
   onEdit: () => void;
 }) {
   const [previewing, setPreviewing] = useState<(typeof application.attachments)[number] | null>(null);
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/45 px-4" role="dialog" aria-modal="true" aria-label="Chi tiết hồ sơ">
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-2xl">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-none bg-[#0F172A]/45 p-4" role="dialog" aria-modal="true" aria-label="Chi tiết hồ sơ">
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600">Chi tiết yêu cầu</p>
@@ -352,7 +358,8 @@ function ApplicationDetailDialog({
         </div>
         {previewing && <AttachmentPreviewModal userId={userId} applicationId={application.application_id} attachment={previewing} onClose={() => setPreviewing(null)} />}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
