@@ -6,7 +6,9 @@ import {
   ArrowRight,
   CalendarClock,
   FileText,
+  ExternalLink,
   Inbox,
+  Loader2,
   Paperclip,
   Pencil,
   Search,
@@ -262,19 +264,55 @@ function BQLApplicationsContent() {
       )}
 
       {viewing && (
-        <ApplicationDetailDialog application={viewing} onClose={() => setViewing(null)} />
+        <ApplicationDetailDialog
+          userId={userId}
+          application={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => {
+            setEditing(viewing);
+            setViewing(null);
+          }}
+        />
       )}
     </>
   );
 }
 
 function ApplicationDetailDialog({
+  userId,
   application,
   onClose,
+  onEdit,
 }: {
+  userId: number;
   application: AdminApplication;
   onClose: () => void;
+  onEdit: () => void;
 }) {
+  const [openingId, setOpeningId] = useState<number | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
+  const openAttachment = async (attachmentId: number) => {
+    if (openingId !== null) return;
+    setOpeningId(attachmentId);
+    setAttachmentError(null);
+    const target = window.open("", "_blank", "noopener,noreferrer");
+    try {
+      const { url } = await api.getAttachmentUrl(
+        userId,
+        application.application_id,
+        attachmentId,
+      );
+      if (target) target.location.href = url;
+      else window.location.assign(url);
+    } catch {
+      target?.close();
+      setAttachmentError("Không mở được giấy tờ lúc này. Vui lòng thử lại.");
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/45 px-4" role="dialog" aria-modal="true" aria-label="Chi tiết hồ sơ">
       <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-2xl">
@@ -296,6 +334,35 @@ function ApplicationDetailDialog({
           <Detail label="Địa điểm nộp" value={application.submission_location ?? "Nộp trực tuyến"} />
         </dl>
 
+        <section className="mt-4 rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-sm font-semibold text-slate-800">Giấy tờ cư dân đã nộp</h4>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">{application.attachments.length} tệp</span>
+          </div>
+          {application.attachments.length === 0 ? (
+            <div className="mt-3 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+              Cư dân chưa tải giấy tờ nào cho yêu cầu này. Chưa nên duyệt hồ sơ cho đến khi có đủ minh chứng.
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {application.attachments.map((attachment) => (
+                <li key={attachment.attachment_id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                  <FileText className="h-4 w-4 shrink-0 text-blue-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-800">{attachment.filename}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{attachment.document_type ?? "Chưa phân loại"} · {formatFileSize(attachment.size_bytes)}</p>
+                  </div>
+                  <button type="button" onClick={() => openAttachment(attachment.attachment_id)} disabled={openingId !== null} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+                    {openingId === attachment.attachment_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                    {openingId === attachment.attachment_id ? "Đang mở" : "Xem giấy tờ"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {attachmentError && <p className="mt-3 text-xs text-red-600">{attachmentError}</p>}
+        </section>
+
         {(application.note || application.bql_note) && (
           <div className="mt-4 space-y-3">
             {application.note && <Note label="Ghi chú của cư dân" value={application.note} />}
@@ -305,10 +372,17 @@ function ApplicationDetailDialog({
 
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Đóng</button>
+          <button onClick={onEdit} className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"><Pencil className="h-4 w-4" />Cập nhật trạng thái</button>
         </div>
       </div>
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
