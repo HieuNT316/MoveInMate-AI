@@ -56,13 +56,19 @@ export default function AttachmentUploader({
     setOpeningId(attachment.attachment_id);
     setError(null);
     // Mở tab ngay trong click để trình duyệt không chặn popup sau await.
-    const target = window.open("", "_blank", "noopener,noreferrer");
+    const target = window.open("", "_blank");
+    if (!target) {
+      setError("Trình duyệt đang chặn cửa sổ xem giấy tờ. Hãy cho phép pop-up rồi thử lại.");
+      setOpeningId(null);
+      return;
+    }
+    target.opener = null;
+    target.document.title = "Đang mở giấy tờ...";
     try {
       const { url } = await api.getAttachmentUrl(userId, applicationId, attachment.attachment_id);
-      if (target) target.location.href = url;
-      else window.location.assign(url);
+      target.location.replace(url);
     } catch {
-      target?.close();
+      target.close();
       setError("Không mở được giấy tờ lúc này, vui lòng thử lại.");
     } finally {
       setOpeningId(null);

@@ -296,17 +296,23 @@ function ApplicationDetailDialog({
     if (openingId !== null) return;
     setOpeningId(attachmentId);
     setAttachmentError(null);
-    const target = window.open("", "_blank", "noopener,noreferrer");
+    const target = window.open("", "_blank");
+    if (!target) {
+      setAttachmentError("Trình duyệt đang chặn cửa sổ xem giấy tờ. Hãy cho phép pop-up rồi thử lại.");
+      setOpeningId(null);
+      return;
+    }
+    target.opener = null;
+    target.document.title = "Đang mở giấy tờ...";
     try {
       const { url } = await api.getAttachmentUrl(
         userId,
         application.application_id,
         attachmentId,
       );
-      if (target) target.location.href = url;
-      else window.location.assign(url);
+      target.location.replace(url);
     } catch {
-      target?.close();
+      target.close();
       setAttachmentError("Không mở được giấy tờ lúc này. Vui lòng thử lại.");
     } finally {
       setOpeningId(null);
