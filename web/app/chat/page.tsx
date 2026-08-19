@@ -911,8 +911,9 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
           </div>
         </div>
 
-        <div className="mt-4 max-h-64 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
-          <p className="text-[13px] leading-relaxed text-ink/90">{source.snippet}</p>
+        <div className="mt-4 max-h-72 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Đoạn trích liên quan</p>
+          <SourceSnippet text={source.snippet} />
         </div>
 
         <button
@@ -926,5 +927,32 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         </button>
       </div>
     </div>
+  );
+}
+
+/** Backend nén whitespace của snippet thành một dòng. Khôi phục các ý có
+ * dấu gạch đầu dòng để modal nguồn không biến danh sách giấy tờ thành một
+ * đoạn văn khó đọc. Dấu … cuối chuỗi vẫn phản ánh giới hạn snippet backend. */
+function SourceSnippet({ text }: { text: string }) {
+  const normalized = text.trim();
+  const parts = normalized
+    .replace(/^[-–—]\s*/, "")
+    .split(/\s+[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return <p className="whitespace-pre-line text-[13px] leading-6 text-ink/90">{normalized}</p>;
+  }
+
+  return (
+    <ul className="space-y-2 text-[13px] leading-6 text-ink/90">
+      {parts.map((part, index) => (
+        <li key={`${index}-${part.slice(0, 16)}`} className="flex items-start gap-2">
+          <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+          <span>{part}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
