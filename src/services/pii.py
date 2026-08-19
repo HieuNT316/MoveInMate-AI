@@ -38,13 +38,19 @@ Ranh giới của từng regex
   nhận nhầm là CCCD. Không xảy ra với số liệu phí hiện có trong
   `data/kb/` (đều 7 chữ số, ví dụ "1.250.000đ") nên chấp nhận đánh đổi này
   thay vì thêm rule đoán ngữ cảnh "đây là tiền hay là CCCD".
-  Giới hạn thứ hai, cùng gốc: một số điện thoại +84 viết cách nhóm 3 chữ số
-  (ví dụ "+84 901 234 567") có phần sau mã nước vừa đúng 9 chữ số đứng sau
-  một dấu cách — bị regex CCCD này nhận nhầm trong CẢ `answer`, nơi lẽ ra số
-  điện thoại phải sống sót. Không xảy ra với hotline BQL thật (`0827 001
-  090`, viết cụm 4-3-3, 10 chữ số) nên chấp nhận, cùng lý do với giới hạn
-  trên — nhưng nếu KB sau này thêm số dạng "+84 xxx xxx xxx" thì giới hạn
-  này sẽ lộ.
+  Giới hạn thứ hai — ĐÃ SỬA (fix round 1, task 19): một số điện thoại viết
+  cách nhóm ("+84 123 456 789" hoặc "0 123 456 789") có phần đuôi vừa đúng 9
+  chữ số đứng ngay sau một dấu cách/dấu chấm — trước fix, biên `(?<!\d)` chỉ
+  nhìn một ký tự liền trước nên bị "đánh lừa" bởi chính dấu cách đó, khiến
+  CCCD nhận nhầm đuôi số điện thoại và che mất nó trong CẢ `answer`. Vá bằng
+  bốn lookbehind cố định `_PHONE_PREFIX_GUARD` chặn đúng bốn dạng tiền
+  tố+phân cách "+84 " / "+84." / "0 " / "0." đứng ngay trước một cụm 9 hoặc
+  12 chữ số. Đánh đổi còn lại của bản vá: nếu một CCCD thật tình cờ đứng
+  ngay sau văn bản kết thúc bằng "0 " hoặc "0." không liên quan gì tới số
+  điện thoại (vd "phòng 10 123456789" — "0 " của "10" đứng ngay trước),
+  CCCD đó sẽ KHÔNG bị che. Chấp nhận vì hiếm và vì ưu tiên đã nêu ở đầu
+  module: che nhầm hotline nguy hiểm hơn bỏ sót một CCCD hiếm gặp trong hoàn
+  cảnh trớ trêu này.
 - **Email**: dạng thông thường `local@domain.tld`. Che TRƯỚC hai loại kia để
   chữ số nằm trong phần `local@` (nếu có) không bị hai regex sau cắn nham
   nhở trước khi email được che trọn vẹn.
@@ -61,7 +67,20 @@ MASK = "[ĐÃ ẨN THÔNG TIN CÁ NHÂN]"
 # Alt 12 chữ số đứng trước alt 9 chữ số: nếu cả hai đều có thể bắt đầu khớp
 # tại cùng vị trí, ưu tiên khớp dài hơn (CCCD mới) thay vì dừng sớm ở 9 số
 # rồi bỏ sót phần còn lại.
-_CCCD_RE = re.compile(r"(?<!\d)\d(?:[ .]?\d){11}(?!\d)|(?<!\d)\d(?:[ .]?\d){8}(?!\d)")
+#
+# `(?<!\d)` chỉ nhìn đúng MỘT ký tự liền trước — không đủ để biết 9 chữ số
+# phía sau có phải là ĐUÔI của một số điện thoại "0"/"+84" hay không, vì dấu
+# cách/dấu chấm sau tiền tố cũng là "không phải chữ số" nên thoả mãn y hệt
+# một biên hợp lệ (fix round 1, task 19). Chặn thêm bằng bốn lookbehind
+# rộng-cố-định-từng-cái cho đúng 4 dạng tiền tố+phân cách có thể đứng ngay
+# trước đuôi 9 số: "+84 ", "+84.", "0 ", "0.". `re` không cho một lookbehind
+# độ rộng thay đổi, nhưng cho nhiều lookbehind đứng cạnh nhau miễn MỖI cái tự
+# nó cố định độ rộng — nên xếp bốn cái thay vì một cái gộp.
+_PHONE_PREFIX_GUARD = r"(?<!\+84 )(?<!\+84\.)(?<!0 )(?<!0\.)"
+_CCCD_RE = re.compile(
+    rf"(?<!\d){_PHONE_PREFIX_GUARD}\d(?:[ .]?\d){{11}}(?!\d)"
+    rf"|(?<!\d){_PHONE_PREFIX_GUARD}\d(?:[ .]?\d){{8}}(?!\d)"
+)
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _PHONE_RE = re.compile(r"(?<!\d)(?:\+84|0)(?:[ .]?\d){9}(?!\d)")
 

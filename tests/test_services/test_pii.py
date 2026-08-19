@@ -17,6 +17,7 @@ from src.services.pii import mask_answer, mask_question
 CCCD_9 = "123456789"
 CCCD_12 = "001234567890"
 PHONE_10 = "0901234567"
+PHONE_84_GROUPED = "+84 123 456 789"
 
 
 # --- Hotline BQL trong answer phải sống sót ------------------------------
@@ -68,6 +69,25 @@ def test_dien_thoai_10_so_bi_che_o_question():
 def test_dien_thoai_10_so_khong_bi_che_o_answer():
     text = f"Hotline hỗ trợ: {PHONE_10}"
     assert mask_answer(text) == text
+
+
+def test_dien_thoai_84_cach_nhom_3_so_khong_bi_che_o_answer():
+    """Fix round 1: `+84 123 456 789` có 9 chữ số sau mã nước đứng ngay sau
+    một dấu cách — trước fix, `(?<!\\d)` chỉ nhìn đúng 1 ký tự liền trước nên
+    thoả mãn tại dấu cách đó, khiến `_CCCD_RE` nhận nhầm 9 chữ số này là CCCD
+    và che mất số điện thoại ngay trong `answer`, nơi lẽ ra phải sống sót."""
+    text = f"Hotline: {PHONE_84_GROUPED}"
+    assert mask_answer(text) == text
+
+
+def test_dien_thoai_84_cach_nhom_3_so_van_bi_che_o_question():
+    """Fix không được mở lỗ hổng ngược: `question` vẫn phải che số này —
+    `_PHONE_RE` (không phải `_CCCD_RE`) đã quét đúng toàn bộ số kèm mã nước,
+    không phụ thuộc vào việc `_CCCD_RE` có bắt được hay không."""
+    text = f"Số của tôi là {PHONE_84_GROUPED}"
+    result = mask_question(text)
+    assert PHONE_84_GROUPED not in result
+    assert "123 456 789" not in result
 
 
 # --- CCCD/CMND bị che ở cả hai trường -------------------------------------
