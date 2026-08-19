@@ -23,6 +23,8 @@ import { useDemoUser } from "../../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../../lib/applicationStatus";
 import UpdateApplicationStatusDialog from "../../components/UpdateApplicationStatusDialog";
 import Pagination from "../../components/Pagination";
+import EmptyState from "../../components/EmptyState";
+import ErrorState from "../../components/ErrorState";
 
 const PAGE_SIZE = 10;
 
@@ -179,25 +181,14 @@ function BQLApplicationsContent() {
         </div>
       </div>
 
-      {error && (
-        <p className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && <div className="mb-6"><ErrorState message={error} onRetry={load} /></div>}
 
       {!error && !visibleApplications && (
         <p className="text-sm text-[#475569]">Đang tải danh sách hồ sơ...</p>
       )}
 
       {visibleApplications && visibleApplications.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[#B6C4D6] bg-[#F8FAFC] px-6 py-14 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#B6C4D6] bg-white text-[#64748B]">
-            <Inbox className="h-5 w-5" strokeWidth={1.75} />
-          </div>
-          <p className="text-sm text-[#475569]">
-            Không có hồ sơ nào khớp bộ lọc hiện tại.
-          </p>
-        </div>
+        <EmptyState icon={Inbox} title={applications?.length === 0 ? "Chưa có yêu cầu nào" : "Không có kết quả"} description={applications?.length === 0 ? "Khi cư dân nộp hồ sơ, yêu cầu sẽ xuất hiện tại đây để Ban quản lý tiếp nhận." : "Thử thay đổi từ khóa hoặc bộ lọc hiện tại."} />
       )}
 
       {visibleApplications && visibleApplications.length > 0 && (

@@ -17,6 +17,7 @@ import Layout from "../components/Layout";
 import { api, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { supabase, supabaseConfigured } from "../../lib/supabase";
+import ErrorState from "../components/ErrorState";
 
 const AMENITY_LABELS: Record<string, string> = {
   pool: "Hồ bơi",
@@ -69,9 +70,7 @@ export default function ProfilePage() {
   if (error) {
     return (
       <Layout>
-        <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {error}
-        </p>
+        <ErrorState message={error} onRetry={load} />
       </Layout>
     );
   }

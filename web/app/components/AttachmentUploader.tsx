@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, FileText, Loader2, Paperclip } from "lucide-react";
+import { Check, ExternalLink, FileText, Loader2, Paperclip } from "lucide-react";
 
 import { api, ApiError, type Attachment, type DocumentType, type RequiredDocument } from "../../lib/api";
 
@@ -47,6 +47,25 @@ export default function AttachmentUploader({
   const pendingSlotRef = useRef<DocumentType | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<number | null>(null);
+
+  const openAttachment = async (attachment: Attachment) => {
+    if (openingId !== null) return;
+    setOpeningId(attachment.attachment_id);
+    setError(null);
+    // Mở tab ngay trong click để trình duyệt không chặn popup sau await.
+    const target = window.open("", "_blank", "noopener,noreferrer");
+    try {
+      const { url } = await api.getAttachmentUrl(userId, applicationId, attachment.attachment_id);
+      if (target) target.location.href = url;
+      else window.location.assign(url);
+    } catch {
+      target?.close();
+      setError("Không mở được giấy tờ lúc này, vui lòng thử lại.");
+    } finally {
+      setOpeningId(null);
+    }
+  };
 
   const pick = (slotCode?: DocumentType) => {
     pendingSlotRef.current = slotCode;
@@ -134,15 +153,10 @@ export default function AttachmentUploader({
                     </span>
                   )}
 
-                  {att && att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-w-0 flex-1 truncate underline decoration-dotted hover:text-gold"
-                    >
-                      {doc.label}
-                    </a>
+                  {att ? (
+                    <button type="button" onClick={() => openAttachment(att)} disabled={openingId === att.attachment_id} className="flex min-w-0 flex-1 items-center gap-1 truncate text-left underline decoration-dotted hover:text-gold disabled:opacity-60">
+                      <span className="truncate">{doc.label}</span>{openingId === att.attachment_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+                    </button>
                   ) : (
                     <span className="min-w-0 flex-1 truncate">{doc.label}</span>
                   )}
@@ -183,18 +197,7 @@ export default function AttachmentUploader({
                   className="flex items-center gap-1.5 text-[11px] text-muted"
                 >
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-                  {att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-ink/85 underline decoration-dotted hover:text-gold"
-                    >
-                      {att.filename}
-                    </a>
-                  ) : (
-                    <span className="truncate">{att.filename}</span>
-                  )}
+                  <button type="button" onClick={() => openAttachment(att)} disabled={openingId === att.attachment_id} className="truncate text-ink/85 underline decoration-dotted hover:text-gold disabled:opacity-60">{openingId === att.attachment_id ? "Đang mở..." : att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
                 </li>
               ))}
@@ -211,18 +214,7 @@ export default function AttachmentUploader({
                   className="flex items-center gap-1.5 text-[11px] text-muted"
                 >
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-                  {att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-ink/85 underline decoration-dotted hover:text-gold"
-                    >
-                      {att.filename}
-                    </a>
-                  ) : (
-                    <span className="truncate">{att.filename}</span>
-                  )}
+                  <button type="button" onClick={() => openAttachment(att)} disabled={openingId === att.attachment_id} className="truncate text-ink/85 underline decoration-dotted hover:text-gold disabled:opacity-60">{openingId === att.attachment_id ? "Đang mở..." : att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
                 </li>
               ))}

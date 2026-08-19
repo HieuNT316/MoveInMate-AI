@@ -20,6 +20,8 @@ import { api, type Application, type Checklist, type ChecklistItem } from "../..
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
 import { SELF_DECLARED_DOCUMENT, submitActionLabel } from "../../lib/applicationForms";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
 
 export default function ChecklistPage() {
   return (
@@ -96,9 +98,7 @@ function ChecklistContent() {
   if (error) {
     return (
       <Layout>
-        <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {error}
-        </p>
+        <ErrorState message={error} onRetry={load} />
       </Layout>
     );
   }
@@ -115,6 +115,7 @@ function ChecklistContent() {
   }
 
   const { items, overall, bql_scope } = data;
+  if (items.length === 0) return <Layout><EmptyState title="Chưa có việc cần làm" description="Checklist sẽ được tạo theo thông tin căn hộ và nhu cầu bạn đã khai báo." /></Layout>;
 
   // Mỗi mục chỉ có MỘT hồ sơ đang mở — `applications` trả mới nhất trước nên
   // giữ bản ghi đầu tiên gặp cho mỗi `checklist_item_id` là đủ, không cần lọc
