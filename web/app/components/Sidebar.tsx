@@ -3,26 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  Bot,
-  ClipboardList,
-  LogOut,
-  UserRound,
-  Plus,
-} from "lucide-react";
+import { Building2, LogOut, Plus } from "lucide-react";
 
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
-import LogoMark from "./LogoMark";
-
-const menus = [
-  { title: "Tổng quan", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "AI Chat", icon: Bot, href: "/chat" },
-  { title: "Checklist & Tiến độ", icon: ClipboardList, href: "/checklist" },
-  { title: "Hồ sơ", icon: UserRound, href: "/profile" },
-];
+import { RESIDENT_NAV } from "../../lib/nav";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -44,11 +30,13 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-72 shrink-0 bg-surface text-ink h-screen flex flex-col overflow-y-auto border-r border-border">
+    <aside className="hidden lg:flex w-72 shrink-0 bg-surface text-ink h-screen flex-col overflow-y-auto border-r border-border">
       {/* Logo */}
       <div className="px-7 py-8 border-b border-border">
         <div className="flex items-center gap-3">
-          <LogoMark size={52} />
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold">
+            <Building2 className="h-5 w-5 text-white" strokeWidth={1.5} />
+          </div>
           <div>
             <h1 className="font-display text-lg font-semibold tracking-wide text-ink">
               MoveInMate
@@ -76,7 +64,7 @@ export default function Sidebar() {
         <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
           Điều hướng
         </p>
-        {menus.map((item) => {
+        {RESIDENT_NAV.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
           return (
@@ -86,7 +74,7 @@ export default function Sidebar() {
               className={`group flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm transition-colors ${
                 active
                   ? "bg-gold-tint text-gold"
-                  : "text-ink/85 hover:bg-background hover:text-ink"
+                  : "text-ink/70 hover:bg-background hover:text-ink"
               }`}
             >
               <Icon

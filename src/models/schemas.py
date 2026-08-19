@@ -8,9 +8,12 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 OwnershipType = Literal["owner", "renter"]
+# Khoá tài khoản chặn ở BACKEND, không đụng Supabase Auth: người bị khoá vẫn
+# đăng nhập được và vẫn có JWT hợp lệ, nhưng mọi lời gọi API trả 403.
+AccountStatus = Literal["active", "locked"]
 ApartmentType = Literal["studio", "1pn", "2pn", "3pn", "duplex"]
 ItemType = Literal["bql_actionable", "third_party_info"]
 DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"]
@@ -21,6 +24,25 @@ AnswerSource = Literal["faq", "rag", "no_context"]
 # checklist mà không báo lỗi. Cùng loại rủi ro mà `validate_conditions` phòng
 # ở phía dữ liệu seed.
 AmenityPackage = Literal["pool", "gym", "tennis", "bbq", "kids_area"]
+
+
+DocumentType = Literal[
+    "cccd", "bien_ban_ban_giao", "hop_dong_thue", "giay_uy_quyen", "dang_ky_xe",
+    "the_cu_dan", "the_xe", "don_dang_ky", "to_khai_ct01", "anh_vneid", "khac",
+]
+
+EmbedStatus = Literal["pending", "processing", "ready", "failed"]
+
+
+class RequiredDocument(BaseModel):
+    """Một loại giấy tờ, kèm nhãn hiển thị.
+
+    Trả cả `label` chứ không riêng `code`: nếu chỉ trả mã thì frontend lại phải
+    giữ một bảng nhãn riêng — đúng chỗ nhân đôi mà D1 đi xoá.
+    """
+
+    code: DocumentType
+    label: str
 
 
 class OnboardingRequest(BaseModel):
@@ -108,6 +130,10 @@ class ChecklistItemResponse(BaseModel):
     order_index: int
     completed: bool
     completed_at: datetime | None = None
+    required_documents: list[RequiredDocument] = Field(
+        default_factory=list,
+        description="Giấy tờ thủ tục này yêu cầu; rỗng nghĩa là không đòi gì.",
+    )
 
     # US-13 — định tuyến, đủ để hiện "Bộ phận · Nơi nộp · Thời hạn" ngay trong
     # checklist kể cả khi chưa nộp gì. `null` với `third_party_info`: công an
@@ -246,6 +272,7 @@ class ResidentProgress(BaseModel):
     ownership_type: OwnershipType | None
     onboarded: bool
     bql_scope: ProgressSummary
+    account_status: AccountStatus
 
 
 class DashboardResponse(BaseModel):
@@ -270,20 +297,46 @@ ApplicationStatus = Literal[
 # minh chứng cho thủ tục làm ở cơ quan khác, BQL chỉ ghi nhận chứ không xử lý.
 ApplicationKind = Literal["bql_processing", "self_declared"]
 
+class AttachmentTypeUpdateRequest(BaseModel):
+    """Gán lại loại cho tệp đã tải lên — dùng khi gán nhầm hoặc chưa gán.
+
+    Gửi `null` để trả tệp về trạng thái CHƯA PHÂN LOẠI. Không có đường này thì
+    gán nhầm là một chiều: chỉ đổi được sang loại khác, không khôi phục được
+    trạng thái trung thực "chưa ai xem" — mà cả tính năng dựa trên việc phân
+    biệt hai thứ đó.
+    """
+
+    document_type: DocumentType | None
+
 
 class AttachmentResponse(BaseModel):
     """Ảnh/PDF minh chứng đã tải lên.
 
-    `url` là link ĐỌC TẠM THỜI, ký lại mỗi lần đọc và hết hạn sau vài phút —
-    đừng lưu lại hay chia sẻ. `null` nghĩa là ký link hỏng, thử tải lại trang.
+    `url` luôn `null` ở đây — xem `GET /api/v1/applications/{id}/attachments/{aid}/url`
+    để lấy link đọc tạm thời. Giữ trường này thay vì xoá hẳn để giao diện chưa kịp
+    đổi không vỡ vì thiếu khoá; ảnh không hiện thì tốt hơn trang trắng.
     """
 
     attachment_id: int
     filename: str
     content_type: str
+    document_type: DocumentType | None = Field(
+        default=None,
+        description="`null` = CHƯA phân loại, khác `khac` (đã gán, không thuộc loại nào).",
+    )
     size_bytes: int
     url: str | None = None
     uploaded_at: datetime
+
+
+class AttachmentUrlResponse(BaseModel):
+    """Link đọc tạm thời, ký khi người dùng thật sự mở ảnh.
+
+    Tách khỏi phản hồi danh sách vì ký là một lời gọi mạng đồng bộ tới Supabase:
+    ký sẵn cho mọi tệp mỗi lần đọc hồ sơ sẽ chặn event loop.
+    """
+
+    url: str
 
 
 class ApplicationCreateRequest(BaseModel):
@@ -316,6 +369,15 @@ class ApplicationResponse(BaseModel):
         )
     )
     attachments: list[AttachmentResponse] = Field(default_factory=list)
+    missing_documents: list[RequiredDocument] | None = Field(
+        default=None,
+        description=(
+            "Giấy tờ còn thiếu. **`null` nghĩa là CHƯA KẾT LUẬN ĐƯỢC** vì hồ sơ "
+            "còn tệp chưa phân loại — đừng hiển thị thành 'không thiếu gì'. Khi "
+            "đó dùng `unlabelled_count` để nói 'N tệp chưa phân loại'."
+        ),
+    )
+    unlabelled_count: int = 0
     handling_department: str | None = None
     submission_location: str | None = None
     processing_time: str | None = None
@@ -347,3 +409,67 @@ class ApplicationStatusUpdateRequest(BaseModel):
             "không nói gì không nên làm mất lý do 'cần bổ sung' trước đó."
         ),
     )
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+class AccountStatusUpdateRequest(BaseModel):
+    account_status: AccountStatus
+
+
+class ResidentDetailResponse(BaseModel):
+    """Toàn cảnh một cư dân, cho trang BQL.
+
+    Ghép ba schema đã có thay vì bịa một schema phẳng mới: giao diện đã có sẵn
+    component render checklist và hồ sơ ở khu cư dân, nên trang BQL dùng lại
+    được, không phải viết lại logic hiển thị.
+
+    Dùng `ApplicationResponse` chứ không phải `AdminApplicationResponse` — đã
+    biết đang xem ai thì user_id/full_name/apartment là thừa.
+    """
+
+    profile: ProfileResponse
+    checklist: ChecklistResponse
+    applications: list[ApplicationResponse]
+    account_status: AccountStatus
+
+
+class TemporaryPasswordResponse(BaseModel):
+    """Mật khẩu tạm sau khi đặt lại.
+
+    Chỉ xuất hiện đúng một lần ở phản hồi này; hệ thống không lưu và không có
+    cách xem lại. Quên nữa thì đặt lại tiếp.
+    """
+
+    temporary_password: str
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+class DocumentIngestRequest(BaseModel):
+    """BQL dán nội dung quy trình mới.
+
+    Dán chữ chứ không tải tệp: `ingest_file` đòi `.md` có frontmatter YAML hợp
+    lệ mà BQL không gõ YAML, và đọc PDF nằm ngoài phạm vi. Backend tự sinh
+    frontmatter với `source_type: bql_internal`.
+    """
+
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+    @field_validator("content")
+    @classmethod
+    def khong_duoc_toan_khoang_trang(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Nội dung tài liệu không được để trống")
+        return v
+
+
+class DocumentResponse(BaseModel):
+    document_id: int
+    title: str
+    file_path: str
+    embed_status: EmbedStatus
+    uploaded_at: datetime

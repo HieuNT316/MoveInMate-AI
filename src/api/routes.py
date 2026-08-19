@@ -5,25 +5,40 @@ tách thành package `src/api/routes/` như mô tả ở docs/architecture_diagr
 mục 3.2.
 """
 
+import logging
 import re
 import unicodedata
 import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
-from src.database import get_db
+from src.database import SessionLocal, get_db
 from src.models.db import APPLICATION_STATUSES
 from src.models.schemas import (
+    AccountStatusUpdateRequest,
     AdminApplicationResponse,
     ApplicationCreateRequest,
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
     AttachmentResponse,
+    AttachmentTypeUpdateRequest,
+    AttachmentUrlResponse,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -35,19 +50,28 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
+    DocumentIngestRequest,
+    DocumentResponse,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    ResidentDetailResponse,
+    TemporaryPasswordResponse,
 )
 from src.services import storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
+from src.services.documents import DOCUMENT_LABELS
+from src.services.ingest import KB_DIR, ingest_file
 from src.services.storage import ALLOWED_CONTENT_TYPES
 from src.services.supabase_admin import (
     SupabaseAdminError,
     create_auth_user,
     generate_password,
+    update_auth_password,
 )
 from src.services.vectorstore import RetrievalError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -272,6 +296,7 @@ async def submit_application(
 async def upload_attachment(
     application_id: int,
     file: UploadFile = File(...),
+    document_type: str | None = Form(default=None),
     user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> Any:
@@ -290,6 +315,14 @@ async def upload_attachment(
     if app is None or app.user_id != user["user_id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ này."
+        )
+
+    # Bỏ trống là hợp lệ — tệp vào diện "chưa phân loại", và hệ thống sẽ KHÔNG
+    # kết luận hồ sơ thiếu giấy tờ gì (xem services/documents.py).
+    if document_type is not None and document_type not in DOCUMENT_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Loại giấy tờ không hợp lệ. Hợp lệ: {', '.join(DOCUMENT_LABELS)}",
         )
 
     if file.content_type not in ALLOWED_CONTENT_TYPES:
@@ -325,8 +358,72 @@ async def upload_attachment(
     # tới tệp không tồn tại.
     return store.add_attachment(
         db, application_id, storage.display_name(file.filename), file.content_type,
-        len(data), path,
+        len(data), path, document_type,
     )
+
+
+@router.patch(
+    "/admin/applications/{application_id}/attachments/{attachment_id}",
+    response_model=AttachmentResponse,
+)
+async def set_attachment_document_type(
+    application_id: int,
+    attachment_id: int,
+    payload: AttachmentTypeUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13/D1 — Ban quản lý gán lại loại giấy tờ cho một tệp đã tải lên.
+
+    Không phải tiện nghi: gán nhầm (hoặc cư dân chưa gán) thì hồ sơ kẹt ở trạng
+    thái "thiếu giấy tờ đã nộp rồi" — BQL nhìn thấy tệp trên màn hình mà hệ thống
+    vẫn kêu thiếu, và không ai sửa được. Đây cũng là đường dọn cho những tệp tải
+    lên trước khi có `document_type`.
+    """
+    updated = store.set_attachment_type(
+        db, application_id, attachment_id, payload.document_type
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+    return updated
+
+
+@router.get(
+    "/applications/{application_id}/attachments/{attachment_id}/url",
+    response_model=AttachmentUrlResponse,
+)
+async def get_attachment_url(
+    application_id: int,
+    attachment_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AttachmentUrlResponse:
+    """Ký link đọc ảnh, chỉ khi người dùng thật sự mở nó.
+
+    Dùng `get_current_user` chứ KHÔNG phải `require_resident`: BQL cần xem đúng
+    những ảnh này để đối chiếu giấy tờ. Quyền kiểm trong thân hàm.
+    """
+    attachment = store.get_attachment(db, application_id, attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+
+    app = store.get_application(db, application_id)
+    if app is None or (user["role"] != "admin" and app.user_id != user["user_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp này."
+        )
+
+    url = storage.signed_url(attachment.storage_path)
+    if url is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không ký được link xem ảnh.",
+        )
+    return AttachmentUrlResponse(url=url)
 
 
 @router.get("/applications", response_model=list[ApplicationResponse])
@@ -585,6 +682,7 @@ async def dashboard(
                 "ownership_type": resident["ownership_type"],
                 "onboarded": resident["onboarding_completed_at"] is not None,
                 "bql_scope": summarize_progress(matched, done_ids),
+                "account_status": resident["account_status"],
             }
         )
     return DashboardResponse(residents=residents, total_residents=len(residents))
@@ -648,3 +746,160 @@ async def update_application_status(
     return store.update_application_status(
         db, application_id, payload.status, payload.bql_note
     )
+
+
+# --- Quản lý tài khoản cư dân (18/08) -----------------------------------
+
+
+def _require_resident_record(db: Session, user_id: int) -> dict[str, Any]:
+    """Hồ sơ cư dân, hoặc 404.
+
+    Chặn luôn cả `role == "admin"`: mở thao tác quản trị lên một tài khoản BQL
+    sẽ cho phép BQL tự khoá mình ra khỏi hệ thống, và hiện một checklist nhận
+    nhà vô nghĩa — đúng lỗi mà `require_resident` sinh ra để chặn.
+    """
+    resident = store.get_user(db, user_id)
+    if resident is None or resident["role"] != "resident":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cư dân này."
+        )
+    return resident
+
+
+def _build_resident_detail(db: Session, user_id: int) -> ResidentDetailResponse:
+    """Toàn cảnh một cư dân. Task 9 dùng lại nguyên hàm này cho `GET`."""
+    resident = _require_resident_record(db, user_id)
+    return ResidentDetailResponse(
+        profile=ProfileResponse(**resident),
+        checklist=_build_checklist(db, resident),
+        applications=store.list_applications(db, user_id),
+        account_status=resident["account_status"],
+    )
+
+
+@router.patch(
+    "/admin/residents/{user_id}/status", response_model=ResidentDetailResponse
+)
+async def set_resident_account_status(
+    user_id: int,
+    payload: AccountStatusUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ResidentDetailResponse:
+    """Khoá hoặc mở tài khoản cư dân.
+
+    Trả về TOÀN BỘ chi tiết chứ không riêng trường vừa đổi, theo nếp của
+    `PATCH /checklist/{item_id}`: giao diện cập nhật cả trang trong một lượt.
+    """
+    _require_resident_record(db, user_id)
+    store.set_account_status(db, user_id, payload.account_status)
+    return _build_resident_detail(db, user_id)
+
+
+@router.post(
+    "/admin/residents/{user_id}/reset-password",
+    response_model=TemporaryPasswordResponse,
+)
+async def reset_resident_password(
+    user_id: int,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TemporaryPasswordResponse:
+    resident = _require_resident_record(db, user_id)
+    if resident["auth_user_id"] is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cư dân này chưa được cấp tài khoản đăng nhập.",
+        )
+
+    password = generate_password()
+    try:
+        update_auth_password(resident["auth_user_id"], password)
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Không đặt lại được mật khẩu: {exc}",
+        ) from exc
+    return TemporaryPasswordResponse(temporary_password=password)
+
+
+@router.get("/admin/residents/{user_id}", response_model=ResidentDetailResponse)
+async def resident_detail(
+    user_id: int,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> ResidentDetailResponse:
+    """Toàn cảnh một cư dân — chỗ nối hai bảng phẳng của khu BQL lại với nhau.
+
+    Không thêm endpoint danh sách: `GET /admin/dashboard` đã trả toàn bộ cư dân
+    kèm tiến độ. 41 cư dân thì lọc và tìm kiếm làm ở client.
+    """
+    return _build_resident_detail(db, user_id)
+
+
+# --- BQL nạp tài liệu (US-08) --------------------------------------------
+
+
+def slugify(text: str) -> str:
+    """Tên file an toàn cho hệ thống tệp: tái dùng `_normalize` (bỏ dấu, hạ chữ
+    thường) rồi thay khoảng trắng/ký tự lạ bằng '-'. Dùng cho `.md` do BQL tự
+    nạp vào `data/kb/bql/`.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", _normalize(text)).strip("-")
+    return slug or "tai-lieu"
+
+
+def _embed_document(document_id: int, path: Path) -> None:
+    """Chạy ngoài request. Tự mở session riêng — session của request đã đóng."""
+    with SessionLocal() as db:
+        store.set_embed_status(db, document_id, "processing")
+        try:
+            ingest_file(db, path)
+        except Exception:  # noqa: BLE001 — mọi lỗi đều phải hiện lên giao diện
+            logger.exception("Embed tài liệu %s thất bại", document_id)
+            store.set_embed_status(db, document_id, "failed")
+        else:
+            store.set_embed_status(db, document_id, "ready")
+
+
+@router.post(
+    "/admin/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def ingest_document(
+    payload: DocumentIngestRequest,
+    background: BackgroundTasks,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-08 — BQL tự cập nhật tri thức của trợ lý.
+
+    Embed chạy NỀN: 15 chunk mỗi lượt gọi, nghỉ 12 giây giữa các lượt, nên một
+    tài liệu dài mất vài phút. Giữ trong request sẽ timeout.
+    """
+    slug = slugify(payload.title)
+    path = KB_DIR / "bql" / f"{slug}.md"
+    if path.exists():
+        # Trùng slug (thường do trùng tiêu đề) không được đè file cũ: mỗi file
+        # `.md` ánh xạ 1-1 với một dòng `documents` qua `file_path` (xem
+        # `ingest._get_or_create_document`) — đè tệp làm tài liệu cũ "biến
+        # mất" khỏi Chroma mà không ai chủ ý chọn việc đó.
+        path = KB_DIR / "bql" / f"{slug}-{uuid.uuid4().hex[:8]}.md"
+    path.write_text(
+        f"---\ntitle: {payload.title}\nsource_type: bql_internal\n---\n\n{payload.content}",
+        encoding="utf-8",
+    )
+
+    record = store.create_document_record(db, str(path), payload.title, "pending")
+    background.add_task(_embed_document, record["document_id"], path)
+    return record
+
+
+@router.get("/admin/documents", response_model=list[DocumentResponse])
+async def list_documents(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-08 — danh sách tài liệu đã nạp, để BQL theo dõi trạng thái embed."""
+    return store.list_documents(db)

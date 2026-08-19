@@ -245,7 +245,8 @@ function AdminView({ dashboard }: { dashboard: Dashboard | null }) {
       </section>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[32rem] text-sm">
           <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-6 py-4 font-medium">Cư dân</th>
@@ -290,7 +291,8 @@ function AdminView({ dashboard }: { dashboard: Dashboard | null }) {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </>
   );
