@@ -124,7 +124,7 @@ export default function ActionCardPrototypePage() {
           <p className="text-sm font-semibold text-ink">
             ⚠️ Prototype nội bộ — không phải màn hình thật
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-ink/70">
+          <p className="mt-1 text-xs leading-relaxed text-ink/85">
             Dựng UI &ldquo;action card&rdquo; trong bubble AI Chat để cả nhóm hình dung trước khi
             chốt contract. Nút hành động chỉ validate input — bấm xong{" "}
             <strong>không</strong> tạo mã hồ sơ, không đổi checklist thật. Câu hỏi người dùng ở mỗi

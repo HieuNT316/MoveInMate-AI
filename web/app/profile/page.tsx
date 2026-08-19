@@ -1,11 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Building2, Car, Home, KeyRound, Loader2, Mail } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  Car,
+  Check,
+  Home,
+  KeyRound,
+  Loader2,
+  Lock,
+  Mail,
+} from "lucide-react";
 
 import Layout from "../components/Layout";
 import { api, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
+import { supabase, supabaseConfigured } from "../../lib/supabase";
 
 const AMENITY_LABELS: Record<string, string> = {
   pool: "Hồ bơi",
@@ -81,18 +92,18 @@ export default function ProfilePage() {
 
   return (
     <Layout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <div className="bg-ink px-8 py-10">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50">
+          <div className="border-b border-border bg-gradient-to-r from-white via-blue-50/40 to-cyan-50/40 px-6 py-7 sm:px-8">
             <div className="flex items-center gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-gold/15 font-display text-3xl text-gold-soft">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-gold/30 bg-gradient-to-br from-gold to-gold-soft font-display text-2xl font-bold text-white shadow-md">
                 {initial}
               </div>
               <div>
-                <h2 className="font-display text-2xl font-semibold text-white">
+                <h2 className="font-display text-2xl font-semibold text-ink">
                   {profile.full_name}
                 </h2>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-white/50">
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
                   <Mail className="h-3.5 w-3.5" strokeWidth={1.75} />
                   {profile.email}
                 </p>
@@ -100,7 +111,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 p-8 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-3 sm:px-8">
             <Card icon={Building2} label="Tòa" value={profile.building} />
             <Card icon={Home} label="Căn hộ" value={profile.apartment} />
             <Card
@@ -112,12 +123,12 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-surface p-8">
+        <div className="rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50 sm:p-8">
           <h3 className="font-display mb-5 text-lg font-semibold text-ink">
-            Thông tin dùng để lập checklist
+            Thông tin onboarding
           </h3>
 
-          <dl className="space-y-4 text-sm">
+          <dl className="divide-y divide-border/70 text-sm">
             <Row
               icon={KeyRound}
               label="Hình thức sở hữu"
@@ -179,8 +190,128 @@ export default function ProfilePage() {
             lọc lại mỗi lần xem, không lưu cứng lúc đăng ký.
           </p>
         </div>
+
+        <ChangePasswordCard />
       </div>
     </Layout>
+  );
+}
+
+/**
+ * Đổi mật khẩu tự phục vụ — gọi thẳng `supabase.auth.updateUser()` từ trình
+ * duyệt bằng phiên đang đăng nhập, không qua backend riêng nào. Khác hẳn
+ * "Đặt lại mật khẩu" bên BQL (routes.py — sinh mật khẩu tạm cho người KHÁC
+ * qua Supabase Admin API): ở đây cư dân tự đặt mật khẩu CỦA CHÍNH MÌNH, chỉ
+ * cần đang có phiên hợp lệ, không cần mật khẩu cũ.
+ */
+function ChangePasswordCard() {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  if (!supabaseConfigured) return null;
+
+  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const tooShort = newPassword.length > 0 && newPassword.length < 8;
+  const canSubmit = newPassword.length >= 8 && newPassword === confirmPassword;
+
+  const submit = async () => {
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    setError(null);
+    setDone(false);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
+      setNewPassword("");
+      setConfirmPassword("");
+      setDone(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không đổi được mật khẩu, thử lại sau.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50 sm:p-8">
+      <h3 className="font-display mb-1 text-lg font-semibold text-ink">
+        Đổi mật khẩu
+      </h3>
+      <p className="mb-5 text-sm text-muted">
+        Đổi xong sẽ không đăng xuất — dùng ngay được ở lần đăng nhập tiếp theo.
+      </p>
+
+      <div className="space-y-3 max-w-sm">
+        <label className="block">
+          <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Lock className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Mật khẩu mới
+          </span>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(event) => {
+              setNewPassword(event.target.value);
+              setDone(false);
+            }}
+            placeholder="Tối thiểu 8 ký tự"
+            className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-ink focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
+          />
+          {tooShort && (
+            <p className="mt-1 text-[11px] text-danger">Cần ít nhất 8 ký tự.</p>
+          )}
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            Nhập lại mật khẩu mới
+          </span>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => {
+              setConfirmPassword(event.target.value);
+              setDone(false);
+            }}
+            className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-ink focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30"
+          />
+          {mismatch && (
+            <p className="mt-1 text-[11px] text-danger">Hai mật khẩu chưa khớp.</p>
+          )}
+        </label>
+
+        {error && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+            {error}
+          </p>
+        )}
+
+        {done && (
+          <p className="flex items-center gap-1.5 text-xs font-medium text-emerald">
+            <Check className="h-3.5 w-3.5" strokeWidth={2} />
+            Đã đổi mật khẩu thành công.
+          </p>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={!canSubmit || saving}
+          className="flex items-center gap-2 rounded-xl bg-ink px-5 py-2.5 text-sm font-medium text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {saving ? "Đang lưu..." : "Đổi mật khẩu"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -198,7 +329,7 @@ function Card({
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border p-5">
+    <div className="rounded-xl border border-border/80 bg-background/55 p-4">
       <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
       <p className="mt-3 text-xs uppercase tracking-wide text-muted">{label}</p>
       <p className={`font-display mt-1 text-lg font-semibold ${accent}`}>{value}</p>
@@ -218,7 +349,7 @@ function Row({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
       <dt className="flex items-center gap-2.5 text-muted">
         <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
         {label}

@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
 import { BQL_NAV } from "../../lib/nav";
+import LogoMark from "./LogoMark";
 
 export default function BQLSidebar() {
   const pathname = usePathname();
@@ -32,12 +33,10 @@ export default function BQLSidebar() {
   };
 
   return (
-    <aside className="hidden lg:flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-[#E2E8F0] bg-white text-[#1E293B]">
-      <div className="border-b border-[#E2E8F0] px-7 py-8">
+    <aside className="hidden lg:flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-white/80 bg-white/88 text-[#1E293B] shadow-[8px_0_32px_-28px_rgba(0,45,98,0.55)] backdrop-blur-xl">
+      <div className="border-b border-[#B6C4D6]/70 bg-gradient-to-br from-white to-blue-50/60 px-7 py-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2563EB]">
-            <Building2 className="h-5 w-5 text-white" strokeWidth={1.5} />
-          </div>
+          <LogoMark size={52} />
           <div>
             <h1 className="font-display text-lg font-semibold tracking-wide text-[#1E293B]">
               MoveInMate
@@ -50,7 +49,7 @@ export default function BQLSidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-4 pt-8">
-        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#94A3B8]">
+        <p className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-[#64748B]">
           Điều hướng
         </p>
         {BQL_NAV.map((item) => {
@@ -60,14 +59,14 @@ export default function BQLSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`group flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm transition-colors ${
+              className={`group flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm transition-all ${
                 active
-                  ? "bg-[#EFF6FF] text-[#2563EB]"
-                  : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                  ? "bg-gradient-to-r from-[#EFF6FF] to-cyan-50/50 text-[#2563EB] shadow-sm ring-1 ring-[#2563EB]/10"
+                  : "text-[#334155] hover:translate-x-0.5 hover:bg-[#F8FAFC] hover:text-[#1E293B]"
               }`}
             >
               <Icon
-                className={`h-[18px] w-[18px] ${active ? "text-[#2563EB]" : "text-[#94A3B8] group-hover:text-[#475569]"}`}
+                className={`h-[18px] w-[18px] ${active ? "text-[#2563EB]" : "text-[#64748B] group-hover:text-[#334155]"}`}
                 strokeWidth={1.75}
               />
               <span className={active ? "font-medium" : ""}>{item.title}</span>
@@ -79,7 +78,7 @@ export default function BQLSidebar() {
         })}
       </nav>
 
-      <div className="border-t border-[#E2E8F0] p-5">
+      <div className="border-t border-[#B6C4D6] p-5">
         <div className="flex items-center gap-2 rounded-lg px-2 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] font-display text-base text-[#2563EB]">
@@ -93,14 +92,14 @@ export default function BQLSidebar() {
                     ? "Chưa kết nối backend"
                     : "Đang tải..."}
               </p>
-              <p className="truncate text-xs text-[#94A3B8]">Ban Quản Lý</p>
+              <p className="truncate text-xs text-[#64748B]">Ban Quản Lý</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
             aria-label="Đăng xuất"
             title="Đăng xuất"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#2563EB]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#2563EB]"
           >
             <LogOut className="h-4 w-4" strokeWidth={1.75} />
           </button>

@@ -20,6 +20,7 @@ import { useToast } from "../components/Toast";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
+import { SELF_DECLARED_DOCUMENT, submitActionLabel } from "../../lib/applicationForms";
 
 export default function ChecklistPage() {
   return (
@@ -136,14 +137,15 @@ function ChecklistContent() {
   return (
     <Layout>
       <div className="mx-auto max-w-3xl">
-        <div className="rounded-2xl border border-border bg-surface p-8">
+        <div className="relative overflow-hidden rounded-2xl border border-white/90 bg-gradient-to-br from-white via-blue-50/30 to-cyan-50/40 p-8 shadow-soft ring-1 ring-border/50">
+          <span className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-200/40 blur-3xl" />
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display text-xl font-semibold text-ink">
                 Tiến độ nhận nhà
               </h2>
               <p className="mt-1 text-sm text-muted">
-                {overall.completed}/{overall.total} thủ tục đã hoàn thành
+                {overall.completed}/{overall.total} việc đã hoàn thành
               </p>
             </div>
             <span className="font-display text-3xl font-semibold text-emerald">
@@ -158,8 +160,12 @@ function ChecklistContent() {
             />
           </div>
 
+          <p className="mt-3 text-sm font-medium text-ink">
+            Còn {overall.total - overall.completed} việc cần hoàn thành
+          </p>
+
           <p className="mt-4 border-t border-border pt-4 text-xs text-muted">
-            Trong đó thủ tục do Ban quản lý xử lý:{" "}
+            Tiến độ với Ban quản lý — chỉ tính các việc do BQL xử lý:{" "}
             <span className="font-medium text-ink">
               {bql_scope.completed}/{bql_scope.total} ({bql_scope.percent}%)
             </span>
@@ -169,13 +175,13 @@ function ChecklistContent() {
           </p>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-border bg-surface p-8">
+        <div className="mt-8 rounded-2xl border border-white/90 bg-surface/95 p-8 shadow-soft ring-1 ring-border/50">
           <h2 className="font-display mb-6 text-xl font-semibold text-ink">
-            Thủ tục cần hoàn thành
+            Các việc trong hành trình nhận nhà
           </h2>
 
-          <ol className="space-y-0">
-            {items.map((item, index) => {
+          <div className="space-y-3">
+            {items.map((item) => {
               const external = item.item_type === "third_party_info";
               // Cập nhật 15/08 (CONTRACT_US13.md mục 2): mọi mục đều nộp
               // được — backend tự gắn kind theo item_type (routes.py), mục
@@ -184,23 +190,15 @@ function ChecklistContent() {
               const submittable = true;
               const application = applicationByItem.get(item.id);
               return (
-                <li
+                <div
                   key={item.id}
                   id={`checklist-item-${item.id}`}
-                  className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
+                  className={`flex gap-4 rounded-2xl border px-5 py-4 transition-colors ${
                     highlighted === item.id
-                      ? "animate-[pulse_0.7s_ease-in-out_2] bg-gold-tint/60 ring-1 ring-gold/40"
-                      : ""
+                      ? "animate-[pulse_0.7s_ease-in-out_2] border-gold/50 bg-gold-tint/60"
+                      : "border-border bg-surface hover:-translate-y-0.5 hover:border-gold/35 hover:shadow-md"
                   }`}
                 >
-                  {index !== items.length - 1 && (
-                    <span
-                      className={`absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-px ${
-                        item.completed ? "bg-emerald/40" : "bg-border"
-                      }`}
-                    />
-                  )}
-
                   <button
                     onClick={() => toggle(item.id, !item.completed)}
                     disabled={pending === item.id}
@@ -221,7 +219,7 @@ function ChecklistContent() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`text-sm font-medium ${item.completed ? "text-ink" : "text-ink/80"}`}
+                        className={`text-sm font-medium ${item.completed ? "text-ink" : "text-ink/90"}`}
                       >
                         {item.task_name}
                       </span>
@@ -274,38 +272,55 @@ function ChecklistContent() {
                                 application.status === "rejected") && (
                                 <AlertCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
                               )}
-                              {applicationStatusLabel(application)}
+                              {application.status === "rejected"
+                                ? "Cần bổ sung hồ sơ"
+                                : applicationStatusLabel(application)}
                             </span>
-                            {application.bql_note &&
-                              (application.status === "needs_info" ||
-                                application.status === "rejected") && (
-                                <span className="opacity-90">{application.bql_note}</span>
-                              )}
+                            {application.bql_note && (
+                              <span className="opacity-90">
+                                <span className="font-medium">BQL yêu cầu: </span>
+                                {application.bql_note}
+                              </span>
+                            )}
 
                             <AttachmentUploader
                               userId={userId}
                               applicationId={application.application_id}
                               attachments={application.attachments}
                               required={application.kind === "self_declared"}
+                              requiredDocuments={
+                                item.item_type === "bql_actionable"
+                                  ? item.required_documents
+                                  : [SELF_DECLARED_DOCUMENT]
+                              }
                               onUploaded={load}
                             />
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setSubmittingFor(item)}
-                            className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
-                          >
-                            <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
-                            Nộp hồ sơ
-                          </button>
+                          <div>
+                            <button
+                              onClick={() => setSubmittingFor(item)}
+                              className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/90 transition hover:border-gold/50 hover:text-gold"
+                            >
+                              <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                              {submitActionLabel(item.task_name)}
+                            </button>
+                            {item.completed && (
+                              <p className="mt-1.5 text-[11px] text-muted">
+                                Tích chỉ là bạn tự xác nhận đã xong — chưa gửi gì cho Ban quản
+                                lý. Muốn BQL tiếp nhận/xử lý thì bấm &quot;
+                                {submitActionLabel(item.task_name)}&quot; ở trên.
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ol>
+          </div>
         </div>
       </div>
 
