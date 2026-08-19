@@ -39,6 +39,27 @@ export type Profile = {
   onboarding_completed_at: string | null;
 };
 
+/** 11 mã cố định — khớp `DocumentType` ở `src/models/schemas.py`. */
+export type DocumentType =
+  | "cccd"
+  | "bien_ban_ban_giao"
+  | "hop_dong_thue"
+  | "giay_uy_quyen"
+  | "dang_ky_xe"
+  | "the_cu_dan"
+  | "the_xe"
+  | "don_dang_ky"
+  | "to_khai_ct01"
+  | "anh_vneid"
+  | "khac";
+
+/** Một loại giấy tờ, kèm nhãn hiển thị — backend trả cả `label` để FE không
+ * phải tự giữ bảng nhãn riêng (xem `RequiredDocument` ở schemas.py). */
+export type RequiredDocument = {
+  code: DocumentType;
+  label: string;
+};
+
 export type ChecklistItem = {
   id: number;
   task_name: string;
@@ -52,6 +73,9 @@ export type ChecklistItem = {
   handling_department: string | null;
   submission_location: string | null;
   processing_time: string | null;
+  /** Rỗng = không đòi giấy tờ nào. Nguồn thật duy nhất — KHÔNG tự suy đoán
+   * ở FE (đã có một lần lệch dữ liệu thật vì làm vậy, xem lịch sử sửa). */
+  required_documents: RequiredDocument[];
 };
 
 export type ProgressSummary = {
@@ -143,6 +167,16 @@ export type Dashboard = {
   total_residents: number;
 };
 
+export type AccountStatus = "active" | "locked";
+
+/** `GET /admin/residents/{id}` — trang toàn cảnh một cư dân (Hiếu, 18/08). */
+export type ResidentDetail = {
+  profile: Profile;
+  checklist: Checklist;
+  applications: Application[];
+  account_status: AccountStatus;
+};
+
 // --- Hồ sơ nộp trực tuyến (US-13) — xem docs/CONTRACT_US13.md ------------
 
 export type ApplicationStatus =
@@ -169,14 +203,9 @@ export type Attachment = {
   /** Link đọc tạm thời, hết hạn sau vài phút — không cache, không chia sẻ. */
   url: string | null;
   uploaded_at: string;
-  /**
-   * ĐỀ XUẤT — chưa có cột thật ở backend (chỉ `phone` trên `USERS` mới có
-   * tiền lệ "cột đã tạo nhưng chưa dùng"; đây là trường CHƯA được thêm ở
-   * DB/schema). FE đã gửi field này lên từ lúc upload (xem `uploadAttachment`)
-   * nên khi Hiếu thêm cột + đọc field trong response, khớp theo nhãn thật sẽ
-   * tự động chạy mà không cần sửa gì bên FE — xem `AttachmentUploader.tsx`.
-   */
-  document_type?: string | null;
+  /** Hiếu đã thêm cột thật (migration `4b4ea98a4e85`, 19/08) — null nghĩa là
+   * tệp tải lên trước khi có tính năng này, hoặc BQL chưa gán loại. */
+  document_type?: DocumentType | null;
 };
 
 export type Application = {
@@ -448,6 +477,28 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  /** Toàn cảnh một cư dân — hồ sơ, checklist, đơn đã nộp, trạng thái tài
+   * khoản trong một lần gọi. 404 nếu id không tồn tại hoặc không phải
+   * cư dân (kể cả khi trỏ vào tài khoản admin — backend cố tình chặn). */
+  getResidentDetail: (userId: number, targetUserId: number) =>
+    request<ResidentDetail>(`/admin/residents/${targetUserId}`, userId),
+
+  /** Khoá/mở tài khoản. 403 nếu người gọi không phải admin, 404 như trên. */
+  updateAccountStatus: (userId: number, targetUserId: number, status: AccountStatus) =>
+    request<ResidentDetail>(`/admin/residents/${targetUserId}/status`, userId, {
+      method: "PATCH",
+      body: JSON.stringify({ account_status: status }),
+    }),
+
+  /** Sinh mật khẩu tạm mới — chỉ hiện đúng một lần trong response, không
+   * lưu lại được. 409 nếu cư dân chưa từng được cấp tài khoản đăng nhập. */
+  resetResidentPassword: (userId: number, targetUserId: number) =>
+    request<{ temporary_password: string }>(
+      `/admin/residents/${targetUserId}/reset-password`,
+      userId,
+      { method: "POST" },
+    ),
+
   /** US-13 — nộp hồ sơ cho một mục checklist. 409 nếu mục đó đã có hồ sơ
    * đang mở, 404 nếu mục không thuộc checklist của chính người gọi. */
   createApplication: (userId: number, payload: CreateApplicationPayload) =>
@@ -464,15 +515,14 @@ export const api = {
    * đã nộp. Giới hạn 5MB, chỉ nhận jpg/png/pdf — backend chặn lại (415/413)
    * dù FE có kiểm tay trước để phản hồi nhanh hơn.
    *
-   * `documentType` — ĐỀ XUẤT, gửi kèm optimistic trước khi backend có cột
-   * lưu (xem comment ở `Attachment.document_type`). Field lạ trong
-   * multipart form không làm hỏng request hiện tại: FastAPI bỏ qua field
-   * form không khai trong signature route, nên gửi thêm không lỗi gì. */
+   * `documentType` — gắn tệp với đúng loại giấy tờ trong `required_documents`
+   * của mục checklist (route thật, Hiếu 19/08). Optional: để trống thì tệp
+   * ở trạng thái "chưa phân loại", không phải lỗi. */
   uploadAttachment: (
     userId: number,
     applicationId: number,
     file: File,
-    documentType?: string,
+    documentType?: DocumentType,
   ) => {
     const form = new FormData();
     form.append("file", file);

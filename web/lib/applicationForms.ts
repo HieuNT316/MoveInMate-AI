@@ -6,6 +6,8 @@
  * thủ tục ở đây là lựa chọn riêng của FE: gom các trường có cấu trúc rồi nén
  * thành một đoạn `note` dễ đọc cho BQL, không phải trường riêng ở backend.
  */
+import type { RequiredDocument } from "./api";
+
 export type ApplicationFormField = {
   key: string;
   label: string;
@@ -13,6 +15,15 @@ export type ApplicationFormField = {
   placeholder?: string;
   options?: string[];
   required?: boolean;
+};
+
+/** Hồ sơ `self_declared` (third_party_info — tạm trú, cập nhật cư trú...)
+ * không có `required_documents` riêng ở backend (giấy tờ nộp cho công an,
+ * không phải BQL đối chiếu) — ảnh minh chứng chính là nội dung nộp, luôn
+ * đúng 1 loại này. Dùng mã `anh_vneid` có sẵn trong `DocumentType`. */
+export const SELF_DECLARED_DOCUMENT: RequiredDocument = {
+  code: "anh_vneid",
+  label: "Đơn đăng ký hoặc ảnh chụp màn hình VNeID",
 };
 
 /** Khớp theo `task_name` — đúng tên đã seed ở `scripts/seed_data.py`. Thủ tục
@@ -79,33 +90,6 @@ const FORM_FIELDS: Record<string, ApplicationFormField[]> = {
 
 export function getApplicationFormFields(taskName: string): ApplicationFormField[] | null {
   return FORM_FIELDS[taskName] ?? null;
-}
-
-/**
- * Thủ tục nào cần ảnh giấy tờ thật để BQL đối chiếu — không phải trang trí,
- * đây là thứ khiến hồ sơ có căn cứ thay vì chỉ là vài dòng chữ tự khai. Chỉ
- * liệt kê thủ tục THẬT SỰ cần giấy tờ; các thủ tục còn lại (kích hoạt tiện
- * ích theo gói đã đăng ký, đặt lịch chuyển đồ...) không cần ảnh vì hệ thống
- * đã có đủ dữ kiện qua hồ sơ cư dân.
- *
- * Tách RIÊNG TỪNG loại giấy tờ (mảng), không gộp thành một câu — trước đây
- * "Làm thẻ cư dân (người thuê)" gộp cả 3 loại vào một dòng, nộp 1 ảnh bất kỳ
- * là hệ thống coi như xong, không ai biết còn thiếu đúng cái gì. Thứ tự
- * trong mảng = thứ tự các slot tải lên ở `AttachmentUploader`.
- */
-const REQUIRED_DOCUMENTS: Record<string, string[]> = {
-  "Làm thẻ cư dân (chủ hộ)": ["Ảnh CCCD", "Giấy tờ chứng minh quyền sở hữu căn hộ"],
-  "Làm thẻ cư dân (người thuê)": [
-    "Ảnh CCCD",
-    "Hợp đồng thuê nhà",
-    "Giấy uỷ quyền của chủ hộ",
-  ],
-  "Đăng ký thẻ xe": ["Ảnh giấy đăng ký xe (cà vẹt)"],
-  "Đăng ký chỗ đỗ xe cố định": ["Ảnh giấy đăng ký xe (cà vẹt)"],
-};
-
-export function getRequiredDocuments(taskName: string): string[] | null {
-  return REQUIRED_DOCUMENTS[taskName] ?? null;
 }
 
 /**

@@ -4,11 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2, MessageCircleQuestion, ShieldAlert, X } from "lucide-react";
 
-import { api, ApiError, type Application, type Attachment, type ChecklistItem } from "../../lib/api";
+import {
+  api,
+  ApiError,
+  type Application,
+  type Attachment,
+  type ChecklistItem,
+  type RequiredDocument,
+} from "../../lib/api";
 import {
   composeNote,
   getApplicationFormFields,
-  getRequiredDocuments,
+  SELF_DECLARED_DOCUMENT,
   submitActionLabel,
 } from "../../lib/applicationForms";
 import AttachmentUploader from "./AttachmentUploader";
@@ -44,15 +51,17 @@ export default function SubmitApplicationDialog({
 }) {
   const isSelfDeclared = item.item_type !== "bql_actionable";
   const fields = isSelfDeclared ? null : getApplicationFormFields(item.task_name);
-  const requiredDocuments = isSelfDeclared
-    ? ["Đơn đăng ký hoặc ảnh chụp màn hình VNeID"]
-    : getRequiredDocuments(item.task_name);
+  // `item.required_documents` là NGUỒN THẬT duy nhất (checklist_items.required_documents,
+  // Hiếu 19/08) — không tự đoán ở FE nữa, từng lệch hẳn với dữ liệu thật.
+  const requiredDocuments: RequiredDocument[] = isSelfDeclared
+    ? [SELF_DECLARED_DOCUMENT]
+    : item.required_documents;
 
   // Thủ tục làm hẳn tại quầy (vd "Ký nội quy toà nhà"), không có form riêng
   // và không cần ảnh giấy tờ — hỏi ghi chú tự do cho loại này là vô nghĩa,
   // đổi thành xác nhận một cú bấm. Nhận diện tất định qua việc thiếu cả hai,
   // không hardcode tên thủ tục cụ thể — seed thêm mục tương tự vẫn tự đúng.
-  const isInPersonOnly = !isSelfDeclared && !fields && !requiredDocuments;
+  const isInPersonOnly = !isSelfDeclared && !fields && requiredDocuments.length === 0;
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -63,7 +72,7 @@ export default function SubmitApplicationDialog({
   // tờ. `createdApp` khác null nghĩa là bước 1 đã xong, không quay lại được.
   const [createdApp, setCreatedApp] = useState<Application | null>(null);
   const [uploaded, setUploaded] = useState<Attachment[]>([]);
-  const requiredCount = requiredDocuments?.length ?? 0;
+  const requiredCount = requiredDocuments.length;
   const allUploaded = uploaded.length >= requiredCount;
 
   const missingRequired =
@@ -83,7 +92,7 @@ export default function SubmitApplicationDialog({
         checklist_item_id: item.id,
         note: composedNote,
       });
-      if (requiredDocuments) {
+      if (requiredDocuments.length > 0) {
         setCreatedApp(app);
       } else {
         onSubmitted();
@@ -140,7 +149,7 @@ export default function SubmitApplicationDialog({
               userId={userId}
               applicationId={createdApp.application_id}
               attachments={uploaded}
-              requiredDocuments={requiredDocuments ?? undefined}
+              requiredDocuments={requiredDocuments}
               onUploaded={(attachment) => setUploaded((prev) => [...prev, attachment])}
             />
           </div>
@@ -226,13 +235,13 @@ export default function SubmitApplicationDialog({
               </div>
             )}
 
-            {requiredDocuments && (
+            {requiredDocuments.length > 0 && (
               <div className="mt-3 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-2.5 text-xs text-ink/90">
                 <p>Cần kèm các giấy tờ sau ở bước tiếp theo — bắt buộc để BQL đối chiếu:</p>
                 <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
                   {requiredDocuments.map((doc) => (
-                    <li key={doc} className="font-medium text-ink">
-                      {doc}
+                    <li key={doc.code} className="font-medium text-ink">
+                      {doc.label}
                     </li>
                   ))}
                 </ul>
@@ -308,7 +317,7 @@ export default function SubmitApplicationDialog({
             ? "Đang nộp..."
             : isSelfDeclared
               ? "Xác nhận, nộp minh chứng tiếp"
-              : requiredDocuments
+              : requiredDocuments.length > 0
                 ? "Tiếp tục, tải ảnh giấy tờ"
                 : isInPersonOnly
                   ? "Xác nhận đã hoàn thành"

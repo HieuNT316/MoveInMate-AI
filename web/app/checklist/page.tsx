@@ -19,7 +19,7 @@ import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
-import { getRequiredDocuments, submitActionLabel } from "../../lib/applicationForms";
+import { SELF_DECLARED_DOCUMENT, submitActionLabel } from "../../lib/applicationForms";
 
 export default function ChecklistPage() {
   return (
@@ -275,8 +275,8 @@ function ChecklistContent() {
                               required={application.kind === "self_declared"}
                               requiredDocuments={
                                 item.item_type === "bql_actionable"
-                                  ? (getRequiredDocuments(item.task_name) ?? undefined)
-                                  : ["Đơn đăng ký hoặc ảnh chụp màn hình VNeID"]
+                                  ? item.required_documents
+                                  : [SELF_DECLARED_DOCUMENT]
                               }
                               onUploaded={load}
                             />

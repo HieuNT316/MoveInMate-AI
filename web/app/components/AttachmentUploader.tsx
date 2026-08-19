@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, FileText, Loader2, Paperclip } from "lucide-react";
 
-import { api, ApiError, type Attachment } from "../../lib/api";
+import { api, ApiError, type Attachment, type DocumentType, type RequiredDocument } from "../../lib/api";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -18,12 +18,11 @@ function formatSize(bytes: number): string {
  * KHÔNG cache `url` (hết hạn sau vài phút — luôn đọc lại từ hồ sơ mới nhất).
  *
  * `requiredDocuments` — khi có, hiện thành CHECKLIST TỪNG LOẠI GIẤY TỜ thay
- * vì một nút tải chung chung. FE đã gửi `document_type` lên khi upload
- * (xem `api.uploadAttachment`) — ĐỀ XUẤT, chờ Hiếu thêm cột lưu ở backend.
- * Cho tới lúc đó, `resolveSlot()` tự rơi về khớp theo VỊ TRÍ (tệp thứ i ↔
- * mục thứ i) y hệt cách cũ. Khi backend bắt đầu trả `document_type` trong
- * response, khớp theo nhãn thật sẽ tự động thay thế — không cần sửa gì ở
- * đây nữa.
+ * vì một nút tải chung chung. Mỗi mục có `code` thật (khớp `DocumentType` ở
+ * backend) — gửi kèm lúc tải lên (`api.uploadAttachment`) và khớp lại đúng
+ * mã đó trong `resolveSlot()`. Tệp tải TRƯỚC khi tính năng này tồn tại không
+ * có `document_type` (null) — với hồ sơ như vậy, `resolveSlot` rơi về khớp
+ * theo VỊ TRÍ để không hiện sai "chưa tải" cho thứ đã có sẵn.
  */
 export default function AttachmentUploader({
   userId,
@@ -39,18 +38,18 @@ export default function AttachmentUploader({
   /** true với hồ sơ `self_declared` không có `requiredDocuments` cụ thể — ảnh
    * CHÍNH LÀ nội dung nộp, không phải tuỳ chọn (xem docs/CONTRACT_US13.md mục 2). */
   required?: boolean;
-  requiredDocuments?: string[];
+  requiredDocuments?: RequiredDocument[];
   onUploaded: (attachment: Attachment) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // Slot đang chờ chọn tệp — input file dùng chung cho mọi slot, cần nhớ
-  // đang tải CHO nhãn nào để gắn `document_type` đúng lúc submit.
-  const pendingSlotRef = useRef<string | undefined>(undefined);
+  // đang tải CHO mã nào để gắn `document_type` đúng lúc submit.
+  const pendingSlotRef = useRef<DocumentType | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pick = (slotLabel?: string) => {
-    pendingSlotRef.current = slotLabel;
+  const pick = (slotCode?: DocumentType) => {
+    pendingSlotRef.current = slotCode;
     inputRef.current?.click();
   };
 
@@ -87,13 +86,13 @@ export default function AttachmentUploader({
     }
   };
 
-  // Backend hiện chưa trả `document_type` cho tệp nào cả → rơi về khớp vị
-  // trí. Ngay khi có ít nhất 1 tệp mang nhãn thật, coi như backend đã hỗ
-  // trợ và chuyển hẳn sang khớp theo nhãn (không trộn hai kiểu nửa vời).
-  const labelsSupported = attachments.some((a) => a.document_type);
+  // Tệp tải trước khi có `document_type` (null hết) không khớp theo mã được
+  // — rơi về khớp vị trí cho đúng hồ sơ cũ. Có ít nhất 1 tệp mang mã thật thì
+  // chuyển hẳn sang khớp theo mã (không trộn hai kiểu nửa vời).
+  const codesSupported = attachments.some((a) => a.document_type);
 
-  const resolveSlot = (label: string, index: number): Attachment | undefined => {
-    if (labelsSupported) return attachments.find((a) => a.document_type === label);
+  const resolveSlot = (code: DocumentType, index: number): Attachment | undefined => {
+    if (codesSupported) return attachments.find((a) => a.document_type === code);
     return attachments[index];
   };
 
@@ -103,21 +102,22 @@ export default function AttachmentUploader({
         <div className="space-y-1">
           <p className="text-[11px] font-medium text-muted">
             Đã tải{" "}
-            {requiredDocuments.filter((label, index) => resolveSlot(label, index)).length}/
-            {requiredDocuments.length} giấy tờ bắt buộc
+            {
+              requiredDocuments.filter((doc, index) => resolveSlot(doc.code, index)).length
+            }/{requiredDocuments.length} giấy tờ bắt buộc
           </p>
           <ul className="space-y-1">
-            {requiredDocuments.map((label, index) => {
-              const att = resolveSlot(label, index);
+            {requiredDocuments.map((doc, index) => {
+              const att = resolveSlot(doc.code, index);
               const done = Boolean(att);
-              // Chưa khớp theo nhãn thật được thì vẫn phải ép đúng thứ tự
-              // (chỉ mở khoá đúng MỘT slot kế tiếp) để khớp vị trí không sai.
-              // Có nhãn thật rồi thì slot nào thiếu cũng tải được, không cần
-              // đúng thứ tự nữa.
-              const isNext = !done && (labelsSupported || attachments.length === index);
+              // Chưa khớp theo mã thật được thì vẫn phải ép đúng thứ tự (chỉ
+              // mở khoá đúng MỘT slot kế tiếp) để khớp vị trí không sai. Có
+              // mã thật rồi thì slot nào thiếu cũng tải được, không cần đúng
+              // thứ tự nữa.
+              const isNext = !done && (codesSupported || attachments.length === index);
               return (
                 <li
-                  key={label}
+                  key={doc.code}
                   className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${
                     done
                       ? "border-emerald/30 bg-emerald/5 text-ink/85"
@@ -141,10 +141,10 @@ export default function AttachmentUploader({
                       rel="noopener noreferrer"
                       className="min-w-0 flex-1 truncate underline decoration-dotted hover:text-gold"
                     >
-                      {label}
+                      {doc.label}
                     </a>
                   ) : (
-                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                    <span className="min-w-0 flex-1 truncate">{doc.label}</span>
                   )}
 
                   {att && (
@@ -156,7 +156,7 @@ export default function AttachmentUploader({
                   {isNext && (
                     <button
                       type="button"
-                      onClick={() => pick(label)}
+                      onClick={() => pick(doc.code)}
                       disabled={uploading}
                       className="flex shrink-0 items-center gap-1 font-medium text-gold transition hover:text-gold-soft disabled:opacity-50"
                     >

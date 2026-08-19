@@ -10,8 +10,10 @@ import {
   Compass,
   ExternalLink,
   FileText,
+  HelpCircle,
   IdCard,
   Image as ImageIcon,
+  ListChecks,
   Loader2,
   MapPin,
   MessageSquarePlus,
@@ -20,7 +22,6 @@ import {
   Send,
   ThumbsDown,
   ThumbsUp,
-  Wallet,
   X,
 } from "lucide-react";
 
@@ -51,14 +52,18 @@ const GREETING: Message = {
   text: "Xin chào, tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
 };
 
-// 4 nhóm câu hỏi hay gặp nhất, mỗi nhóm neo vào tài liệu KB đã kiểm chứng
-// (data/kb/web/) — tránh chọn câu hỏi ngoài phạm vi tài liệu để không vô tình
-// demo đúng vào chỗ guard chống bịa còn yếu (xem PROJECT_CHARTER.md mục 7).
+// 5 nhóm câu hỏi hay gặp nhất — khớp 5 ý "Tôi cần làm đơn gì / chuẩn bị giấy
+// tờ gì / kiểm tra hồ sơ / giải thích giấy tờ / hướng dẫn nộp đơn" trong đề
+// xuất, nhưng viết lại thành câu hỏi THẬT thay vì nhãn mục — mỗi câu neo vào
+// đúng tài liệu KB đã kiểm chứng (data/kb/bql/, data/kb/web/), tránh chọn câu
+// ngoài phạm vi tài liệu để không vô tình demo vào chỗ guard chống bịa còn
+// yếu (xem PROJECT_CHARTER.md mục 7).
 const SUGGESTIONS = [
-  { icon: IdCard, text: "Hồ sơ làm thẻ cư dân gồm những gì?" },
-  { icon: Car, text: "Làm thẻ xe cần giấy tờ gì?" },
-  { icon: MapPin, text: "Đăng ký tạm trú thế nào?" },
-  { icon: Wallet, text: "Phí dịch vụ chung cư tính thế nào?" },
+  { icon: ListChecks, text: "Khi mới nhận nhà tôi cần làm những thủ tục gì?" },
+  { icon: IdCard, text: "Làm thẻ cư dân cần chuẩn bị giấy tờ gì?" },
+  { icon: MapPin, text: "Đăng ký tạm trú cần hồ sơ gì?" },
+  { icon: HelpCircle, text: "Thẻ cư dân dùng để làm gì?" },
+  { icon: Car, text: "Nộp hồ sơ đăng ký thẻ xe ở đâu, mất bao lâu?" },
 ];
 
 /** Mỗi lượt hỏi đáp đã lưu tách thành 2 bong bóng (hỏi + đáp) để dùng chung

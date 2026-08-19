@@ -4,8 +4,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Check,
+  Copy,
   FileText,
   KeyRound,
+  Loader2,
   Lock,
   Pencil,
   Search,
@@ -17,9 +20,11 @@ import {
 
 import {
   api,
+  ApiError,
   describeError,
   type AdminApplication,
   type Dashboard,
+  type ResidentDetail,
   type ResidentProgress,
 } from "../../../lib/api";
 import { useDemoUser } from "../../../lib/useDemoUser";
@@ -30,13 +35,14 @@ const PAGE_SIZE = 10;
 
 /**
  * "Quản lý cư dân" — tách khỏi /bql/dashboard để dashboard chỉ còn là tổng
- * quan số liệu, còn đây là nơi thao tác trên từng cư dân. Chỉ dùng lại
- * `GET /admin/dashboard` và `GET /admin/applications` (đã có sẵn) — KHÔNG
- * thêm cột trạng thái tài khoản hay nút khoá/đặt lại mật khẩu có tác dụng
- * thật, vì backend chưa có field/endpoint cho việc đó. Ba nút đó hiện ở
- * dạng khoá "Sắp có" để không ai tưởng nhầm là đã hoạt động — xem
- * `docs/ROLES_AND_PLAN.md` mục 11 (nguyên tắc không vẽ số liệu/chức năng
- * giả).
+ * quan số liệu, còn đây là nơi thao tác trên từng cư dân. Danh sách dùng
+ * `GET /admin/dashboard` + `GET /admin/applications`; khoá/mở tài khoản và
+ * đặt lại mật khẩu gọi `GET/PATCH /admin/residents/{id}` +
+ * `POST /admin/residents/{id}/reset-password` thật (Hiếu, 18/08) — đặt
+ * trong modal "Xem" thay vì nút rời trên hàng, vì cần biết đúng trạng thái
+ * tài khoản hiện tại mới hiện đúng nhãn nút. "Chỉnh sửa" hồ sơ vẫn khoá
+ * "Sắp có" — backend chưa có endpoint cho việc đó (nguyên tắc không vẽ
+ * chức năng giả — xem `docs/ROLES_AND_PLAN.md` mục 11).
  */
 type StatFilter = "completed" | "not_onboarded";
 
@@ -64,7 +70,7 @@ function BQLResidentsContent() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [viewing, setViewing] = useState<ResidentProgress | null>(null);
+  const [viewingId, setViewingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
 
   const statFilterParam = searchParams.get("filter");
@@ -213,7 +219,7 @@ function BQLResidentsContent() {
                       key={r.user_id}
                       resident={r}
                       applicationCount={applicationCounts.get(r.user_id) ?? 0}
-                      onView={() => setViewing(r)}
+                      onView={() => setViewingId(r.user_id)}
                     />
                   ))}
                 </tbody>
@@ -225,7 +231,14 @@ function BQLResidentsContent() {
         </div>
       )}
 
-      {viewing && <ResidentDetail resident={viewing} onClose={() => setViewing(null)} />}
+      {viewingId !== null && (
+        <ResidentDetailModal
+          userId={userId}
+          targetUserId={viewingId}
+          onClose={() => setViewingId(null)}
+          onChanged={load}
+        />
+      )}
     </>
   );
 }
@@ -291,10 +304,8 @@ function ResidentRow({
             <FileText className="h-3 w-3" strokeWidth={1.75} />
             Xem đơn
           </Link>
-          <div className="mx-1 h-5 w-px shrink-0 bg-[#B6C4D6]" title="Các nút bên phải chưa hoạt động" />
+          <div className="mx-1 h-5 w-px shrink-0 bg-[#B6C4D6]" title="Sửa hồ sơ, khoá tài khoản, đặt lại mật khẩu — bấm Xem" />
           <LockedAction icon={Pencil} label="Chỉnh sửa" />
-          <LockedAction icon={KeyRound} label="Đặt lại đăng nhập" />
-          <LockedAction icon={ShieldOff} label="Khoá tài khoản" />
         </div>
       </td>
     </tr>
@@ -322,19 +333,84 @@ function LockedAction({
   );
 }
 
-function ResidentDetail({
-  resident,
+/**
+ * Toàn cảnh một cư dân — gọi `GET /admin/residents/{id}` thật (Hiếu, 18/08),
+ * kèm khoá/mở tài khoản và đặt lại mật khẩu. Đặt hai hành động này ở đây
+ * (không phải nút rời trên hàng bảng) vì cần biết ĐÚNG trạng thái tài khoản
+ * hiện tại mới hiện đúng nhãn nút ("Khoá" hay "Mở khoá") — danh sách
+ * `/admin/dashboard` không có field này.
+ */
+function ResidentDetailModal({
+  userId,
+  targetUserId,
   onClose,
+  onChanged,
 }: {
-  resident: ResidentProgress;
+  userId: number;
+  targetUserId: number;
   onClose: () => void;
+  onChanged: () => void;
 }) {
+  const [detail, setDetail] = useState<ResidentDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setDetail(await api.getResidentDetail(userId, targetUserId));
+      setError(null);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }, [userId, targetUserId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const toggleStatus = async () => {
+    if (!detail || updatingStatus) return;
+    const next = detail.account_status === "active" ? "locked" : "active";
+    setUpdatingStatus(true);
+    try {
+      const updated = await api.updateAccountStatus(userId, targetUserId, next);
+      setDetail(updated);
+      onChanged();
+    } catch {
+      setError("Không đổi được trạng thái tài khoản, thử lại sau.");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (resetting) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const res = await api.resetResidentPassword(userId, targetUserId);
+      setTempPassword(res.temporary_password);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setResetError("Cư dân này chưa được cấp tài khoản đăng nhập.");
+      } else {
+        setResetError("Không đặt lại được mật khẩu, thử lại sau.");
+      }
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/40 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[#1E293B]">
-            {resident.full_name}
+            {detail?.profile.full_name ?? "Đang tải..."}
           </h3>
           <button
             onClick={onClose}
@@ -345,29 +421,114 @@ function ResidentDetail({
           </button>
         </div>
 
-        <dl className="mt-4 space-y-3 text-sm">
-          <Row label="Căn hộ" value={resident.apartment} />
-          <Row
-            label="Loại cư dân"
-            value={
-              resident.ownership_type === "owner"
-                ? "Chủ hộ"
-                : resident.ownership_type === "renter"
-                  ? "Người thuê"
-                  : "Chưa xác định"
-            }
-          />
-          <Row label="Onboarding" value={resident.onboarded ? "Đã hoàn tất" : "Chưa thiết lập"} />
-          <Row
-            label="Checklist BQL"
-            value={`${resident.bql_scope.completed}/${resident.bql_scope.total} mục (${resident.bql_scope.percent}%)`}
-          />
-        </dl>
+        {error && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+            {error}
+          </p>
+        )}
 
-        <p className="mt-4 text-xs text-[#64748B]">
-          Cần xem email/số điện thoại hoặc sửa hồ sơ cư dân? Backend chưa có endpoint cho BQL đọc
-          hồ sơ đầy đủ của người khác — đang chờ bổ sung.
-        </p>
+        {!error && !detail && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-[#64748B]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Đang tải hồ sơ...
+          </div>
+        )}
+
+        {detail && (
+          <>
+            <div className="mt-3">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                  detail.account_status === "active"
+                    ? "border-emerald/30 bg-emerald/5 text-emerald"
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}
+              >
+                {detail.account_status === "active" ? "Tài khoản đang hoạt động" : "Tài khoản đã bị khoá"}
+              </span>
+            </div>
+
+            <dl className="mt-4 space-y-3 text-sm">
+              <Row label="Email" value={detail.profile.email} />
+              <Row label="Toà · Căn hộ" value={`${detail.profile.building} · ${detail.profile.apartment}`} />
+              <Row
+                label="Loại cư dân"
+                value={
+                  detail.profile.ownership_type === "owner"
+                    ? "Chủ hộ"
+                    : detail.profile.ownership_type === "renter"
+                      ? "Người thuê"
+                      : "Chưa xác định"
+                }
+              />
+              <Row
+                label="Onboarding"
+                value={detail.profile.onboarding_completed_at ? "Đã hoàn tất" : "Chưa thiết lập"}
+              />
+              <Row
+                label="Checklist BQL"
+                value={`${detail.checklist.bql_scope.completed}/${detail.checklist.bql_scope.total} mục (${detail.checklist.bql_scope.percent}%)`}
+              />
+              <Row label="Hồ sơ đã nộp" value={String(detail.applications.length)} />
+            </dl>
+
+            <div className="mt-5 space-y-2 border-t border-[#B6C4D6] pt-4">
+              <button
+                onClick={toggleStatus}
+                disabled={updatingStatus}
+                className={`flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  detail.account_status === "active"
+                    ? "border-red-200 text-red-700 hover:bg-red-50"
+                    : "border-emerald/30 text-emerald hover:bg-emerald/5"
+                }`}
+              >
+                {updatingStatus ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ShieldOff className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+                {detail.account_status === "active" ? "Khoá tài khoản" : "Mở khoá tài khoản"}
+              </button>
+
+              {tempPassword ? (
+                <div className="rounded-lg border border-[#B6C4D6] bg-[#F8FAFC] px-3 py-2.5 text-xs">
+                  <p className="text-[#64748B]">Mật khẩu tạm — chép ngay, sẽ không hiện lại được:</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <code className="font-medium text-[#1E293B]">{tempPassword}</code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(tempPassword);
+                        setCopied(true);
+                      }}
+                      className="flex shrink-0 items-center gap-1 rounded-md border border-[#B6C4D6] px-2 py-1 text-[11px] text-[#334155] hover:border-[#2563EB]/40"
+                    >
+                      {copied ? (
+                        <Check className="h-3 w-3 text-emerald" strokeWidth={2} />
+                      ) : (
+                        <Copy className="h-3 w-3" strokeWidth={1.75} />
+                      )}
+                      {copied ? "Đã chép" : "Chép"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={resetPassword}
+                  disabled={resetting}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#B6C4D6] px-3 py-2 text-xs font-medium text-[#334155] transition hover:border-[#2563EB]/40 hover:text-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resetting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
+                  Đặt lại mật khẩu
+                </button>
+              )}
+              {resetError && <p className="text-[11px] text-red-600">{resetError}</p>}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
