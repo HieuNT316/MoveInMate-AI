@@ -170,7 +170,7 @@ export default function SubmitApplicationDialog({
           </button>
           {!allUploaded && (
             <p className="mt-2 text-center text-[11px] text-muted">
-              Tải đủ {requiredCount} giấy tờ để hoàn tất — có thể quay lại bổ sung sau ở trang Checklist.
+              Tải đủ {requiredCount} giấy tờ để hoàn tất — có thể quay lại bổ sung sau ở trang Việc cần làm.
             </p>
           )}
         </div>
@@ -230,7 +230,7 @@ export default function SubmitApplicationDialog({
                   className="flex items-center gap-1.5 font-medium text-gold hover:text-gold-soft"
                 >
                   <MessageCircleQuestion className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  Đọc trước nội dung qua AI Chat
+                  Hỏi Trợ lý AI về thủ tục này
                 </Link>
               </div>
             )}

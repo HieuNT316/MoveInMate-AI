@@ -3,25 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Bot, BarChart3, ClipboardCheck, LogOut, Lock, Settings } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
 import { BQL_NAV } from "../../lib/nav";
 import LogoMark from "./LogoMark";
-
-/** Chưa có endpoint tương ứng — khoá "Sắp có" thay vì dựng giao diện gọi API
- * giả (nguyên tắc ở docs/ROLES_AND_PLAN.md mục 11). Khoá/mở tài khoản và đặt
- * lại mật khẩu KHÔNG nằm trong danh sách này nữa — đã làm thật trong modal
- * "Xem" ở /bql/residents, không cần trang riêng. */
-const comingSoon = [
-  { title: "Quản lý checklist", icon: ClipboardCheck },
-  { title: "Thông báo", icon: Bell },
-  { title: "AI hỗ trợ", icon: Bot },
-  { title: "Báo cáo", icon: BarChart3 },
-  { title: "Phân quyền BQL", icon: Settings },
-];
 
 export default function BQLSidebar() {
   const pathname = usePathname();
@@ -45,8 +33,8 @@ export default function BQLSidebar() {
   };
 
   return (
-    <aside className="hidden lg:flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-[#B6C4D6] bg-white text-[#1E293B]">
-      <div className="border-b border-[#B6C4D6] px-7 py-8">
+    <aside className="hidden lg:flex h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-white/80 bg-white/88 text-[#1E293B] shadow-[8px_0_32px_-28px_rgba(0,45,98,0.55)] backdrop-blur-xl">
+      <div className="border-b border-[#B6C4D6]/70 bg-gradient-to-br from-white to-blue-50/60 px-7 py-8">
         <div className="flex items-center gap-3">
           <LogoMark size={52} />
           <div>
@@ -71,10 +59,10 @@ export default function BQLSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`group flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm transition-colors ${
+              className={`group flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm transition-all ${
                 active
-                  ? "bg-[#EFF6FF] text-[#2563EB]"
-                  : "text-[#334155] hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                  ? "bg-gradient-to-r from-[#EFF6FF] to-cyan-50/50 text-[#2563EB] shadow-sm ring-1 ring-[#2563EB]/10"
+                  : "text-[#334155] hover:translate-x-0.5 hover:bg-[#F8FAFC] hover:text-[#1E293B]"
               }`}
             >
               <Icon
@@ -86,27 +74,6 @@ export default function BQLSidebar() {
                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
               )}
             </Link>
-          );
-        })}
-
-        <p className="px-3 pb-2 pt-6 text-[11px] font-medium uppercase tracking-[0.18em] text-[#64748B]">
-          Sắp có
-        </p>
-        {comingSoon.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.title}
-              title="Phase 2 — chưa có API, chưa hoạt động"
-              className="flex cursor-not-allowed items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm text-[#94A3B8]"
-            >
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              <span>{item.title}</span>
-              <span className="ml-auto flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[10px] text-[#64748B]">
-                <Lock className="h-2.5 w-2.5" strokeWidth={2} />
-                Sắp có
-              </span>
-            </div>
           );
         })}
       </nav>

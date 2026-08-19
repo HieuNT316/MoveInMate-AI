@@ -19,9 +19,9 @@ import {
 export type NavItem = { title: string; icon: LucideIcon; href: string };
 
 export const RESIDENT_NAV: NavItem[] = [
-  { title: "Tổng quan", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "AI Chat", icon: Bot, href: "/chat" },
-  { title: "Checklist", icon: ClipboardList, href: "/checklist" },
+  { title: "Trang chủ", icon: LayoutDashboard, href: "/dashboard" },
+  { title: "Trợ lý AI", icon: Bot, href: "/chat" },
+  { title: "Việc cần làm", icon: ClipboardList, href: "/checklist" },
   { title: "Hồ sơ", icon: UserRound, href: "/profile" },
 ];
 

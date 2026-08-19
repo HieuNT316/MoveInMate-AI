@@ -132,7 +132,7 @@ export default function ChatWidget() {
   return (
     <div className="fixed bottom-6 right-6 z-50 hidden lg:block">
       {open && (
-        <div className="mb-3 flex h-[520px] w-[360px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_20px_50px_-12px_rgba(0,45,98,0.35)]">
+        <div className="mb-3 flex h-[520px] w-[360px] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-soft shadow-[0_20px_50px_-12px_rgba(0,45,98,0.35)]">
           <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-tint">
               <Bot className="h-4 w-4 text-gold" strokeWidth={1.75} />

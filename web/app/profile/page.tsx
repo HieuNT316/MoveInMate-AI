@@ -92,11 +92,11 @@ export default function ProfilePage() {
 
   return (
     <Layout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <div className="border-b border-border bg-surface px-8 py-10">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50">
+          <div className="border-b border-border bg-gradient-to-r from-white via-blue-50/40 to-cyan-50/40 px-6 py-7 sm:px-8">
             <div className="flex items-center gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-gold-tint font-display text-3xl text-gold">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-gold/30 bg-gradient-to-br from-gold to-gold-soft font-display text-2xl font-bold text-white shadow-md">
                 {initial}
               </div>
               <div>
@@ -111,7 +111,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 p-8 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-3 sm:px-8">
             <Card icon={Building2} label="Tòa" value={profile.building} />
             <Card icon={Home} label="Căn hộ" value={profile.apartment} />
             <Card
@@ -123,12 +123,12 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-surface p-8">
+        <div className="rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50 sm:p-8">
           <h3 className="font-display mb-5 text-lg font-semibold text-ink">
-            Thông tin dùng để lập checklist
+            Thông tin onboarding
           </h3>
 
-          <dl className="space-y-4 text-sm">
+          <dl className="divide-y divide-border/70 text-sm">
             <Row
               icon={KeyRound}
               label="Hình thức sở hữu"
@@ -242,7 +242,7 @@ function ChangePasswordCard() {
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-8">
+    <div className="rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50 sm:p-8">
       <h3 className="font-display mb-1 text-lg font-semibold text-ink">
         Đổi mật khẩu
       </h3>
@@ -329,7 +329,7 @@ function Card({
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border p-5">
+    <div className="rounded-xl border border-border/80 bg-background/55 p-4">
       <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
       <p className="mt-3 text-xs uppercase tracking-wide text-muted">{label}</p>
       <p className={`font-display mt-1 text-lg font-semibold ${accent}`}>{value}</p>
@@ -349,7 +349,7 @@ function Row({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
       <dt className="flex items-center gap-2.5 text-muted">
         <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
         {label}

@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, PhoneCall } from "lucide-react";
 
 import { api, type Checklist } from "../../lib/api";
-import RadialProgress from "./RadialProgress";
-import HotlineCard from "./HotlineCard";
+import { HOTLINE } from "./HotlineCard";
 
 export default function ChatContextPanel({
   userId,
@@ -27,32 +26,27 @@ export default function ChatContextPanel({
       .catch(() => setChecklist(null));
   }, [ready, userId]);
 
-  const topItems = checklist?.items.slice(0, 4) ?? [];
+  const topItems = checklist?.items.slice(0, 5) ?? [];
 
   return (
-    <aside className="hidden w-80 shrink-0 flex-col gap-4 overflow-y-auto xl:flex">
+    <aside className="hidden w-64 shrink-0 flex-col gap-3 overflow-y-auto xl:flex">
       {checklist && (
-        <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-5">
-          <RadialProgress percent={checklist.overall.percent} />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-ink">Tiến độ nhận nhà</p>
-            <p className="mt-0.5 text-xs text-muted">
-              {checklist.overall.completed}/{checklist.overall.total} thủ tục đã hoàn thành
-            </p>
-          </div>
-        </div>
-      )}
-
-      {checklist && (
-        <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="rounded-2xl border border-white/90 bg-surface/95 p-5 shadow-soft ring-1 ring-border/50">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-ink">Checklist</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink">Việc của bạn</p>
             <Link
               href="/checklist"
               className="text-xs font-medium text-gold transition hover:text-gold-soft"
             >
               Xem tất cả
             </Link>
+          </div>
+          <div className="mt-4 flex items-end justify-between">
+            <p className="text-2xl font-bold text-ink">{checklist.overall.percent}%</p>
+            <p className="text-xs text-muted">{checklist.overall.completed}/{checklist.overall.total} việc</p>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/70">
+            <div className="h-full rounded-full bg-gradient-to-r from-gold to-cyan-500" style={{ width: `${checklist.overall.percent}%` }} />
           </div>
           <ul className="mt-3 space-y-2.5">
             {topItems.map((item) => (
@@ -79,7 +73,14 @@ export default function ChatContextPanel({
         </div>
       )}
 
-      <HotlineCard />
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink">Cần hỗ trợ?</p>
+        <a href={`tel:${HOTLINE.number.replace(/\s/g, "")}`} className="mt-2 flex items-center gap-2 text-sm font-semibold text-gold">
+          <PhoneCall className="h-4 w-4" />
+          {HOTLINE.number}
+        </a>
+        <p className="mt-1 text-[10px] leading-relaxed text-muted">Nhấn phím 4 · hỗ trợ 24/7</p>
+      </div>
     </aside>
   );
 }

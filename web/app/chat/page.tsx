@@ -12,12 +12,10 @@ import {
   FileText,
   HelpCircle,
   IdCard,
-  Image as ImageIcon,
   ListChecks,
   Loader2,
   MapPin,
   MessageSquarePlus,
-  Paperclip,
   Scale,
   Send,
   ThumbsDown,
@@ -27,10 +25,17 @@ import {
 
 import Layout from "../components/Layout";
 import ChatContextPanel from "../components/ChatContextPanel";
+import AttachmentUploader from "../components/AttachmentUploader";
+import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import { SELF_DECLARED_DOCUMENT } from "../../lib/applicationForms";
 import {
   api,
+  type Application,
   type ChatHistoryEntry,
+  type Checklist,
+  type ChecklistItem,
   type ConversationSummary,
+  type Profile,
   type Source,
   type SuggestedAction,
 } from "../../lib/api";
@@ -49,8 +54,10 @@ type Message = {
 const GREETING: Message = {
   id: 0,
   role: "assistant",
-  text: "Xin chào, tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
+  text: "Xin chào 👋 Tôi là Trợ lý MoveInMate. Tôi có thể giúp bạn hiểu thủ tục, chuẩn bị giấy tờ và tìm đúng nơi cần nộp.",
 };
+
+const CONTINUE_QUESTION = "Tôi còn thiếu giấy tờ gì?";
 
 // 5 nhóm câu hỏi hay gặp nhất — khớp 5 ý "Tôi cần làm đơn gì / chuẩn bị giấy
 // tờ gì / kiểm tra hồ sơ / giải thích giấy tờ / hướng dẫn nộp đơn" trong đề
@@ -61,6 +68,7 @@ const GREETING: Message = {
 const SUGGESTIONS = [
   { icon: ListChecks, text: "Khi mới nhận nhà tôi cần làm những thủ tục gì?" },
   { icon: IdCard, text: "Làm thẻ cư dân cần chuẩn bị giấy tờ gì?" },
+  { icon: HelpCircle, text: CONTINUE_QUESTION },
   { icon: MapPin, text: "Đăng ký tạm trú cần hồ sơ gì?" },
   { icon: HelpCircle, text: "Thẻ cư dân dùng để làm gì?" },
   { icon: Car, text: "Nộp hồ sơ đăng ký thẻ xe ở đâu, mất bao lâu?" },
@@ -82,6 +90,76 @@ function historyToMessages(entries: ChatHistoryEntry[]): Message[] {
       refused: entry.answer_source === "no_context",
     },
   ]);
+}
+
+function buildContinueMessage(checklist: Checklist, applications: Application[]): Message {
+  const openApplications = applications
+    .filter((application) => !["approved", "delivered"].includes(application.status))
+    .sort(
+      (left, right) =>
+        new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime(),
+    );
+  const latest = openApplications[0];
+  const item = latest
+    ? checklist.items.find((candidate) => candidate.id === latest.checklist_item_id)
+    : checklist.items.find((candidate) => !candidate.completed);
+
+  if (!item) {
+    return {
+      id: 1,
+      role: "assistant",
+      text: `Bạn đã hoàn thành ${checklist.overall.completed}/${checklist.overall.total} việc trong hành trình nhận nhà. Hiện không còn việc nào đang chờ bạn xử lý. Nếu cần kiểm tra lại thủ tục hoặc quy định, bạn cứ hỏi tôi.`,
+    };
+  }
+
+  const uploadedTypes = new Set(
+    (latest?.attachments ?? [])
+      .map((attachment) => attachment.document_type)
+      .filter((value): value is NonNullable<typeof value> => Boolean(value)),
+  );
+  const inferredMissing = item.required_documents.filter(
+    (document) => !uploadedTypes.has(document.code),
+  );
+  const missingDocuments = latest
+    ? latest.missing_documents === null
+      ? []
+      : latest.missing_documents ?? inferredMissing
+    : item.required_documents;
+  const lines = [
+    `Bạn đang làm ${item.task_name}.`,
+    latest
+      ? latest.status === "needs_info" || latest.status === "rejected"
+        ? "Hồ sơ đang cần bạn bổ sung giấy tờ."
+        : "Hồ sơ hiện đang được xử lý."
+      : "Bạn chưa nộp hồ sơ. Mình có thể giúp bạn bắt đầu ngay tại đây.",
+  ];
+
+  if (latest?.bql_note) lines.push(`BQL nhắn: ${latest.bql_note}`);
+  if (latest?.missing_documents === null || latest?.unlabelled_count) {
+    lines.push(
+      `Bạn có ${latest.unlabelled_count ?? latest.attachments.filter((attachment) => !attachment.document_type).length} tệp chưa được phân loại; cần kiểm tra lại trước khi kết luận còn thiếu giấy tờ nào.`,
+    );
+  } else if (missingDocuments.length > 0) {
+    lines.push(`Giấy tờ còn cần chuẩn bị: ${missingDocuments.map((document) => document.label).join(", ")}.`);
+  } else if (item.required_documents.length > 0 && latest?.attachments.length) {
+    lines.push("Các loại giấy tờ bắt buộc đã được tải lên; bạn nên kiểm tra lại phản hồi của BQL trước khi tiếp tục.");
+  }
+  lines.push(
+    latest
+      ? "Bạn có thể bổ sung giấy tờ ngay bên dưới."
+      : "Bấm “Nộp hồ sơ tại đây” để tiếp tục.",
+  );
+
+  return {
+    id: 1,
+    role: "assistant",
+    text: lines.join("\n\n"),
+    suggestedAction: {
+      type: "navigate_to_submission",
+      procedure_name: item.task_name,
+      checklist_item_id: item.id,
+    },
+  };
 }
 
 export default function ChatPage() {
@@ -112,7 +190,9 @@ function ChatPageContent() {
   // Chỉ 1 nguồn được xem chi tiết tại một thời điểm — modal dùng chung cho
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const continuedRef = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -131,8 +211,33 @@ function ChatPageContent() {
   }, [userId]);
 
   useEffect(() => {
-    if (ready) loadConversations();
-  }, [ready, loadConversations]);
+    if (ready) {
+      loadConversations();
+      api.getProfile(userId).then(setProfile).catch(() => setProfile(null));
+    }
+  }, [ready, loadConversations, userId]);
+
+  useEffect(() => {
+    if (!ready || searchParams.get("continue") !== "1" || continuedRef.current) return;
+    continuedRef.current = true;
+    setLoadingMessages(true);
+    Promise.all([api.getChecklist(userId), api.getApplications(userId)])
+      .then(([tasks, residentApplications]) => {
+        setMessages([GREETING, buildContinueMessage(tasks, residentApplications)]);
+      })
+      .catch(() => {
+        setMessages([
+          GREETING,
+          {
+            id: 1,
+            role: "assistant",
+            text: "Tôi chưa tải được tiến độ của bạn lúc này. Bạn có thể mở Việc cần làm để tiếp tục, hoặc thử lại sau ít phút.",
+            refused: true,
+          },
+        ]);
+      })
+      .finally(() => setLoadingMessages(false));
+  }, [ready, searchParams, userId]);
 
   const startNewConversation = () => {
     if (loadingMessages) return;
@@ -166,6 +271,27 @@ function ChatPageContent() {
     ]);
     setInput("");
     setSending(true);
+
+    if (question === CONTINUE_QUESTION) {
+      try {
+        const [tasks, residentApplications] = await Promise.all([
+          api.getChecklist(userId),
+          api.getApplications(userId),
+        ]);
+        setMessages((prev) => [
+          ...prev,
+          { ...buildContinueMessage(tasks, residentApplications), id: prev.length + 1 },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          { id: prev.length + 1, role: "assistant", text: "Mình chưa kiểm tra được hồ sơ lúc này. Bạn thử lại sau ít phút nhé.", refused: true },
+        ]);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     try {
       const reply = await api.sendChat(userId, question, conversationId ?? undefined);
@@ -211,9 +337,9 @@ function ChatPageContent() {
           onNew={startNewConversation}
         />
 
-        <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:h-[calc(100vh-9rem)]">
+        <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-[0_22px_52px_-34px_rgba(0,45,98,0.55)] ring-1 ring-border/50 lg:h-[calc(100vh-9rem)]">
           <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ink">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-ink to-[#075985] shadow-md">
               <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
             </div>
             <div>
@@ -250,7 +376,7 @@ function ChatPageContent() {
                       </span>
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-muted">
-                      {GREETING.text}
+                      Chào {profile?.full_name ?? "bạn"} 👋 Mình là Trợ lý MoveInMate. Mình có thể giúp bạn hoàn thành thủ tục nhận nhà, kiểm tra giấy tờ còn thiếu và hướng dẫn từng bước.
                     </p>
                   </div>
                 </div>
@@ -298,7 +424,11 @@ function ChatPageContent() {
                   </div>
 
                   {message.suggestedAction && (
-                    <SuggestedActionCard action={message.suggestedAction} />
+                    <ChatSubmissionCard
+                      action={message.suggestedAction}
+                      userId={userId}
+                      ready={ready}
+                    />
                   )}
 
                   {message.role === "assistant" && (
@@ -340,7 +470,9 @@ function ChatPageContent() {
             )}
 
             {!loadingMessages && messages.length === 1 && (
-              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+              <div className="pt-1">
+                <p className="mb-2.5 text-sm font-semibold text-ink">Bạn muốn làm gì hôm nay?</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map(({ icon: Icon, text }) => (
                   <button
                     key={text}
@@ -351,13 +483,14 @@ function ChatPageContent() {
                     {text}
                   </button>
                 ))}
+                </div>
               </div>
             )}
 
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-border bg-surface p-4">
+          <div className="border-t border-border bg-gradient-to-r from-white via-blue-50/25 to-cyan-50/25 p-4">
             {/* Gõ tới đâu khớp gợi ý tới đó — chỉ so trong 4 câu đã neo vào
                 tài liệu KB kiểm chứng (SUGGESTIONS), không tự bịa câu mới,
                 giữ đúng nguyên tắc không demo vào chỗ guard chống bịa còn yếu. */}
@@ -386,22 +519,6 @@ function ChatPageContent() {
               })()}
 
             <div className="flex items-center gap-2">
-              <button
-                disabled
-                title="Sắp có — chưa nối API tải lên giấy tờ"
-                aria-label="Đính kèm tệp (sắp có)"
-                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-              >
-                <Paperclip className="h-4 w-4" strokeWidth={1.75} />
-              </button>
-              <button
-                disabled
-                title="Sắp có — chưa nối API tải ảnh giấy tờ (CCCD, thẻ xe...)"
-                aria-label="Tải ảnh (sắp có)"
-                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-              >
-                <ImageIcon className="h-4 w-4" strokeWidth={1.75} />
-              </button>
               <input
                 className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-60"
                 placeholder="Nhập câu hỏi của bạn..."
@@ -413,7 +530,7 @@ function ChatPageContent() {
               <button
                 onClick={() => send(input)}
                 disabled={sending || loadingMessages}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold to-gold-soft text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:transform-none disabled:opacity-40"
                 aria-label="Gửi"
               >
                 <Send className="h-4 w-4" strokeWidth={1.75} />
@@ -434,7 +551,7 @@ function ChatPageContent() {
 
 /** Danh sách hội thoại đã lưu (US-07) — bấm vào để mở lại và hỏi tiếp có
  * ngữ cảnh (`rewrite_query` ở backend dùng vài lượt gần nhất của đúng hội
- * thoại đang mở). "Cuộc trò chuyện mới" không gọi API gì — chỉ dọn state,
+ * thoại đang mở). "Đặt câu hỏi mới" không gọi API gì — chỉ dọn state,
  * hội thoại thật chỉ được tạo ở backend khi gửi câu hỏi đầu tiên. */
 function ConversationSidebar({
   conversations,
@@ -450,15 +567,16 @@ function ConversationSidebar({
   onNew: () => void;
 }) {
   return (
-    <div className="hidden w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:flex">
+    <div className="hidden w-44 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50 xl:flex">
       <div className="border-b border-border p-3">
         <button
           onClick={onNew}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-ink transition hover:border-gold/50 hover:text-gold"
         >
           <MessageSquarePlus className="h-4 w-4" strokeWidth={1.75} />
-          Cuộc trò chuyện mới
+          Câu hỏi mới
         </button>
+        <p className="mt-3 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Lịch sử hỗ trợ</p>
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
@@ -580,20 +698,112 @@ const SOURCE_LABELS: Record<Source["source_type"], string> = {
  * `checklist_item_id` null = backend không đối chiếu chắc chắn được mục nào
  * (xem docstring `SuggestedAction` phía backend) — khi đó chỉ hiện chữ, ẩn nút.
  */
-function SuggestedActionCard({ action }: { action: SuggestedAction }) {
+function ChatSubmissionCard({
+  action,
+  userId,
+  ready,
+}: {
+  action: SuggestedAction;
+  userId: number;
+  ready: boolean;
+}) {
+  const [item, setItem] = useState<ChecklistItem | null>(null);
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(action.checklist_item_id !== null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!ready || action.checklist_item_id === null) return;
+    setLoading(true);
+    try {
+      const [checklist, applications] = await Promise.all([
+        api.getChecklist(userId),
+        api.getApplications(userId),
+      ]);
+      setItem(
+        checklist.items.find((candidate) => candidate.id === action.checklist_item_id) ?? null,
+      );
+      setApplication(
+        applications.find(
+          (candidate) => candidate.checklist_item_id === action.checklist_item_id,
+        ) ?? null,
+      );
+    } catch {
+      setItem(null);
+      setApplication(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [action.checklist_item_id, ready, userId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const requiredDocuments = item
+    ? item.item_type === "bql_actionable"
+      ? item.required_documents
+      : [SELF_DECLARED_DOCUMENT]
+    : [];
+
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-2.5">
+    <div className="mt-2 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <Compass className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
         <p className="truncate text-xs text-ink">{action.procedure_name}</p>
       </div>
-      {action.checklist_item_id !== null && (
+      {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />}
+      {!loading && item && !application && (
+        <button
+          onClick={() => setSubmitting(true)}
+          className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-soft"
+        >
+          Nộp hồ sơ tại đây
+        </button>
+      )}
+      {!loading && action.checklist_item_id !== null && !item && (
         <Link
           href={`/checklist?item=${action.checklist_item_id}`}
           className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-soft"
         >
           Đến mục này
         </Link>
+      )}
+      </div>
+
+      {!loading && item && application && (
+        <div className="mt-3 border-t border-gold/25 pt-2">
+          <p className="text-[11px] font-medium text-ink">
+            Bổ sung giấy tờ ngay trong Trợ lý AI
+          </p>
+          <AttachmentUploader
+            userId={userId}
+            applicationId={application.application_id}
+            attachments={application.attachments}
+            required={application.kind === "self_declared"}
+            requiredDocuments={requiredDocuments}
+            onUploaded={(attachment) =>
+              setApplication((current) =>
+                current
+                  ? { ...current, attachments: [...current.attachments, attachment] }
+                  : current,
+              )
+            }
+          />
+        </div>
+      )}
+
+      {submitting && item && (
+        <SubmitApplicationDialog
+          userId={userId}
+          item={item}
+          onClose={() => setSubmitting(false)}
+          onSubmitted={() => {
+            setSubmitting(false);
+            load();
+          }}
+        />
       )}
     </div>
   );
@@ -674,7 +884,7 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         aria-modal="true"
         aria-label={source.title}
         onClick={(event) => event.stopPropagation()}
-        className={`relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl transition-all duration-200 ${
+        className={`relative w-full max-w-md rounded-2xl border border-border bg-surface shadow-soft p-6 shadow-2xl transition-all duration-200 ${
           visible ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
       >

@@ -215,6 +215,9 @@ export type Application = {
   status: ApplicationStatus;
   kind: ApplicationKind;
   attachments: Attachment[];
+  /** `null` = còn tệp chưa phân loại nên backend chưa thể kết luận thiếu gì. */
+  missing_documents?: RequiredDocument[] | null;
+  unlabelled_count?: number;
   handling_department: string | null;
   submission_location: string | null;
   processing_time: string | null;

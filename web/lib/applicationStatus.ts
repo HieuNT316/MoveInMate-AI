@@ -50,11 +50,17 @@ export function applicationStatusLabel(app: Application): string {
 // `needs_info`/`rejected` cần cư dân hành động tiếp — làm nổi bật hơn hẳn các
 // trạng thái còn lại (xem docs/CONTRACT_US13.md mục 6).
 export function applicationStatusTone(status: Application["status"]): string {
-  if (status === "needs_info" || status === "rejected") {
+  if (status === "rejected") {
     return "border-red-200 bg-red-50 text-red-700";
   }
-  if (status === "approved" || status === "delivered") {
-    return "border-emerald/30 bg-emerald/10 text-emerald";
+  if (status === "needs_info") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
   }
-  return "border-gold/30 bg-gold-tint text-ink";
+  if (status === "approved" || status === "delivered") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (status === "processing") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+  return "border-sky-200 bg-sky-50 text-sky-700";
 }

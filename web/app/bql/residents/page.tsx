@@ -9,8 +9,6 @@ import {
   FileText,
   KeyRound,
   Loader2,
-  Lock,
-  Pencil,
   Search,
   ShieldOff,
   UserPlus,
@@ -155,13 +153,13 @@ function BQLResidentsContent() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Tìm cư dân..."
-            className="w-full rounded-lg border border-[#B6C4D6] bg-white py-2.5 pl-10 pr-3 text-sm text-[#1E293B] placeholder:text-[#64748B] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
+            className="w-full rounded-xl border border-[#B6C4D6] bg-white py-3 pl-10 pr-3 text-sm text-[#1E293B] shadow-sm placeholder:text-[#64748B] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
           />
         </div>
 
         <button
           onClick={() => setCreating(true)}
-          className="flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#1D4ED8]"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_-12px_rgba(37,99,235,0.8)] transition-all hover:-translate-y-0.5"
         >
           <UserPlus className="h-4 w-4" strokeWidth={1.75} />
           Tạo tài khoản cư dân
@@ -190,7 +188,7 @@ function BQLResidentsContent() {
       )}
 
       {dashboard && (
-        <div className="overflow-hidden rounded-xl border border-[#B6C4D6] bg-white shadow-sm shadow-slate-200/50">
+        <div className="overflow-hidden rounded-2xl border border-white/90 bg-white/95 shadow-soft ring-1 ring-[#B6C4D6]/60">
           <div className="flex items-center gap-2 border-b border-[#B6C4D6] px-6 py-4">
             <h3 className="text-sm font-semibold text-[#1E293B]">Danh sách cư dân</h3>
             <span className="text-xs text-[#64748B]">({filtered.length})</span>
@@ -253,7 +251,7 @@ function ResidentRow({
   onView: () => void;
 }) {
   return (
-    <tr>
+    <tr className="transition hover:bg-blue-50/45">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF]">
@@ -293,7 +291,7 @@ function ResidentRow({
         <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={onView}
-            className="rounded-lg border border-[#B6C4D6] px-2.5 py-1.5 text-[11px] text-[#334155] transition hover:border-[#2563EB]/40 hover:text-[#2563EB]"
+            className="rounded-lg bg-[#2563EB] px-3 py-2 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8]"
           >
             Xem
           </button>
@@ -304,32 +302,9 @@ function ResidentRow({
             <FileText className="h-3 w-3" strokeWidth={1.75} />
             Xem đơn
           </Link>
-          <div className="mx-1 h-5 w-px shrink-0 bg-[#B6C4D6]" title="Sửa hồ sơ, khoá tài khoản, đặt lại mật khẩu — bấm Xem" />
-          <LockedAction icon={Pencil} label="Chỉnh sửa" />
         </div>
       </td>
     </tr>
-  );
-}
-
-/** Nút chưa có endpoint hậu thuẫn — khoá lại thay vì giả vờ hoạt động. */
-function LockedAction({
-  icon: Icon,
-  label,
-}: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  label: string;
-}) {
-  return (
-    <button
-      disabled
-      title="Sắp có — cần backend bổ sung endpoint, chưa hoạt động"
-      className="flex shrink-0 cursor-not-allowed items-center gap-1 rounded-lg border border-dashed border-[#CBD5E1] px-2.5 py-1.5 text-[11px] text-[#94A3B8] opacity-70"
-    >
-      <Icon className="h-3 w-3" strokeWidth={1.75} />
-      {label}
-      <Lock className="h-2.5 w-2.5" strokeWidth={2} />
-    </button>
   );
 }
 

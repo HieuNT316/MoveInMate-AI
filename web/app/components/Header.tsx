@@ -4,11 +4,11 @@ import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 
 const titles: Record<string, { title: string; subtitle: string }> = {
-  "/dashboard": { title: "Tổng quan", subtitle: "Chào mừng bạn quay trở lại" },
-  "/chat": { title: "AI Chat", subtitle: "Hỏi đáp thủ tục nhận nhà" },
+  "/dashboard": { title: "Trang chủ", subtitle: "Đây là tiến độ hành trình nhận nhà của bạn" },
+  "/chat": { title: "Trợ lý AI", subtitle: "Hỗ trợ bạn hoàn thành từng thủ tục nhận nhà" },
   "/checklist": {
-    title: "Checklist & Tiến độ",
-    subtitle: "Tick việc đã làm, nộp hồ sơ và theo dõi phản hồi của Ban quản lý",
+    title: "Việc cần làm",
+    subtitle: "Theo dõi các thủ tục và hoàn thành từng bước nhận nhà",
   },
   "/profile": { title: "Hồ sơ", subtitle: "Thông tin cư dân" },
   "/onboarding": {
@@ -34,14 +34,19 @@ export default function Header() {
   const current = titles[pathname] ?? { title: "MoveInMate AI", subtitle: "" };
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-surface/90 px-4 backdrop-blur lg:h-20 lg:px-8">
+    <header className="glass-header sticky top-0 z-10 flex h-16 items-center justify-between border-b border-white/70 px-4 backdrop-blur-xl lg:h-20 lg:px-8">
       <div className="min-w-0">
-        <h2 className="truncate font-display text-lg font-semibold text-ink lg:text-2xl">
+        <div className="flex items-center gap-3">
+          <span className="hidden h-9 w-1 rounded-full bg-gradient-to-b from-[#2563EB] to-[#22C1DC] lg:block" />
+          <div className="min-w-0">
+        <h2 className="truncate font-display text-lg font-bold tracking-[-0.02em] text-ink lg:text-2xl">
           {current.title}
         </h2>
         {current.subtitle && (
           <p className="hidden text-sm text-muted lg:block">{current.subtitle}</p>
         )}
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-5">
@@ -52,7 +57,7 @@ export default function Header() {
           disabled
           aria-label="Thông báo — chưa có hệ thống thông báo"
           title="Sắp có — chưa có hệ thống thông báo ở backend"
-          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full border border-border text-ink/40"
+          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl border border-white bg-white/70 text-ink/35 shadow-sm"
         >
           <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
         </button>

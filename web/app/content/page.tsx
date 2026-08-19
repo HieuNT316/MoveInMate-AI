@@ -107,7 +107,7 @@ export default function ContentPage() {
               return (
                 <div
                   key={reg.id}
-                  className="overflow-hidden rounded-2xl border border-border bg-surface"
+                  className="interactive-card overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50"
                 >
                   <button
                     onClick={() => setExpandedReg(isExpanded ? null : reg.id)}
@@ -169,7 +169,7 @@ function AnnouncementCard({
 
   return (
     <div
-      className={`rounded-2xl border p-5 ${pinned ? "border-gold/40 bg-gold-tint" : "border-border bg-surface"}`}
+      className={`interactive-card rounded-2xl border p-5 shadow-soft ${pinned ? "border-blue-200 bg-gradient-to-r from-blue-50 to-cyan-50" : "border-white/90 bg-surface/95 ring-1 ring-border/50"}`}
     >
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-medium text-ink">{announcement.title}</p>
