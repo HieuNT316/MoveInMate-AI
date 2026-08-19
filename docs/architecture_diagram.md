@@ -3,7 +3,7 @@
 > Kiến trúc hệ thống cho Phase 1. Nguồn quyết định về scope và persona: [`PROJECT_CHARTER.md`](./PROJECT_CHARTER.md).
 > Nhãn **`[GATE 2]`** = bắt buộc xong trước 12/08. Nhãn **`[W4]`** = vẫn thuộc Phase 1 nhưng làm sau.
 
-**Cập nhật:** 07/08/2026
+**Cập nhật:** 19/08/2026 (rà soát đồng bộ tài liệu ↔ mã nguồn, Task 22)
 
 ---
 
@@ -49,6 +49,8 @@ graph TB
 ```
 
 **Vì sao Chroma chạy in-process:** stack bắt buộc theo đề bài. Vì filesystem của Railway là ephemeral, embeddings được ghi vào **Railway Volume** mount tại `chroma_persist_dir` — nếu không, mỗi lần deploy là mất toàn bộ vector và phải embed lại (tốn phí API, đi ngược ràng buộc "tối ưu chi phí").
+
+**Đã lên volume thật từ 18/08** (trước đó Chroma nướng thẳng vào image Docker — xem `DEPLOY.md`). Volume mới gắn thì rỗng; `src/services/chroma_seed.py` chép bản mồi từ `/app/data/chroma_seed` (Dockerfile chép sang từ `data/chroma/` lúc build) vào volume đúng một lần lúc khởi động nếu volume còn rỗng, không đè nếu BQL đã nạp tài liệu qua production.
 
 ## 3. Components
 
@@ -98,7 +100,7 @@ Response của `GET /checklist` phải trả kèm `item_type` để FE hiển th
 
 **Chỉ một graph: `chat_graph`.** Checklist không đi qua LangGraph.
 
-**Hình dạng graph ở `[GATE 2]`** — chỉ hai node, không có nhánh FAQ:
+**Hình dạng graph ở `[GATE 2]`** — hai node, không có nhánh FAQ, single-turn (đã bị đảo ngược 13/08, xem ngay dưới):
 
 ```mermaid
 graph LR
@@ -107,7 +109,17 @@ graph LR
     G1 --> E1(["END"])
 ```
 
-**Hình dạng graph sau khi bổ sung FAQ ở `[W4]`:**
+**Hình dạng graph THẬT đang chạy (từ 13/08)** — thêm `rewrite_query` để hỗ trợ hội thoại multi-turn, vẫn chưa có nhánh FAQ:
+
+```mermaid
+graph LR
+    S0(["START"]) --> RW["rewrite_query"]
+    RW --> R1b["rag_retrieve"]
+    R1b --> G1b["generate"]
+    G1b --> E1b(["END"])
+```
+
+**Hình dạng graph sau khi bổ sung FAQ ở `[W4]`** (vẫn chưa làm — `faq_lookup` chưa tồn tại trong `src/agents/`):
 
 ```mermaid
 graph LR
@@ -120,7 +132,8 @@ graph LR
 
 | Node | Đọc state | Ghi state | Trách nhiệm |
 |---|---|---|---|
-| `faq_lookup` **`[W4]`** | `query` | `query_vector`, `faq_answer`, `faq_score`, `answer_source` | Embed query → search collection `faq` → so ngưỡng |
+| `rewrite_query` **đã xong 13/08** | `query`, `chat_history[]` | `query` (viết lại) | Chỉ chạy khi `chat_history` không rỗng — viết lại câu hỏi mơ hồ ("còn phí thì sao?") thành độc lập ngữ cảnh bằng LLM. Lịch sử KHÔNG bao giờ vào thẳng `generate` — vẫn giữ bảo đảm chống bịa |
+| `faq_lookup` **`[W4]`, chưa code** | `query` | `query_vector`, `faq_answer`, `faq_score`, `answer_source` | Embed query → search collection `faq` → so ngưỡng |
 | `rag_retrieve` **`[GATE 2]`** | `query`, `query_vector?` | `query_vector`, `retrieved[]`, `sources[]` | Search collection `documents`, top-k |
 | `generate` **`[GATE 2]`** | `query`, `retrieved[]` | `answer` | LLM chỉ viết văn xuôi từ context |
 
@@ -132,7 +145,7 @@ graph LR
 
 2. **Guard chống bịa thông tin:** khi `retrieved` rỗng hoặc mọi score dưới ngưỡng, `generate` **không gọi LLM** mà trả câu từ chối kèm hướng dẫn liên hệ BQL. Đây là ràng buộc trong code, không phải lời dặn trong prompt.
 
-**Giới hạn Phase 1: single-turn.** Mỗi câu hỏi độc lập, không truyền lịch sử hội thoại vào agent. Hỏi nối tiếp kiểu "còn thẻ xe thì sao?" sẽ mất ngữ cảnh. Đây là quyết định có ý thức để tiết kiệm ~6-8h; làm đúng cần thêm bước viết lại câu hỏi theo ngữ cảnh. Cân nhắc ở Phase 2.
+**Multi-turn đã làm (13/08), không còn single-turn.** Quyết định gốc "single-turn ở Phase 1" (07/08) đã bị **đảo ngược** — xem `PROJECT_CHARTER.md` mục 7. `conversation_id` có giá trị thì `POST /chat` tiếp tục hội thoại cũ, `chat_graph` được cấp `rag_history_turns` (mặc định 3, `src/config.py`) lượt gần nhất để node `rewrite_query` viết lại câu hỏi mơ hồ ("còn thẻ xe thì sao?") thành độc lập ngữ cảnh trước khi truy xuất. Lịch sử chỉ vào bước viết lại, không vào thẳng `generate`.
 
 **Nhà cung cấp model (cập nhật 11/08):**
 
@@ -193,13 +206,14 @@ Hai collection:
 
 | Bảng | Vai trò |
 |---|---|
-| `USERS` | Hồ sơ cư dân + `auth_user_id` trỏ Supabase Auth. Không lưu password |
+| `USERS` | Hồ sơ cư dân + `auth_user_id` trỏ Supabase Auth. Không lưu password. **Có `account_status`** (`active`/`locked`, thêm 18/08) — kiểm ngay trong `get_current_user` nên áp cho mọi endpoint, không phải gắn từng chỗ. Tài khoản bị khoá vẫn đăng nhập được và nhận JWT hợp lệ; mọi lời gọi API sau đó mới trả 403 — chặn phía server, không đụng Supabase Auth |
 | `CHECKLIST_ITEMS` | Template thủ tục, có `conditions` (JSONB) và `item_type` |
 | `CHECKLIST_COMPLETIONS` | Chỉ lưu mục **đã hoàn thành**: `(user_id, checklist_item_id, completed_at)` |
-| `CHAT_HISTORY` | Lịch sử hỏi đáp + `answer_source` + `sources` (JSONB) |
-| `FAQ` | Câu hỏi thường gặp do BQL quản lý |
-| `DOCUMENTS` | Metadata tài liệu + `ingest_status` |
-| `APPLICATIONS` | Hồ sơ duyệt — **Phase 2**, chưa migrate ở Phase 1 |
+| `CHAT_HISTORY` | Lịch sử hỏi đáp + `answer_source` + `sources` (JSONB). `question`/`answer` đã qua che PII (`src/services/pii.py`, thêm 19/08) trước khi ghi — điện thoại bị che ở `question` nhưng CỐ Ý giữ nguyên ở `answer` vì KB chứa hotline BQL công khai |
+| `FAQ` | Câu hỏi thường gặp do BQL quản lý — bảng đã tồn tại nhưng chưa có route CRUD nào (US-09 còn mở) |
+| `DOCUMENTS` | Metadata tài liệu + `embed_status` (`pending`/`processing`/`ready`/`failed`, thêm 19/08) — BQL nạp qua `POST /admin/documents`, embed chạy nền, FE poll trạng thái qua `GET /admin/documents` |
+| `APPLICATIONS` | Hồ sơ nộp trực tuyến (US-13) + duyệt (US-10) — **đã migrate và chạy đủ vòng đời**, không còn ở Phase 2. Partial unique index chặn hai hồ sơ đang mở cho cùng một mục checklist (task 20) |
+| `APPLICATION_ATTACHMENTS` | Ảnh/PDF minh chứng — metadata only, nội dung nằm ở bucket private Supabase Storage, đọc qua signed URL hết hạn ngắn |
 
 Chi tiết field: xem mục 6 của [`PROJECT_CHARTER.md`](./PROJECT_CHARTER.md).
 
@@ -276,6 +290,8 @@ sequenceDiagram
 
 ### 4.3 Hợp đồng API — ranh giới BE ↔ FE
 
+**Bảng dưới liệt kê đúng 23 route thật trong `src/api/routes.py`** (đã rà lại 19/08 — bản trước liệt kê `GET /api/v1/chat/history`, endpoint đó chưa từng tồn tại; route thật của US-07 là hai dòng `/chat/conversations*` bên dưới). `CRUD /api/v1/admin/faq` (US-09) bị bỏ khỏi bảng vì chưa có route nào — vẫn `[W4]`, còn mở.
+
 | Method | Endpoint | US | Giai đoạn |
 |---|---|---|---|
 | POST | `/api/v1/onboarding` | US-02 | `[GATE 2]` |
@@ -283,11 +299,23 @@ sequenceDiagram
 | PATCH | `/api/v1/checklist/{id}` | US-04 | `[GATE 2]` |
 | POST | `/api/v1/chat` | US-05 | `[GATE 2]` |
 | GET | `/api/v1/profile` · PATCH | US-06 | `[GATE 2]` |
-| GET | `/api/v1/chat/history` | US-07 | `[GATE 2]` |
+| GET | `/api/v1/chat/conversations` | US-07 | `[GATE 2]` |
+| GET | `/api/v1/chat/conversations/{id}/messages` | US-07 | `[GATE 2]` |
 | POST | `/api/v1/admin/users` | US-00 | `[GATE 2]` |
-| POST | `/api/v1/admin/documents` | US-08 | `[W4]` |
-| CRUD | `/api/v1/admin/faq` | US-09 | `[W4]` |
-| GET | `/api/v1/admin/dashboard` | US-12-mini | `[W4]` |
+| POST | `/api/v1/applications` | US-13 | đã xong (15/08) |
+| GET | `/api/v1/applications` | US-13 | đã xong |
+| POST | `/api/v1/applications/{id}/attachments` | US-13 | đã xong |
+| GET | `/api/v1/applications/{id}/attachments/{aid}/url` | US-13 | **mới (19/08)** |
+| GET | `/api/v1/admin/applications` | US-13 | đã xong |
+| PATCH | `/api/v1/admin/applications/{id}` | US-10 | đã xong (18-19/08) |
+| PATCH | `/api/v1/admin/applications/{id}/attachments/{aid}` | US-13/D1 | đã xong |
+| GET | `/api/v1/admin/residents/{id}` | — | **mới (19/08)** |
+| PATCH | `/api/v1/admin/residents/{id}/status` | — | **mới (18/08)** |
+| POST | `/api/v1/admin/residents/{id}/reset-password` | — | **mới (18/08)** |
+| POST | `/api/v1/admin/documents` | US-08 | **mới (19/08)** |
+| GET | `/api/v1/admin/documents` | US-08 | **mới (19/08)** |
+| CRUD | `/api/v1/admin/faq` | US-09 | `[W4]`, chưa code |
+| GET | `/api/v1/admin/dashboard` | US-12-mini | `[W4]`, đã xong |
 
 **Cư dân chưa hoàn thành onboarding:** `GET /profile` trả `onboarding_completed_at = null`, FE dựa vào đó chuyển hướng sang `/onboarding`. `GET /checklist` cũng trả cờ `onboarding_completed` để FE không phải gọi hai lần mới biết có nên hiển thị danh sách hay không.
 
@@ -331,15 +359,17 @@ Nghịch lý cần biết: **thêm dữ liệu định tuyến (`data/kb/bql/`) 
 
 `suggested_action` là `null` khi không phát hiện ý định nộp hồ sơ. `checklist_item_id` là `null` khi `procedure_name` (do LLM tự suy ra) không đối chiếu khớp được với đúng một mục trong checklist thật của người dùng (`_match_checklist_item` trong `src/api/routes.py`) — **FE phải tự ẩn nút điều hướng trong trường hợp này**, không điều hướng mù.
 
-**Chưa làm ở lượt này (đang chặn tính năng phát huy tác dụng thật):**
+**Cập nhật 19/08 — hầu hết hàng dưới đây đã xong, bảng gốc (10/08) đã lỗi thời:**
 
-| Việc cần làm | Vai trò | Ghi chú |
+| Việc | Vai trò | Trạng thái |
 |---|---|---|
-| Thêm `SuggestedAction` type + field `suggested_action` vào `ChatAnswer` (`web/lib/api.ts`) | FE | Hiện BE đã trả field này nhưng FE chưa khai báo type nên bị bỏ qua |
-| Hiện nút/CTA trong bong bóng chat khi `suggested_action.checklist_item_id` khác null (`web/app/chat/page.tsx`) | FE | Ẩn nút khi `checklist_item_id` là null |
-| Trang `/checklist` hỗ trợ nhận `checklist_item_id` (vd. query param) để cuộn tới + highlight đúng mục | FE | Đích tạm thời — **chưa có trang nộp hồ sơ/upload thật** |
-| Trang nộp hồ sơ thật (upload CCCD/hợp đồng, theo `checklist_item_id`) | BE + FE | Đây chính là US-10/`APPLICATIONS` — **đã xếp Phase 2** trong charter mục 4, chưa migrate. Tool này chỉ chuẩn bị tín hiệu, không kéo Phase 2 lên sớm |
-| (Tuỳ chọn) Lưu `suggested_action` vào `CHAT_HISTORY` | BE | Hiện KHÔNG lưu — xem lại lịch sử chat cũ sẽ không thấy `suggested_action`. Cần thêm cột JSONB + migration nếu muốn giữ |
+| Thêm `SuggestedAction` type + field `suggested_action` vào `ChatAnswer` (`web/lib/api.ts`) | FE | **Đã xong** |
+| Hiện nút/CTA trong bong bóng chat khi `suggested_action.checklist_item_id` khác null (`web/app/chat/page.tsx`) | FE | **Đã xong** |
+| Trang `/checklist` nhận `checklist_item_id` để cuộn tới + highlight đúng mục | FE | **Đã xong** (`web/app/checklist/page.tsx`) |
+| Trang nộp hồ sơ thật (upload CCCD/hợp đồng, theo `checklist_item_id`) | BE + FE | **Đã xong (US-13, 15-19/08).** Đây chính là US-10/`APPLICATIONS` — dòng cũ ghi "đã xếp Phase 2, chưa migrate" không còn đúng, xem mục 3.6 và `PROJECT_CHARTER.md` mục 6-7 |
+| (Tuỳ chọn) Lưu `suggested_action` vào `CHAT_HISTORY` | BE | **Vẫn chưa làm** — `ChatHistory` (`src/models/db.py`) không có cột này; xem lại lịch sử chat cũ sẽ không thấy `suggested_action` |
+
+Cùng lúc, đối chiếu tất định `_match_checklist_item` mô tả ở trên **đã hết là "hướng xử lý đề xuất"** — nó chạy luôn luôn trên mọi câu hỏi kể từ 12/08 (không còn phụ thuộc việc tool LLM có bắn hay không), đúng như dòng chữ ở đoạn "Nghịch lý cần biết" phía trên đã đề xuất. Bảng đo 2/4 ở trên là số đo của LỚP TOOL LLM trước khi có lớp đối chiếu tất định — không còn phản ánh độ tin cậy thật của tính năng hiện tại.
 
 ## 5. Error Handling
 
@@ -379,7 +409,7 @@ tests/
 | Số lần embed mỗi câu hỏi | Một lần, dùng lại vector | Embed hai lần cho cùng một câu là lãng phí chi phí và latency |
 | Persist vector store | Railway Volume | Filesystem Railway là ephemeral; không có volume thì mỗi lần deploy phải embed lại toàn bộ KB |
 | Ingest tài liệu | Đồng bộ + script CLI | `BackgroundTasks` hỏng im lặng khi container restart, khó chẩn đoán |
-| Hội thoại | Single-turn ở Phase 1 | Multi-turn cần bước viết lại câu hỏi theo ngữ cảnh, ~6-8h. Cân nhắc Phase 2 |
+| Hội thoại | Multi-turn (đảo ngược quyết định single-turn gốc, 13/08) | Node `rewrite_query` viết lại câu hỏi mơ hồ dựa trên `rag_history_turns` lượt gần nhất của đúng hội thoại đang mở, chỉ vào bước viết lại — giữ nguyên bảo đảm chống bịa ở `generate` |
 | Nhánh FAQ | Thiết kế sẵn, code ở `[W4]` | Chi phí thật nằm ở hiệu chỉnh ngưỡng, cần dữ liệu thật. RAG đơn thuần đã đủ thoả mãn yêu cầu đề bài |
 | Đường gọi chat model (11/08) | **OpenAI trực tiếp** mặc định, OpenRouter tuỳ chọn | Đúng stack BTC nêu; key trả phí không dính giới hạn credit của free tier. Giữ chuyển đổi vì các thành viên có key khác nhau |
 | Nguồn embedding (11/08) | Giữ Google `gemini-embedding-001` | Index 386 chunk đã embed bằng model này. Đổi = ingest lại + hiệu chỉnh lại ngưỡng; trùng số chiều với OpenAI large khiến lỗi không lộ ra |
@@ -436,11 +466,13 @@ Chi tiết từng bước cho cả hai phía: **[`DEPLOY.md`](./DEPLOY.md)**.
 
 **Quy tắc kiến trúc: không bao giờ đưa dữ liệu cá nhân cư dân vào vector store.** Chroma không có cơ chế phân quyền theo người dùng — mọi thứ đã index thì bất kỳ ai hỏi đúng câu đều truy xuất được. Vector store chỉ chứa tài liệu thủ tục dùng chung. Khi Phase 2 làm `APPLICATIONS` (CCCD, hợp đồng), tuyệt đối không embed các tài liệu này để "tìm kiếm cho tiện".
 
-**Kiểm soát chi phí:** đặt `max_tokens` cho mọi lời gọi LLM và giới hạn số câu hỏi mỗi người dùng mỗi ngày. URL demo là công khai; một vòng lặp vô ý ở FE hoặc người lạ truy cập có thể đốt hết credit OpenAI trước Demo Day.
+**Kiểm soát chi phí:** `llm_max_tokens` (mặc định 600) đặt cho mọi lời gọi LLM. Giới hạn tốc độ theo IP đã xong 19/08 (`src/services/rate_limit.py`): `/chat` 10/phút + 100/giờ, tải tệp/nạp tài liệu 20/phút — chặn burst từ một client, không phải trần theo người dùng mỗi ngày như bảng dự kiến ban đầu. **Cố ý không có trần tổng số request/ngày** trên toàn hệ thống: một trần như vậy mới thật sự bảo vệ được hạn mức Google 1000 request/ngày dùng chung cả nhóm, nhưng chạm ngưỡng giữa demo sẽ khiến trợ lý im lặng với mọi người — biến rủi ro bên ngoài thành sự cố tự gây ra. Hạn mức ngày vẫn là rủi ro được theo dõi thủ công, không phải rủi ro bị chặn bằng code — xem README mục "Giới hạn tốc độ".
 
-## 10. Việc cần sửa trong code hiện có
+## 10. Việc cần sửa trong code hiện có (bảng 07/08 — đã lỗi thời)
 
-| File | Việc |
+**Cập nhật 19/08: toàn bộ mục dưới đây đã xong.** `src/models/db.py` tồn tại và khớp mục 6/3.6; `web/app/login/page.tsx` gọi `supabase.auth.signInWithPassword` thật; `web/app/onboarding/page.tsx` tồn tại; các trang đã gọi API thật, không còn mock. Giữ bảng gốc lại làm mốc lịch sử (không xoá — xem git log nếu cần biết trạng thái Phase 1 lúc mới bắt đầu), nhưng đọc như tài liệu tham khảo, không phải việc còn tồn đọng.
+
+| File | Việc (đã xong hết, xem trên) |
 |---|---|
 | `src/config.py` | `database_url` đang mặc định SQLite → trỏ Supabase Postgres; thêm biến Supabase, ngưỡng FAQ, `rag_top_k`, LangSmith |
 | `src/models/db.py` | Chưa tồn tại — tạo model SQLAlchemy |
