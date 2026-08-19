@@ -327,8 +327,8 @@ function ChatPageContent() {
   };
 
   return (
-    <Layout>
-      <div className="flex gap-4">
+    <Layout wide>
+      <div className="flex gap-5">
         <ConversationSidebar
           conversations={conversations}
           activeId={conversationId}
@@ -388,7 +388,7 @@ function ChatPageContent() {
                 key={message.id}
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div className="max-w-lg">
+                <div className="max-w-[min(46rem,88%)]">
                   <div
                     className={`rounded-2xl px-5 py-3.5 ${
                       message.role === "user"
@@ -567,7 +567,7 @@ function ConversationSidebar({
   onNew: () => void;
 }) {
   return (
-    <div className="hidden w-44 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50 xl:flex">
+    <div className="hidden w-52 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50 2xl:flex">
       <div className="border-b border-border p-3">
         <button
           onClick={onNew}
