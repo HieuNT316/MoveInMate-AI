@@ -6,9 +6,8 @@ import {
   ArrowRight,
   CalendarClock,
   FileText,
-  ExternalLink,
+  Eye,
   Inbox,
-  Loader2,
   Paperclip,
   Pencil,
   Search,
@@ -27,6 +26,7 @@ import UpdateApplicationStatusDialog from "../../components/UpdateApplicationSta
 import Pagination from "../../components/Pagination";
 import EmptyState from "../../components/EmptyState";
 import ErrorState from "../../components/ErrorState";
+import AttachmentPreviewModal from "../../components/AttachmentPreviewModal";
 
 const PAGE_SIZE = 10;
 
@@ -289,35 +289,7 @@ function ApplicationDetailDialog({
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const [openingId, setOpeningId] = useState<number | null>(null);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-
-  const openAttachment = async (attachmentId: number) => {
-    if (openingId !== null) return;
-    setOpeningId(attachmentId);
-    setAttachmentError(null);
-    const target = window.open("", "_blank");
-    if (!target) {
-      setAttachmentError("Trình duyệt đang chặn cửa sổ xem giấy tờ. Hãy cho phép pop-up rồi thử lại.");
-      setOpeningId(null);
-      return;
-    }
-    target.opener = null;
-    target.document.title = "Đang mở giấy tờ...";
-    try {
-      const { url } = await api.getAttachmentUrl(
-        userId,
-        application.application_id,
-        attachmentId,
-      );
-      target.location.replace(url);
-    } catch {
-      target.close();
-      setAttachmentError("Không mở được giấy tờ lúc này. Vui lòng thử lại.");
-    } finally {
-      setOpeningId(null);
-    }
-  };
+  const [previewing, setPreviewing] = useState<(typeof application.attachments)[number] | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/45 px-4" role="dialog" aria-modal="true" aria-label="Chi tiết hồ sơ">
@@ -358,15 +330,13 @@ function ApplicationDetailDialog({
                     <p className="truncate text-sm font-medium text-slate-800">{attachment.filename}</p>
                     <p className="mt-0.5 text-[11px] text-slate-500">{attachment.document_type ?? "Chưa phân loại"} · {formatFileSize(attachment.size_bytes)}</p>
                   </div>
-                  <button type="button" onClick={() => openAttachment(attachment.attachment_id)} disabled={openingId !== null} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50">
-                    {openingId === attachment.attachment_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-                    {openingId === attachment.attachment_id ? "Đang mở" : "Xem giấy tờ"}
+                  <button type="button" onClick={() => setPreviewing(attachment)} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50">
+                    <Eye className="h-3.5 w-3.5" />Xem giấy tờ
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {attachmentError && <p className="mt-3 text-xs text-red-600">{attachmentError}</p>}
         </section>
 
         {(application.note || application.bql_note) && (
@@ -380,6 +350,7 @@ function ApplicationDetailDialog({
           <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Đóng</button>
           <button onClick={onEdit} className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"><Pencil className="h-4 w-4" />Cập nhật trạng thái</button>
         </div>
+        {previewing && <AttachmentPreviewModal userId={userId} applicationId={application.application_id} attachment={previewing} onClose={() => setPreviewing(null)} />}
       </div>
     </div>
   );
