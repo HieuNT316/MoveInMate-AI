@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
   BadgeCheck,
   Bot,
   ClipboardList,
   Gauge,
   Loader2,
+  PartyPopper,
   UserRound,
 } from "lucide-react";
 
@@ -103,6 +105,12 @@ export default function DashboardPage() {
     );
   }
 
+  // Bước "hiện tại" = mục chưa hoàn thành gần đầu checklist nhất. `items`
+  // lấy từ CÙNG api.getChecklist() render ở /checklist — không hardcode id
+  // riêng, tránh lệch khi thêm/bớt bước sau này. Dùng chung cho cả banner
+  // "Việc tiếp theo" và StatusStatCard bên dưới.
+  const nextItem = checklist?.items.find((item) => !item.completed) ?? null;
+
   return (
     <Layout>
       <section className="mb-10 border-b border-border pb-8">
@@ -132,10 +140,7 @@ export default function DashboardPage() {
         />
         <StatusStatCard
           value={profile.onboarding_completed_at ? "Đang nhận nhà" : "Chưa thiết lập hồ sơ"}
-          // Bước "hiện tại" = mục chưa hoàn thành gần đầu checklist nhất.
-          // `items` lấy từ CÙNG api.getChecklist() render ở /checklist —
-          // không hardcode id riêng, tránh lệch khi thêm/bớt bước sau này.
-          nextItemId={checklist?.items.find((item) => !item.completed)?.id ?? null}
+          nextItemId={nextItem?.id ?? null}
         />
       </section>
 
@@ -154,6 +159,50 @@ export default function DashboardPage() {
           </div>
           <span className="text-sm font-medium text-gold">Bắt đầu →</span>
         </Link>
+      )}
+
+      {/* Đã thiết lập hồ sơ nhưng chưa rõ nên làm gì tiếp — chỉ thẳng vào
+          MỘT việc cụ thể tiếp theo thay vì để cư dân tự đoán giữa 3 ô chức
+          năng bên dưới. Việc "tiếp theo" lấy đúng mục chưa hoàn thành đầu
+          checklist, giống cơ chế `nextItemId` của StatusStatCard. */}
+      {profile.onboarding_completed_at && checklist && nextItem && (
+        <Link
+          href={`/checklist?item=${nextItem.id}`}
+          className="mb-10 flex items-center justify-between gap-4 rounded-2xl border border-gold/40 bg-gold-tint px-6 py-5 transition hover:border-gold"
+        >
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-gold">
+              Việc tiếp theo của bạn
+            </p>
+            <p className="mt-1 truncate text-base font-medium text-ink">
+              {nextItem.task_name}
+            </p>
+            {nextItem.description && (
+              <p className="mt-0.5 truncate text-sm text-muted">{nextItem.description}</p>
+            )}
+          </div>
+          <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-gold">
+            Bắt đầu <ArrowRight className="h-4 w-4" strokeWidth={2} />
+          </span>
+        </Link>
+      )}
+
+      {profile.onboarding_completed_at && checklist && !nextItem && (
+        <div className="mb-10 flex items-center gap-4 rounded-2xl border border-emerald/30 bg-emerald/5 px-6 py-5">
+          <PartyPopper className="h-6 w-6 shrink-0 text-emerald" strokeWidth={1.75} />
+          <div>
+            <p className="text-sm font-medium text-ink">
+              Bạn đã hoàn tất toàn bộ checklist!
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Còn thắc mắc gì về thủ tục nhận nhà? Hỏi ngay{" "}
+              <Link href="/chat" className="font-medium text-gold hover:text-gold-soft">
+                AI Chat
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
       )}
 
       <section>

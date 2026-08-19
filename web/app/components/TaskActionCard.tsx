@@ -75,7 +75,7 @@ export default function TaskActionCard({ config }: { config: TaskActionCardConfi
       <div className="mt-4 space-y-3.5">
         {fields.map((field) => (
           <div key={field.name}>
-            <label className="mb-1 block text-xs font-medium text-ink/80">
+            <label className="mb-1 block text-xs font-medium text-ink/90">
               {field.label}
               {field.required && <span className="text-gold"> *</span>}
             </label>
@@ -117,7 +117,7 @@ export default function TaskActionCard({ config }: { config: TaskActionCardConfi
         ))}
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-ink/80">
+          <label className="mb-1 block text-xs font-medium text-ink/90">
             Ảnh giấy tờ liên quan
           </label>
           <button
@@ -144,9 +144,9 @@ export default function TaskActionCard({ config }: { config: TaskActionCardConfi
         <div className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" strokeWidth={1.75} />
           <p className="text-[11px] leading-relaxed text-muted">
-            Dữ liệu hợp lệ. Đây là <span className="font-medium text-ink/70">bản dựng giao diện</span> —
+            Dữ liệu hợp lệ. Đây là <span className="font-medium text-ink/85">bản dựng giao diện</span> —
             nút &ldquo;{submitLabel}&rdquo; chưa nối submit thật, không tạo mã hồ sơ hay đổi trạng thái
-            checklist. Cần <code className="text-ink/70">POST /applications</code> (Hiếu) + phân loại
+            checklist. Cần <code className="text-ink/85">POST /applications</code> (Hiếu) + phân loại
             intent (Hải) trước khi lên thật.
           </p>
         </div>

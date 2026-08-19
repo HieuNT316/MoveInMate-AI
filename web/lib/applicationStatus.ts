@@ -10,8 +10,18 @@ export function applicationStatusLabel(app: Application): string {
   if (app.kind === "self_declared") {
     switch (app.status) {
       case "received":
+        // Hồ sơ `self_declared` được tạo TRƯỚC khi tải ảnh (2 bước ở
+        // SubmitApplicationDialog) — nhãn này từng ghi "đã gửi minh chứng"
+        // ngay cả khi `attachments` rỗng, tự mâu thuẫn với ô "Đã tải 0/N
+        // giấy tờ" hiện ngay bên dưới. Chỉ áp dụng cho "received": sang
+        // "processing" nghĩa là BQL đã động vào hồ sơ (có thể nhận trực
+        // tiếp ngoài app), lúc đó không tự suy đoán minh chứng có hay
+        // không nữa — cứ hiển thị "Đang xử lý" trung lập như cũ.
+        return app.attachments.length > 0
+          ? "Đã gửi minh chứng, chờ Ban quản lý ghi nhận"
+          : "Đã tạo hồ sơ — cần tải minh chứng để hoàn tất";
       case "processing":
-        return "Đã gửi minh chứng, chờ Ban quản lý ghi nhận";
+        return "Đang xử lý";
       case "needs_info":
         return "Cần bổ sung minh chứng";
       case "approved":

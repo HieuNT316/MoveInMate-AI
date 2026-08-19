@@ -68,7 +68,7 @@ export default function ChatContextPanel({
                 </span>
                 <span
                   className={`text-xs leading-snug ${
-                    item.completed ? "text-muted line-through" : "text-ink/85"
+                    item.completed ? "text-muted line-through" : "text-ink/90"
                   }`}
                 >
                   {item.task_name}

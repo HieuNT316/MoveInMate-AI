@@ -45,7 +45,7 @@ export default function DashboardCard({
 
         <p className="mt-2 text-sm leading-relaxed text-muted">{desc}</p>
 
-        <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink/60 transition group-hover:text-gold">
+        <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink/75 transition group-hover:text-gold">
           Xem chi tiết
           <ArrowUpRight
             className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"

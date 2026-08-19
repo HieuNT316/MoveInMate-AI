@@ -169,6 +169,14 @@ export type Attachment = {
   /** Link đọc tạm thời, hết hạn sau vài phút — không cache, không chia sẻ. */
   url: string | null;
   uploaded_at: string;
+  /**
+   * ĐỀ XUẤT — chưa có cột thật ở backend (chỉ `phone` trên `USERS` mới có
+   * tiền lệ "cột đã tạo nhưng chưa dùng"; đây là trường CHƯA được thêm ở
+   * DB/schema). FE đã gửi field này lên từ lúc upload (xem `uploadAttachment`)
+   * nên khi Hiếu thêm cột + đọc field trong response, khớp theo nhãn thật sẽ
+   * tự động chạy mà không cần sửa gì bên FE — xem `AttachmentUploader.tsx`.
+   */
+  document_type?: string | null;
 };
 
 export type Application = {
@@ -240,6 +248,17 @@ export type DemoAccount = {
 export function destinationFor(profile: Profile): string {
   if (profile.role === "admin") return "/bql/dashboard";
   return profile.onboarding_completed_at ? "/dashboard" : "/onboarding";
+}
+
+export const CHAT_AUTO_OPEN_KEY = "moveinmate.chat-auto-opened";
+
+/**
+ * Gọi ngay sau khi đăng nhập/đổi persona thành công (trước `router.push`) —
+ * xoá cờ "đã tự bung AI Chat" để mỗi lần đăng nhập đều thấy bong bóng chat tự
+ * bung ra ở /dashboard, không chỉ đúng một lần cho cả tuổi thọ của tab.
+ */
+export function resetChatAutoOpen(): void {
+  sessionStorage.removeItem(CHAT_AUTO_OPEN_KEY);
 }
 
 const STORAGE_KEY = "moveinmate.demo-user-id";
@@ -443,10 +462,21 @@ export const api = {
 
   /** US-13 mục 7 — tải một tệp minh chứng (CCCD, VNeID...) lên cho một hồ sơ
    * đã nộp. Giới hạn 5MB, chỉ nhận jpg/png/pdf — backend chặn lại (415/413)
-   * dù FE có kiểm tay trước để phản hồi nhanh hơn. */
-  uploadAttachment: (userId: number, applicationId: number, file: File) => {
+   * dù FE có kiểm tay trước để phản hồi nhanh hơn.
+   *
+   * `documentType` — ĐỀ XUẤT, gửi kèm optimistic trước khi backend có cột
+   * lưu (xem comment ở `Attachment.document_type`). Field lạ trong
+   * multipart form không làm hỏng request hiện tại: FastAPI bỏ qua field
+   * form không khai trong signature route, nên gửi thêm không lỗi gì. */
+  uploadAttachment: (
+    userId: number,
+    applicationId: number,
+    file: File,
+    documentType?: string,
+  ) => {
     const form = new FormData();
     form.append("file", file);
+    if (documentType) form.append("document_type", documentType);
     return requestMultipart<Attachment>(
       `/applications/${applicationId}/attachments`,
       userId,

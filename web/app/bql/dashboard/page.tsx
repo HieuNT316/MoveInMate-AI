@@ -1,23 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Bell,
   CircleUserRound,
   Gauge,
+  HelpCircle,
   Lock,
   PieChart,
-  Search,
-  UserPlus,
+  UserCheck,
   UserRound,
   UserRoundX,
 } from "lucide-react";
 
 import { api, describeError, type Dashboard, type ResidentProgress } from "../../../lib/api";
 import { useDemoUser } from "../../../lib/useDemoUser";
-import CreateResidentDialog from "../../components/CreateResidentDialog";
 
 const ATTENTION_THRESHOLD = 30;
 
@@ -25,8 +26,6 @@ export default function BQLDashboardPage() {
   const { userId, ready } = useDemoUser();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -41,15 +40,6 @@ export default function BQLDashboardPage() {
     if (ready) load();
   }, [ready, load]);
 
-  const filtered = useMemo(() => {
-    if (!dashboard) return [];
-    const q = query.trim().toLowerCase();
-    if (!q) return dashboard.residents;
-    return dashboard.residents.filter(
-      (r) => r.full_name.toLowerCase().includes(q) || r.apartment.toLowerCase().includes(q),
-    );
-  }, [dashboard, query]);
-
   if (error) {
     return (
       <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
@@ -60,7 +50,7 @@ export default function BQLDashboardPage() {
 
   if (!dashboard) {
     return (
-      <div className="flex items-center gap-2 text-sm text-[#64748B]">
+      <div className="flex items-center gap-2 text-sm text-[#475569]">
         <Activity className="h-4 w-4 animate-pulse" />
         Đang tải danh sách cư dân...
       </div>
@@ -75,95 +65,98 @@ export default function BQLDashboardPage() {
       )
     : 0;
   const notOnboarded = dashboard.residents.filter((r) => !r.onboarded).length;
+  // "Hoàn tất thủ tục" = đã tick xong 100% checklist thuộc phạm vi BQL —
+  // không phải đã nộp/được duyệt hồ sơ, đó là khái niệm khác (xem /bql/applications).
+  const completedCount = dashboard.residents.filter(
+    (r) => r.onboarded && r.bql_scope.percent === 100,
+  ).length;
   const needsAttention = dashboard.residents
     .filter((r) => r.onboarded && r.bql_scope.percent < ATTENTION_THRESHOLD)
     .sort((a, b) => a.bql_scope.percent - b.bql_scope.percent);
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="relative w-full max-w-xs">
-          <Search
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]"
-            strokeWidth={1.75}
-          />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Tìm cư dân..."
-            className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-3 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/15"
-          />
-        </div>
-
-        <button
-          onClick={() => setCreating(true)}
+      <div className="mb-6 flex justify-end">
+        <Link
+          href="/bql/residents"
           className="flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#1D4ED8]"
         >
-          <UserPlus className="h-4 w-4" strokeWidth={1.75} />
-          Tạo tài khoản cư dân
-        </button>
+          Quản lý cư dân
+          <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+        </Link>
       </div>
 
-      {creating && (
-        <CreateResidentDialog
-          userId={userId}
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false);
-            load();
-          }}
+      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat
+          label="Tổng cư dân"
+          value={String(total_residents)}
+          icon={CircleUserRound}
+          href="/bql/residents"
+          hint="Tổng số tài khoản cư dân đã tạo, không phân biệt đã điền hồ sơ hay chưa."
         />
-      )}
-
-      <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Tổng cư dân" value={String(total_residents)} icon={CircleUserRound} />
-        <Stat label="Tiến độ TB onboarding" value={`${avgPercent}%`} icon={Gauge} />
+        <Stat
+          label="Tiến độ TB onboarding"
+          value={`${avgPercent}%`}
+          icon={Gauge}
+          href="/bql/residents"
+          hint="Trung bình % checklist (thuộc phạm vi BQL) đã tick xong, tính trên tất cả cư dân — kể cả người chưa điền hồ sơ (0%)."
+        />
+        <Stat
+          label="Đã hoàn tất thủ tục"
+          value={String(completedCount)}
+          icon={UserCheck}
+          href="/bql/residents?filter=completed"
+          hint="Số cư dân đã điền hồ sơ VÀ tick xong 100% checklist BQL. Không tính hồ sơ đã được duyệt — đó là số liệu bên trang Quản lý đơn."
+        />
         <Stat
           label="Chưa thiết lập hồ sơ"
           value={String(notOnboarded)}
           icon={UserRoundX}
           alert={notOnboarded > 0}
+          href="/bql/residents?filter=not_onboarded"
+          hint="Cư dân có tài khoản nhưng chưa điền form onboarding — checklist của họ vì vậy chưa hiện ra được."
         />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Cột trái — dữ liệu thật, chiếm 2/3 */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Ẩn khi đang tìm kiếm — thẻ này không lọc theo `query`, để nguyên
-              sẽ chắn ngang kết quả tìm kiếm bên dưới, không hợp lý. */}
-          {!query.trim() && needsAttention.length > 0 && (
-            <Card>
-              <div className="mb-4 flex items-center gap-2">
+          <Card padded={false}>
+            <div className="border-b border-[#B6C4D6] px-6 py-4">
+              <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-[#B45309]" strokeWidth={1.75} />
                 <h2 className="text-sm font-semibold text-[#1E293B]">Cư dân cần hỗ trợ</h2>
-                <span className="ml-auto text-xs text-[#94A3B8]">
+                <span className="ml-auto text-xs text-[#64748B]">
                   Tiến độ dưới {ATTENTION_THRESHOLD}%
                 </span>
               </div>
-              <div className="space-y-2">
-                {needsAttention.map((r) => (
+              <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+                Đã điền hồ sơ onboarding nhưng còn nhiều mục checklist chưa tick
+                xong — có thể đang vướng giấy tờ hoặc chưa nộp hồ sơ cho BQL. Bấm
+                &quot;Xem đơn&quot; để biết cụ thể cư dân đã nộp gì, còn thiếu gì, rồi
+                liên hệ nhắc trực tiếp (gọi/nhắn).
+              </p>
+            </div>
+            {needsAttention.length === 0 ? (
+              <p className="px-6 py-8 text-center text-sm text-[#64748B]">
+                Không có cư dân nào cần hỗ trợ ngay.
+              </p>
+            ) : (
+              <div className="divide-y divide-[#B6C4D6]">
+                {needsAttention.slice(0, 6).map((r) => (
                   <ResidentRow key={r.user_id} resident={r} tone="alert" />
                 ))}
               </div>
-            </Card>
-          )}
-
-          <Card padded={false}>
-            <div className="flex items-center gap-2 border-b border-[#E2E8F0] px-6 py-4">
-              <h2 className="text-sm font-semibold text-[#1E293B]">Tất cả cư dân</h2>
-              <span className="text-xs text-[#94A3B8]">({filtered.length})</span>
-            </div>
-            {filtered.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-[#94A3B8]">
-                Không tìm thấy cư dân khớp &quot;{query}&quot;.
-              </p>
-            ) : (
-              <div className="divide-y divide-[#E2E8F0]">
-                {filtered.map((r) => (
-                  <ResidentRow key={r.user_id} resident={r} tone="neutral" />
-                ))}
-              </div>
             )}
+            <div className="border-t border-[#B6C4D6] px-6 py-3">
+              <Link
+                href="/bql/residents"
+                className="flex items-center gap-1.5 text-xs font-medium text-[#2563EB] hover:text-[#1D4ED8]"
+              >
+                Xem toàn bộ danh sách cư dân
+                <ArrowRight className="h-3 w-3" strokeWidth={1.75} />
+              </Link>
+            </div>
           </Card>
         </div>
 
@@ -203,17 +196,14 @@ function ResidentRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-[#1E293B]">
           {resident.full_name}
-          <span className="ml-1.5 font-normal text-[#94A3B8]">— {resident.apartment}</span>
+          <span className="ml-1.5 font-normal text-[#64748B]">— {resident.apartment}</span>
         </p>
         {!resident.onboarded ? (
           <p className="mt-0.5 text-xs text-[#B45309]">Chưa thiết lập hồ sơ</p>
         ) : (
-          <p className="mt-0.5 text-xs text-[#94A3B8]">
-            {resident.ownership_type === "owner"
-              ? "Chủ hộ"
-              : resident.ownership_type === "renter"
-                ? "Người thuê"
-                : "—"}
+          <p className="mt-0.5 text-xs text-[#B45309]">
+            Còn {resident.bql_scope.total - resident.bql_scope.completed}/
+            {resident.bql_scope.total} mục checklist chưa xong
           </p>
         )}
       </div>
@@ -225,15 +215,22 @@ function ResidentRow({
             style={{ width: `${resident.bql_scope.percent}%` }}
           />
         </div>
-        <span className="w-9 text-right text-xs font-semibold text-[#475569]">
+        <span className="w-9 text-right text-xs font-semibold text-[#334155]">
           {resident.bql_scope.percent}%
         </span>
       </div>
 
+      <Link
+        href={`/bql/applications?resident=${resident.user_id}&name=${encodeURIComponent(resident.full_name)}`}
+        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#B6C4D6] px-2.5 py-1.5 text-[11px] text-[#334155] transition hover:border-[#2563EB]/40 hover:text-[#2563EB]"
+      >
+        Xem đơn
+      </Link>
+
       <button
         disabled
         title="Sắp có — cần agent tự nhắc việc (Phase 2)"
-        className="flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-2.5 py-1.5 text-[11px] text-[#94A3B8]"
+        className="flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-[#B6C4D6] px-2.5 py-1.5 text-[11px] text-[#64748B]"
       >
         <Lock className="h-3 w-3" strokeWidth={2} />
         Gửi AI nhắc việc
@@ -247,23 +244,35 @@ function Stat({
   value,
   icon: Icon,
   alert,
+  href,
+  hint,
 }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   alert?: boolean;
+  href: string;
+  hint: string;
 }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm shadow-slate-200/50">
+    <Link
+      href={href}
+      className="block rounded-xl border border-[#B6C4D6] bg-white p-5 shadow-sm shadow-slate-200/50 transition hover:border-[#2563EB]/50 hover:shadow-md"
+    >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#475569]">{label}</p>
+          <span title={hint} className="shrink-0">
+            <HelpCircle className="h-3 w-3 text-[#94A3B8]" strokeWidth={1.75} />
+          </span>
+        </div>
         <Icon
           className={`h-4 w-4 ${alert ? "text-rose-500" : "text-[#2563EB]"}`}
           strokeWidth={1.75}
         />
       </div>
       <p className="mt-2 text-2xl font-semibold text-[#1E293B]">{value}</p>
-    </div>
+    </Link>
   );
 }
 
@@ -276,7 +285,7 @@ function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-[#E2E8F0] bg-white shadow-sm shadow-slate-200/50 ${padded ? "p-6" : ""}`}
+      className={`rounded-xl border border-[#B6C4D6] bg-white shadow-sm shadow-slate-200/50 ${padded ? "p-6" : ""}`}
     >
       {children}
     </div>
@@ -293,16 +302,16 @@ function ComingSoonCard({
   description: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-6">
+    <div className="rounded-xl border border-dashed border-[#B6C4D6] bg-[#F8FAFC] p-6">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-[#94A3B8]" strokeWidth={1.75} />
-        <h3 className="text-sm font-semibold text-[#475569]">{title}</h3>
-        <span className="ml-auto flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] text-[#94A3B8] ring-1 ring-[#E2E8F0]">
+        <Icon className="h-4 w-4 text-[#64748B]" strokeWidth={1.75} />
+        <h3 className="text-sm font-semibold text-[#334155]">{title}</h3>
+        <span className="ml-auto flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] text-[#64748B] ring-1 ring-[#B6C4D6]">
           <Lock className="h-2.5 w-2.5" strokeWidth={2} />
           Sắp có
         </span>
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-[#94A3B8]">{description}</p>
+      <p className="mt-2 text-xs leading-relaxed text-[#64748B]">{description}</p>
     </div>
   );
 }

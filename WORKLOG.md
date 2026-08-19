@@ -15,6 +15,37 @@
 
 ---
 
+## 2026-08-15
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Minh Thu | Merge `main` (định tuyến US-13 backend của Hiếu) vào `MinhThu` trước khi code phần FE | ✅ Done | `b1eabc4` | |
+| Nguyễn Minh Thu | Hiệu ứng fade-in-up so le cho trang đăng nhập (logo/mascot/headline/dải 3 bước, delay 0/150/300/450ms) | ✅ Done | `9b67ffb` | |
+| Nguyễn Minh Thu | **US-13 phần 1 — hiện Bộ phận · Nơi nộp · Thời hạn** trên checklist, dùng 3 trường mới `GET /checklist` đã trả sẵn | ✅ Done | `c6e2f25` | |
+| Nguyễn Minh Thu | **US-13 phần 2 — nút "Nộp hồ sơ"** trên checklist: type `Application`/`Attachment`, `SubmitApplicationDialog` (bắt riêng 409 đã có hồ sơ mở, 404 mục không thuộc checklist của mình) | ✅ Done | `32cc13e` | |
+| Nguyễn Minh Thu | **US-13 phần 3 — tải ảnh minh chứng**: kiểm loại/kích thước phía client trước khi gửi (jpg/png/pdf, tối đa 5MB), bắt riêng 415/413; hồ sơ `self_declared` bắt buộc có ảnh; test end-to-end với backend thật (upload PNG giả, xác nhận 201) | ✅ Done | `9a65d1d` | |
+| Nguyễn Minh Thu | **US-13 phần 4 — trang "Hồ sơ đã nộp" dùng dữ liệu thật**: `/requests` đọc `GET /applications` thay mock, tách `applicationStatusLabel`/`applicationStatusTone` dùng chung với `/checklist` để tránh lệch nhãn; xoá `lib/mockRequests.ts` | ✅ Done | `2317870` | |
+| Nguyễn Minh Thu | **US-13 phần 5 — trang BQL duyệt & cập nhật hồ sơ**: `/bql/applications` xem hồ sơ mọi cư dân qua `GET /admin/applications`, lọc theo trạng thái/bộ phận; `UpdateApplicationStatusDialog` đổi trạng thái + ghi `bql_note`, báo rõ 409 khi duyệt hồ sơ tự khai chưa có ảnh; kiểm bằng curl với tài khoản admin thật, xác nhận cư dân thường bị chặn 403 | ✅ Done | `5a14c08` | |
+| Nguyễn Minh Thu | **US-13 phần 6 — form nộp riêng theo từng thủ tục**, mở nộp cho mục tự khai (`third_party_info` như "Đăng ký tạm trú"): dialog rẽ nhánh đúng theo `item_type` khớp logic backend suy ra `kind` | ✅ Done | `7a4724b` | |
+| Nguyễn Minh Thu | **US-13 phần 7 — bắt buộc ảnh giấy tờ** khi nộp thủ tục cần đối chiếu thật (thẻ xe, thẻ cư dân): dialog tách hai bước, khoá nút "Hoàn tất" tới khi tải ít nhất một ảnh | ✅ Done | `0015cd2` | |
+
+**Tổng kết ngày:** Đi trọn luồng US-13 (nộp hồ sơ trực tuyến + upload minh chứng) từ đầu đến cuối trong một ngày, đúng `CONTRACT_US13.md` đã chốt trước với Hiếu — tách rạch ròi hai loại hồ sơ (`bql_actionable` BQL xử lý thật vs. `self_declared` cư dân tự khai, BQL chỉ ghi nhận) để giao diện không mạo nhận quy trình của cơ quan khác. `npx tsc --noEmit` và `npm run build` sạch ở mọi bước, kiểm bằng curl với dữ liệu thật trên backend local xuyên suốt thay vì tin build pass là đủ. Đây cũng là ngày demo GATE 2 (tối nay).
+
+---
+
+## 2026-08-14
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Minh Thu | Nâng cấp UI Chat (chip nguồn gọn + modal chi tiết thay accordion, fallback gợi ý khi guard từ chối, panel ngữ cảnh 3 cột: tiến độ radial, checklist rút gọn, hotline BQL), checklist (hiệu ứng pulse khi highlight mục điều hướng tới), Tổng quan (nút "Xem lộ trình →" trỏ tới bước chưa hoàn thành đầu tiên) | ✅ Done | `web/app/chat/`, `web/app/checklist/`, `web/app/dashboard/` | |
+| Nguyễn Minh Thu | Sửa bug service worker cache cũ sống mãi qua mọi lần deploy — chuyển `sw.js` từ file tĩnh sang route động, `CACHE_NAME` gắn theo mã commit build | ✅ Done | `bf53798` | |
+| Nguyễn Minh Thu | Prototype nội bộ `/prototypes/action-card` (không vào nav) để team xem UI action-card trước khi chốt contract submit thật với BE/AI | ✅ Done | `bf53798` | |
+| Nguyễn Minh Thu | V7 — nút 👍/👎 dưới câu trả lời AI Chat | ✅ Done | `a614d2b` | |
+
+**Tổng kết ngày:** Nâng cấp trải nghiệm Chat/checklist/dashboard và vá đúng lỗi sẽ làm mọi bản deploy sau này vô hình với người xem — cache service worker đè code mới. V7 (feedback 👍/👎) mới lưu tạm ở localStorage; chưa đồng bộ backend vì `chat_history` chưa có cột rating và `POST /chat` chưa trả `chat_id` cho tin nhắn vừa gửi — cần Hiếu thêm cột + endpoint để hoàn thiện (`OPERATIONS.md` liệt V7 là việc chung Thu + Hiếu).
+
+---
+
 ## 2026-08-12
 
 | Member | Task | Status | Output | Time |
@@ -134,3 +165,4 @@
 
 Ký hiệu trạng thái: ✅ Done · 🔄 WIP · ❌ Blocked
 -->
+ 

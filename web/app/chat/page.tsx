@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Bot,
   Car,
@@ -33,6 +34,7 @@ import {
   type SuggestedAction,
 } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
+import { linkifyText } from "../../lib/linkify";
 
 type Message = {
   id: number;
@@ -46,7 +48,7 @@ type Message = {
 const GREETING: Message = {
   id: 0,
   role: "assistant",
-  text: "Xin chào 👋 Tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
+  text: "Xin chào, tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
 };
 
 // 4 nhóm câu hỏi hay gặp nhất, mỗi nhóm neo vào tài liệu KB đã kiểm chứng
@@ -78,8 +80,19 @@ function historyToMessages(entries: ChatHistoryEntry[]): Message[] {
 }
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChatPageContent />
+    </Suspense>
+  );
+}
+
+// `useSearchParams()` bắt buộc nằm trong <Suspense> — đọc `?q=` để điền sẵn
+// câu hỏi khi có nơi khác (vd dialog "Ký nội quy") trỏ sang đây.
+function ChatPageContent() {
   const { userId, ready } = useDemoUser();
-  const [input, setInput] = useState("");
+  const searchParams = useSearchParams();
+  const [input, setInput] = useState(() => searchParams.get("q") ?? "");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   // `null` = hội thoại mới, chưa gửi câu nào — chỉ có giá trị sau khi backend
   // trả về `conversation_id` ở lần gửi đầu tiên.
@@ -94,6 +107,11 @@ export default function ChatPage() {
   // Chỉ 1 nguồn được xem chi tiết tại một thời điểm — modal dùng chung cho
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, sending]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -252,11 +270,11 @@ export default function ChatPage() {
                     {/* Câu trả lời chính — phải nhận ra được trong <1 giây, nên
                         đậm và lớn hơn hẳn phần nguồn bên dưới. */}
                     <p
-                      className={`text-[13.5px] font-normal leading-relaxed ${
+                      className={`whitespace-pre-line text-[13.5px] font-normal leading-relaxed ${
                         message.role === "user" ? "text-white" : "text-ink"
                       }`}
                     >
-                      {message.text}
+                      {linkifyText(message.text)}
                     </p>
 
                     {message.sources && message.sources.length > 0 && (
@@ -296,7 +314,7 @@ export default function ChatPage() {
                           <button
                             key={text}
                             onClick={() => send(text)}
-                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/70 transition hover:border-gold/50 hover:text-gold"
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/85 transition hover:border-gold/50 hover:text-gold"
                           >
                             <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
                             {text}
@@ -322,7 +340,7 @@ export default function ChatPage() {
                   <button
                     key={text}
                     onClick={() => send(text)}
-                    className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
+                    className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/90 transition hover:border-gold/50 hover:text-gold"
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
                     {text}
@@ -330,9 +348,38 @@ export default function ChatPage() {
                 ))}
               </div>
             )}
+
+            <div ref={bottomRef} />
           </div>
 
           <div className="border-t border-border bg-surface p-4">
+            {/* Gõ tới đâu khớp gợi ý tới đó — chỉ so trong 4 câu đã neo vào
+                tài liệu KB kiểm chứng (SUGGESTIONS), không tự bịa câu mới,
+                giữ đúng nguyên tắc không demo vào chỗ guard chống bịa còn yếu. */}
+            {input.trim().length > 0 &&
+              (() => {
+                const query = input.trim().toLowerCase();
+                const matches = SUGGESTIONS.filter(({ text }) =>
+                  text.toLowerCase().includes(query),
+                );
+                if (matches.length === 0) return null;
+                return (
+                  <div className="mb-2.5 flex flex-wrap gap-1.5">
+                    {matches.map(({ icon: Icon, text }) => (
+                      <button
+                        key={text}
+                        onClick={() => send(text)}
+                        disabled={sending || loadingMessages}
+                        className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold-tint px-3 py-1.5 text-[11px] text-ink transition hover:border-gold disabled:opacity-50"
+                      >
+                        <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
+                        {text}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
             <div className="flex items-center gap-2">
               <button
                 disabled
@@ -437,7 +484,7 @@ function ConversationSidebar({
               <p className="truncate">{conv.preview}</p>
               <p
                 className={`mt-0.5 text-[11px] ${
-                  conv.conversation_id === activeId ? "text-white/60" : "text-muted"
+                  conv.conversation_id === activeId ? "text-white/75" : "text-muted"
                 }`}
               >
                 {conv.message_count} lượt hỏi đáp
@@ -490,10 +537,12 @@ function FeedbackButtons({ userId, messageId }: { userId: number; messageId: num
           aria-label="Câu trả lời hữu ích"
           aria-pressed={rating === "up"}
           className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
-            rating === "up" ? "bg-emerald/15 text-emerald" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+            rating === "up"
+              ? "bg-emerald text-white shadow-sm"
+              : "text-muted hover:bg-ink/[0.06] hover:text-ink"
           }`}
         >
-          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={rating === "up" ? 2.25 : 1.75} />
         </button>
         <button
           type="button"
@@ -501,15 +550,14 @@ function FeedbackButtons({ userId, messageId }: { userId: number; messageId: num
           aria-label="Câu trả lời chưa hữu ích"
           aria-pressed={rating === "down"}
           className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
-            rating === "down" ? "bg-danger/15 text-danger" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+            rating === "down"
+              ? "bg-danger text-white shadow-sm"
+              : "text-muted hover:bg-ink/[0.06] hover:text-ink"
           }`}
         >
-          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={rating === "down" ? 2.25 : 1.75} />
         </button>
       </div>
-      {rating && (
-        <span className="text-[10px] text-muted/70">Đã ghi nhận trên trình duyệt này</span>
-      )}
     </div>
   );
 }
@@ -570,7 +618,7 @@ function SourceChip({ source, onOpen }: { source: Source; onOpen: () => void }) 
       className="flex min-w-0 max-w-full items-center gap-1.5 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] text-muted transition hover:bg-ink/[0.08]"
     >
       <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-      <span className="min-w-0 max-w-[10rem] truncate text-ink/80">{source.title}</span>
+      <span className="min-w-0 max-w-[10rem] truncate text-ink/90">{source.title}</span>
       <span className="shrink-0 rounded-full bg-ink/[0.06] px-1.5 py-0.5 text-[10px] text-muted">
         {SOURCE_LABELS_SHORT[source.source_type]}
       </span>
@@ -649,7 +697,7 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         </div>
 
         <div className="mt-4 max-h-64 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
-          <p className="text-[13px] leading-relaxed text-ink/85">{source.snippet}</p>
+          <p className="text-[13px] leading-relaxed text-ink/90">{source.snippet}</p>
         </div>
 
         <button

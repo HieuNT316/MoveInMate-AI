@@ -19,6 +19,7 @@ import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
 import { api, type Application, type Checklist, type ChecklistItem } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
+import { getRequiredDocuments, submitActionLabel } from "../../lib/applicationForms";
 
 export default function ChecklistPage() {
   return (
@@ -166,8 +167,8 @@ function ChecklistContent() {
             Thủ tục cần hoàn thành
           </h2>
 
-          <ol className="space-y-0">
-            {items.map((item, index) => {
+          <div className="space-y-3">
+            {items.map((item) => {
               const external = item.item_type === "third_party_info";
               // Cập nhật 15/08 (CONTRACT_US13.md mục 2): mọi mục đều nộp
               // được — backend tự gắn kind theo item_type (routes.py), mục
@@ -176,23 +177,15 @@ function ChecklistContent() {
               const submittable = true;
               const application = applicationByItem.get(item.id);
               return (
-                <li
+                <div
                   key={item.id}
                   id={`checklist-item-${item.id}`}
-                  className={`relative flex gap-4 rounded-xl pb-7 transition-colors last:pb-0 ${
+                  className={`flex gap-4 rounded-2xl border px-5 py-4 transition-colors ${
                     highlighted === item.id
-                      ? "animate-[pulse_0.7s_ease-in-out_2] bg-gold-tint/60 ring-1 ring-gold/40"
-                      : ""
+                      ? "animate-[pulse_0.7s_ease-in-out_2] border-gold/50 bg-gold-tint/60"
+                      : "border-border bg-surface"
                   }`}
                 >
-                  {index !== items.length - 1 && (
-                    <span
-                      className={`absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-px ${
-                        item.completed ? "bg-emerald/40" : "bg-border"
-                      }`}
-                    />
-                  )}
-
                   <button
                     onClick={() => toggle(item.id, !item.completed)}
                     disabled={pending === item.id}
@@ -213,7 +206,7 @@ function ChecklistContent() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`text-sm font-medium ${item.completed ? "text-ink" : "text-ink/80"}`}
+                        className={`text-sm font-medium ${item.completed ? "text-ink" : "text-ink/90"}`}
                       >
                         {item.task_name}
                       </span>
@@ -268,36 +261,51 @@ function ChecklistContent() {
                               )}
                               {applicationStatusLabel(application)}
                             </span>
-                            {application.bql_note &&
-                              (application.status === "needs_info" ||
-                                application.status === "rejected") && (
-                                <span className="opacity-90">{application.bql_note}</span>
-                              )}
+                            {application.bql_note && (
+                              <span className="opacity-90">
+                                <span className="font-medium">Phản hồi BQL: </span>
+                                {application.bql_note}
+                              </span>
+                            )}
 
                             <AttachmentUploader
                               userId={userId}
                               applicationId={application.application_id}
                               attachments={application.attachments}
                               required={application.kind === "self_declared"}
+                              requiredDocuments={
+                                item.item_type === "bql_actionable"
+                                  ? (getRequiredDocuments(item.task_name) ?? undefined)
+                                  : ["Đơn đăng ký hoặc ảnh chụp màn hình VNeID"]
+                              }
                               onUploaded={load}
                             />
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setSubmittingFor(item)}
-                            className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
-                          >
-                            <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
-                            Nộp hồ sơ
-                          </button>
+                          <div>
+                            <button
+                              onClick={() => setSubmittingFor(item)}
+                              className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-ink/90 transition hover:border-gold/50 hover:text-gold"
+                            >
+                              <FileUp className="h-3.5 w-3.5 text-gold" strokeWidth={1.75} />
+                              {submitActionLabel(item.task_name)}
+                            </button>
+                            {item.completed && (
+                              <p className="mt-1.5 text-[11px] text-muted">
+                                Tích chỉ là bạn tự xác nhận đã xong — chưa gửi gì cho Ban quản
+                                lý. Muốn BQL tiếp nhận/xử lý thì bấm &quot;
+                                {submitActionLabel(item.task_name)}&quot; ở trên.
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ol>
+          </div>
         </div>
       </div>
 

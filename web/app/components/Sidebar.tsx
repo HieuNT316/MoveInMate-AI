@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Building2,
   LayoutDashboard,
   Bot,
   ClipboardList,
@@ -16,6 +15,7 @@ import {
 import { api, clearUserId, type Profile } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { signOut } from "../../lib/session";
+import LogoMark from "./LogoMark";
 
 const menus = [
   { title: "Tổng quan", icon: LayoutDashboard, href: "/dashboard" },
@@ -48,9 +48,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-7 py-8 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold">
-            <Building2 className="h-5 w-5 text-white" strokeWidth={1.5} />
-          </div>
+          <LogoMark size={52} />
           <div>
             <h1 className="font-display text-lg font-semibold tracking-wide text-ink">
               MoveInMate
@@ -88,7 +86,7 @@ export default function Sidebar() {
               className={`group flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-sm transition-colors ${
                 active
                   ? "bg-gold-tint text-gold"
-                  : "text-ink/70 hover:bg-background hover:text-ink"
+                  : "text-ink/85 hover:bg-background hover:text-ink"
               }`}
             >
               <Icon

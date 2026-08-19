@@ -83,16 +83,16 @@ export default function ProfilePage() {
     <Layout>
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          <div className="bg-ink px-8 py-10">
+          <div className="border-b border-border bg-surface px-8 py-10">
             <div className="flex items-center gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-gold/15 font-display text-3xl text-gold-soft">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-gold-tint font-display text-3xl text-gold">
                 {initial}
               </div>
               <div>
-                <h2 className="font-display text-2xl font-semibold text-white">
+                <h2 className="font-display text-2xl font-semibold text-ink">
                   {profile.full_name}
                 </h2>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-white/50">
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
                   <Mail className="h-3.5 w-3.5" strokeWidth={1.75} />
                   {profile.email}
                 </p>

@@ -1,11 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f0f8ff;
+  /* #f0f8ff ám xanh khá rõ trên diện rộng (cả nền trang) — đổi sang gần
+     trắng hơn, chỉ còn hơi ngả lạnh, để tổng thể "trắng trẻo" hơn mà vẫn
+     tách được với --surface trắng tuyệt đối của thẻ/card. */
+  --background: #f8fafc;
   --surface: #ffffff;
   --foreground: #002d62;
-  --muted: #4a6d97;
-  --border: #d6e9fb;
+  /* #4a6d97 (~5.35:1) từng bị chê mờ; #2e4c6e (~8.8:1) sau đó lại đậm ngang
+     --ink khiến chữ phụ và chữ chính cùng một tông, mất phân cấp, nhìn
+     "nặng". Chốt ở giữa: rõ hơn bản gốc, vẫn nhạt hơn --ink một bậc. */
+  --muted: #3a5d82;
+  /* #d6e9fb (~1.05:1) vô hình; #5c86ad (~3.8:1) sau đó lại quá đậm — viền
+     thành khung xanh dày quanh mọi thẻ/input, trông thô. Giảm về mức vừa
+     đủ thấy ranh giới mà không lấn chữ. */
+  --border: #9dbde0;
 
   /* Trước đây --font-display trỏ vào Playfair Display (serif) — bỏ vì
      nét serif khiến chữ "quăn", số "nùn nùn" ở size lớn. Trỏ về cùng

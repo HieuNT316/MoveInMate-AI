@@ -118,7 +118,7 @@ export default function DocumentsPage() {
                             key={file.name}
                             className="w-28 rounded-lg border border-border bg-background p-2.5 text-center"
                           >
-                            <p className="truncate text-[11px] text-ink/80">
+                            <p className="truncate text-[11px] text-ink/90">
                               {file.name}
                             </p>
                             <p className="text-[10px] text-muted">

@@ -87,16 +87,40 @@ export function getApplicationFormFields(taskName: string): ApplicationFormField
  * liệt kê thủ tục THẬT SỰ cần giấy tờ; các thủ tục còn lại (kích hoạt tiện
  * ích theo gói đã đăng ký, đặt lịch chuyển đồ...) không cần ảnh vì hệ thống
  * đã có đủ dữ kiện qua hồ sơ cư dân.
+ *
+ * Tách RIÊNG TỪNG loại giấy tờ (mảng), không gộp thành một câu — trước đây
+ * "Làm thẻ cư dân (người thuê)" gộp cả 3 loại vào một dòng, nộp 1 ảnh bất kỳ
+ * là hệ thống coi như xong, không ai biết còn thiếu đúng cái gì. Thứ tự
+ * trong mảng = thứ tự các slot tải lên ở `AttachmentUploader`.
  */
-const REQUIRED_DOCUMENTS: Record<string, string> = {
-  "Làm thẻ cư dân (chủ hộ)": "Ảnh CCCD và giấy tờ chứng minh quyền sở hữu căn hộ",
-  "Làm thẻ cư dân (người thuê)": "Ảnh CCCD, hợp đồng thuê nhà và giấy uỷ quyền của chủ hộ",
-  "Đăng ký thẻ xe": "Ảnh giấy đăng ký xe (cà vẹt)",
-  "Đăng ký chỗ đỗ xe cố định": "Ảnh giấy đăng ký xe (cà vẹt)",
+const REQUIRED_DOCUMENTS: Record<string, string[]> = {
+  "Làm thẻ cư dân (chủ hộ)": ["Ảnh CCCD", "Giấy tờ chứng minh quyền sở hữu căn hộ"],
+  "Làm thẻ cư dân (người thuê)": [
+    "Ảnh CCCD",
+    "Hợp đồng thuê nhà",
+    "Giấy uỷ quyền của chủ hộ",
+  ],
+  "Đăng ký thẻ xe": ["Ảnh giấy đăng ký xe (cà vẹt)"],
+  "Đăng ký chỗ đỗ xe cố định": ["Ảnh giấy đăng ký xe (cà vẹt)"],
 };
 
-export function getRequiredDocument(taskName: string): string | null {
+export function getRequiredDocuments(taskName: string): string[] | null {
   return REQUIRED_DOCUMENTS[taskName] ?? null;
+}
+
+/**
+ * Nút bấm ghi cứng "Nộp hồ sơ" cho MỌI thủ tục từng gây khó hiểu — "Đăng ký
+ * thẻ xe" mà nút ghi "Nộp hồ sơ" nghe sai việc, dù về mặt hệ thống cả hai đều
+ * tạo ra 1 bản ghi `Application`. Lấy ĐÚNG động từ đầu câu của chính
+ * `task_name` (đã có sẵn trong seed, không cần khai báo trùng dữ liệu) — task
+ * nào không khớp mẫu quen thuộc thì rơi về "Nộp hồ sơ" như cũ.
+ */
+export function submitActionLabel(taskName: string): string {
+  if (taskName.startsWith("Đăng ký")) return "Đăng ký";
+  if (taskName.startsWith("Kích hoạt")) return "Kích hoạt";
+  if (taskName.startsWith("Cập nhật")) return "Cập nhật";
+  if (taskName.startsWith("Ký")) return "Xác nhận";
+  return "Nộp hồ sơ";
 }
 
 /** Gộp các trường đã điền thành một đoạn text — đây là thứ thật sự gửi vào
