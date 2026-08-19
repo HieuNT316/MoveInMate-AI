@@ -75,6 +75,13 @@ Sửa bằng cách xử lý thứ tự thay vì đoán ngữ cảnh bằng lookb
   nhãn chữ cái — không chứa chữ số nên `_CCCD_RE` (chỉ khớp dãy chữ số)
   không thể bắt nhầm nó, và `U+E000` gần như chắc chắn không xuất hiện
   trong văn bản người dùng/KB thật (không phải ký tự bàn phím thường gõ).
+  Fix round 3: nếu giả định đó sai (một `answer` tình cờ chứa đúng chuỗi
+  placeholder), bước khôi phục KHÔNG raise `StopIteration` — nó giữ nguyên
+  chính văn bản placeholder đó tại chỗ, vì không có số điện thoại thật nào được
+  thu thập cho khớp đó để khôi phục, và bịa ra một con số không tồn tại còn
+  tệ hơn việc để nguyên placeholder đó — không được để một module chỉ có
+  một nhiệm vụ (bảo đảm an toàn) lại có đường làm sập chính điểm ghi nó
+  đang bảo vệ.
 """
 
 from __future__ import annotations
@@ -134,4 +141,15 @@ def mask_answer(text: str) -> str:
     # Khôi phục lần lượt, TRÁI SANG PHẢI — re.sub duyệt các khớp theo
     # đúng thứ tự xuất hiện, khớp với thứ tự `phones` đã thu thập ở bước bảo vệ.
     phones_iter = iter(phones)
-    return re.sub(re.escape(_PHONE_PLACEHOLDER), lambda _m: next(phones_iter), text)
+    # Fallback round 3: nếu chuỗi đầu vào TÍNH CỜ chứa đúng văn bản
+    # placeholder (không phải số điện thoại thật nào tạo ra nó), iterator
+    # cạn trước lúc gặp khớp này. `next(..., default)` thay vì `next(...)`
+    # tránh StopIteration bay ra khỏi hàm này — sẽ làm crash đường ghi
+    # chat_history (task 19, round 3). Fallback là giữ nguyên văn bản khớp
+    # (chính placeholder đó): không có gì được che ở đây, không có gì được
+    # thu thập, nên trả lại y nguyên là lựa chọn trung thực nhất.
+    return re.sub(
+        re.escape(_PHONE_PLACEHOLDER),
+        lambda m: next(phones_iter, m.group(0)),
+        text,
+    )

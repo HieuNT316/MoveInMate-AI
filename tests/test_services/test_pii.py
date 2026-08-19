@@ -12,7 +12,7 @@ trọng nhất, đúng thứ tự rủi ro nếu đổi sai:
   - Cùng một số điện thoại: bị che ở `question`, sống ở `answer`.
 """
 
-from src.services.pii import mask_answer, mask_question
+from src.services.pii import _PHONE_PLACEHOLDER, mask_answer, mask_question
 
 CCCD_9 = "123456789"
 CCCD_12 = "001234567890"
@@ -170,3 +170,34 @@ def test_email_co_chu_so_trong_phan_local_khong_bi_cat_nham():
     result = mask_question(text)
     assert "gmail.com" not in result
     assert result.count("[ĐÃ ẨN THÔNG TIN CÁ NHÂN]") == 1
+
+
+# --- Fix round 3: literal placeholder trong input không được làm crash ----
+
+
+def test_placeholder_gia_trong_answer_khong_lam_crash():
+    """Round 3: nếu `answer` (do mô hình sinh ra, hoặc trong test giả lập)
+    tình cờ CHỨA đúng chuỗi placeholder mà `mask_answer` dùng để bảo vệ số
+    điện thoại, bước khôi phục gọi `next()` trên một iterator đã cạn (không
+    có số điện thoại thật nào được thu thập cho khớp "giả" này) — trước fix,
+    lỗi đó là `StopIteration`, bay thẳng lên `store.add_chat` và làm request
+    502/500. Fallback: giữ nguyên văn bản gốc tại vị trí đó (không có gì
+    được che ở đây, không có gì được thu thập, nên trả lại y nguyên là lựa
+    chọn trung thực nhất — không bịa ra một số điện thoại không tồn tại)."""
+    text = f"xin chao {_PHONE_PLACEHOLDER}"
+    assert mask_answer(text) == text
+
+
+def test_placeholder_gia_khong_lam_hong_khoi_phuc_so_that_di_kem():
+    """Đường dự phòng (placeholder giả, không có số thật để khôi phục)
+    không được làm hỏng đường chính (placeholder thật, có số thật đi kèm) khi
+    cả hai xuất hiện trong cùng một chuỗi. Số thật đứng TRƯỚC placeholder giả
+    trong văn bản: `re.sub` khôi phục trái sang phải, nên khớp đầu tiên
+    (placeholder thật của hotline) lấy đúng giá trị đầu tiên trong iterator;
+    khớp thứ hai (placeholder giả, không tương ứng số thật nào) rơi vào
+    fallback và giữ nguyên văn bản placeholder — không làm lệch số thật."""
+    real_hotline = "0827 001 090"
+    text = f"hotline: {real_hotline}, xin chao {_PHONE_PLACEHOLDER}"
+    result = mask_answer(text)
+    assert real_hotline in result
+    assert _PHONE_PLACEHOLDER in result
