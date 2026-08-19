@@ -10,6 +10,9 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
+import Pagination from "../../components/Pagination";
+
+const PAGE_SIZE = 4;
 
 const DOCUMENTS = [
   { title: "Quy trình nhận nhà", group: "Quy trình BQL", version: "Cập nhật 18/08/2026", icon: Building2, tone: "blue" },
@@ -30,6 +33,7 @@ const TONE = {
 export default function BQLDocumentsPage() {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("Tất cả");
+  const [page, setPage] = useState(1);
   const groups = ["Tất cả", ...Array.from(new Set(DOCUMENTS.map((item) => item.group)))];
   const visible = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase("vi");
@@ -38,6 +42,11 @@ export default function BQLDocumentsPage() {
       (!keyword || `${item.title} ${item.group}`.toLocaleLowerCase("vi").includes(keyword)),
     );
   }, [group, query]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const paginated = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const updateQuery = (value: string) => { setQuery(value); setPage(1); };
+  const updateGroup = (value: string) => { setGroup(value); setPage(1); };
 
   return (
     <div>
@@ -62,9 +71,9 @@ export default function BQLDocumentsPage() {
       <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
         <label className="flex h-12 items-center gap-3 rounded-xl border border-[#B6C4D6] bg-white px-4 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10">
           <Search className="h-4 w-4 text-slate-500" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên tài liệu hoặc nhóm..." className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" />
+          <input value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Tìm tên tài liệu hoặc nhóm..." className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400" />
         </label>
-        <select value={group} onChange={(event) => setGroup(event.target.value)} className="h-12 rounded-xl border border-[#B6C4D6] bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500">
+        <select value={group} onChange={(event) => updateGroup(event.target.value)} className="h-12 rounded-xl border border-[#B6C4D6] bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500">
           {groups.map((item) => <option key={item}>{item}</option>)}
         </select>
       </div>
@@ -76,7 +85,7 @@ export default function BQLDocumentsPage() {
         </div>
         {visible.length ? (
           <div className="divide-y divide-slate-200">
-            {visible.map((item) => {
+            {paginated.map((item) => {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="flex items-center gap-4 px-5 py-5 transition hover:bg-blue-50/40 sm:px-6">
@@ -93,6 +102,7 @@ export default function BQLDocumentsPage() {
         ) : (
           <div className="px-6 py-14 text-center text-sm text-slate-500">Không tìm thấy tài liệu phù hợp.</div>
         )}
+        <Pagination page={page} pageCount={pageCount} onChange={setPage} />
       </div>
 
       <p className="mt-4 text-xs leading-5 text-slate-500">

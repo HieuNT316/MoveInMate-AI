@@ -64,6 +64,7 @@ function BQLApplicationsContent() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
   const [department, setDepartment] = useState("");
   const [editing, setEditing] = useState<AdminApplication | null>(null);
+  const [viewing, setViewing] = useState<AdminApplication | null>(null);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
 
@@ -237,7 +238,7 @@ function BQLApplicationsContent() {
                   </div>
                   <div className="flex items-end gap-2">
                     <button
-                      onClick={() => setEditing(app)}
+                      onClick={() => setViewing(app)}
                       className="flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-medium text-white transition hover:bg-[#1D4ED8]"
                     >
                       Xem hồ sơ <ArrowRight className="h-3.5 w-3.5" />
@@ -268,8 +269,63 @@ function BQLApplicationsContent() {
           }}
         />
       )}
+
+      {viewing && (
+        <ApplicationDetailDialog application={viewing} onClose={() => setViewing(null)} />
+      )}
     </>
   );
+}
+
+function ApplicationDetailDialog({
+  application,
+  onClose,
+}: {
+  application: AdminApplication;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/45 px-4" role="dialog" aria-modal="true" aria-label="Chi tiết hồ sơ">
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-600">Chi tiết yêu cầu</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-800">{application.task_name}</h3>
+            <p className="mt-1 text-sm text-slate-500">{application.full_name} · Căn {application.apartment}</p>
+          </div>
+          <button onClick={onClose} aria-label="Đóng" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+        </div>
+
+        <dl className="mt-6 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+          <Detail label="Trạng thái" value={applicationStatusLabel(application)} />
+          <Detail label="Bộ phận xử lý" value={application.handling_department ?? "Chưa phân công"} />
+          <Detail label="Ngày gửi" value={formatDateTime(application.created_at)} />
+          <Detail label="Cập nhật gần nhất" value={formatDateTime(application.updated_at)} />
+          <Detail label="Tài liệu đính kèm" value={`${application.attachments.length} tệp`} />
+          <Detail label="Địa điểm nộp" value={application.submission_location ?? "Nộp trực tuyến"} />
+        </dl>
+
+        {(application.note || application.bql_note) && (
+          <div className="mt-4 space-y-3">
+            {application.note && <Note label="Ghi chú của cư dân" value={application.note} />}
+            {application.bql_note && <Note label="Phản hồi của Ban quản lý" value={application.bql_note} />}
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Đóng</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 text-sm font-medium text-slate-800">{value}</dd></div>;
+}
+
+function Note({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-slate-200 px-4 py-3"><p className="text-xs font-medium text-slate-500">{label}</p><p className="mt-1 text-sm leading-6 text-slate-700">{value}</p></div>;
 }
 
 function formatDateTime(value: string): string {
