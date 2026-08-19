@@ -29,6 +29,7 @@ from src.models.db import (
     User,
 )
 from src.services.documents import describe, evaluate_documents
+from src.services.pii import mask_answer, mask_question
 
 PROFILE_KEYS = ("ownership_type", "apartment_type", "has_car", "amenity_packages")
 
@@ -198,12 +199,19 @@ def set_completion(db: Session, user_id: int, item_id: int, completed: bool) -> 
 def add_chat(
     db: Session, user_id: int, conversation_id: uuid.UUID, payload: dict[str, Any]
 ) -> None:
+    """Ghi một lượt hỏi đáp — nơi DUY NHẤT insert vào `chat_history`.
+
+    Che PII (V8, `src/services/pii.py`) ngay tại đây, trước insert: đảm bảo
+    này phải đứng ở code, không phải ở prompt, và đứng ở điểm ghi DUY NHẤT
+    này thì mọi lối gọi (hiện chỉ có `src/api/routes.py`) đều được bọc, không
+    cần nhớ gọi mask ở từng call site.
+    """
     db.add(
         ChatHistory(
             user_id=user_id,
             conversation_id=conversation_id,
-            question=payload["question"],
-            answer=payload["answer"],
+            question=mask_question(payload["question"]),
+            answer=mask_answer(payload["answer"]),
             answer_source=payload["answer_source"],
             sources=payload.get("sources") or [],
         )

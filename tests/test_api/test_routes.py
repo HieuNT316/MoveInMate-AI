@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from src.api import routes as api_routes
-from src.models.db import Application
+from src.models.db import Application, ChatHistory
 from src.services.vectorstore import RetrievalError
 
 ADMIN = {"X-User-Id": "1"}
@@ -445,6 +445,58 @@ async def test_lich_su_chat_chi_cua_chinh_minh(client, fake_chat_graph):
         f"/api/v1/chat/conversations/{conversation_id}/messages", headers=RENTER
     )
     assert forbidden.status_code == 404
+
+
+# --- Che PII trước khi ghi chat_history (V8, src/services/pii.py) --------
+
+
+@pytest.mark.asyncio
+async def test_cccd_trong_cau_hoi_bi_che_truoc_khi_luu_db(client, db_session, monkeypatch):
+    """Bảo đảm V8: CCCD cư dân tự gõ không được nằm trần trong DB.
+
+    Đọc thẳng bảng `chat_history` qua `db_session` — chính session mà
+    `client` dùng qua `get_db` — thay vì qua endpoint đọc lại, để kiểm đúng
+    những gì đã INSERT, không phải những gì route trả về.
+    """
+    fake = _FakeChatGraph(
+        result={
+            "answer": "Bạn cần mang CCCD gốc khi đến quầy.",
+            "sources": [],
+            "answer_source": "rag",
+        }
+    )
+    monkeypatch.setattr(api_routes, "chat_graph", fake)
+
+    cccd = "037201012345"
+    await client.post(
+        "/api/v1/chat",
+        json={"message": f"CCCD của tôi là {cccd}, xử lý giúp tôi"},
+        headers=OWNER,
+    )
+
+    row = db_session.query(ChatHistory).order_by(ChatHistory.chat_id.desc()).first()
+    assert row is not None
+    assert cccd not in row.question
+    assert "[ĐÃ ẨN THÔNG TIN CÁ NHÂN]" in row.question
+
+
+@pytest.mark.asyncio
+async def test_hotline_trong_answer_song_sot_trong_db(client, db_session, monkeypatch):
+    """Ngược lại: hotline BQL trong `answer` không được bị che khi ghi DB —
+    đây là chính lý do `answer` không bị áp regex số điện thoại (docstring
+    `src/services/pii.py`)."""
+    hotline_answer = "Gọi an ninh: 0827 001 090 hoặc gửi xe: 0946 982 323"
+    fake = _FakeChatGraph(
+        result={"answer": hotline_answer, "sources": [], "answer_source": "rag"}
+    )
+    monkeypatch.setattr(api_routes, "chat_graph", fake)
+
+    await client.post(
+        "/api/v1/chat", json={"message": "Số hotline an ninh là gì?"}, headers=OWNER
+    )
+
+    row = db_session.query(ChatHistory).order_by(ChatHistory.chat_id.desc()).first()
+    assert row.answer == hotline_answer
 
 
 # --- Hội thoại nhiều lượt (multi-turn) -----------------------------------
