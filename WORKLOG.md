@@ -15,6 +15,60 @@
 
 ---
 
+## 2026-08-19
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Minh Thu | Thay logo code-generated (chữ "M"/icon `Building2`) bằng logo thật trong toàn app: favicon, PWA icon, sidebar cư dân + BQL, trang đăng nhập — dựng component `LogoMark` dùng chung | ✅ Done | `web/app/components/LogoMark.tsx`, `web/public/logo*.png` | |
+| Nguyễn Minh Thu | Trang BQL "Quản lý cư dân" mới (`/bql/residents`) — tách khỏi Tổng quan, có phân trang, thẻ số liệu bấm vào lọc được kèm tooltip giải thích cách tính | ✅ Done | `web/app/bql/residents/page.tsx`, `web/app/components/Pagination.tsx` | |
+| Nguyễn Minh Thu | `AttachmentUploader` — checklist nhiều loại giấy tờ theo từng slot (vd thẻ cư dân người thuê cần CCCD + hợp đồng thuê + giấy uỷ quyền riêng biệt) thay vì 1 nút tải chung; gửi kèm `document_type` đề xuất, sẵn sàng khi backend thêm cột | ✅ Done | `web/app/components/AttachmentUploader.tsx`, `web/lib/applicationForms.ts` | |
+| Nguyễn Minh Thu | `SubmitApplicationDialog` — nhận diện tất định thủ tục làm trực tiếp tại quầy (vd "Ký nội quy toà nhà"), đổi thành xác nhận 1 cú bấm thay vì hỏi ghi chú vô nghĩa; thêm link đọc trước nội dung qua AI Chat | ✅ Done | `web/app/components/SubmitApplicationDialog.tsx` | |
+| Nguyễn Minh Thu | Gộp `/requests` vào `/checklist` — mỗi mục checklist một thẻ duy nhất (tick + trạng thái hồ sơ + tải minh chứng), xoá hẳn trang trùng lặp gây rối mắt | ✅ Done | xoá `web/app/requests/`, sửa `web/app/checklist/page.tsx` | |
+| Nguyễn Minh Thu | AI Chat: giữ xuống dòng câu trả lời (`whitespace-pre-line`), tự nhận link thành bấm được (`lib/linkify.tsx`), nút 👍/👎 rõ trạng thái đã bấm hơn, bong bóng chat nổi tự bung kèm việc cần làm tiếp theo lấy từ checklist thật khi vào Tổng quan | ✅ Done | `web/app/chat/page.tsx`, `web/app/components/ChatWidget.tsx`, `web/lib/linkify.tsx` | |
+| Nguyễn Minh Thu | Cân chỉnh lại độ tương phản màu + làm nền sáng/trắng hơn toàn app (nền, viền, chữ phụ) sau nhiều vòng phản hồi cân bằng giữa "quá nhạt" và "quá gắt" | ✅ Done | `web/app/globals.css`, `web/app/profile/page.tsx` | |
+| Nguyễn Minh Thu | Merge `origin/main` vào `MinhThu` — nhận trọn phần backend của Hiếu (khoá/mở tài khoản, đặt lại mật khẩu, nạp tài liệu KB qua BQL...); xử lý xung đột thật ở `Sidebar.tsx`/`BQLSidebar.tsx` (main đã refactor sang `web/lib/nav.ts` dùng chung + thêm tab bar di động), gắn lại `LogoMark` và khôi phục độ tương phản màu bị rớt theo bản gốc sau khi lấy nguyên bản main | ✅ Done | `fe1fa3c`, `6438ec6`, `4ff6f42`, `b7bf132` | |
+| Nguyễn Minh Thu | Phát hiện và khắc phục pipeline log AI chưa hoạt động: thiếu git hook `pre-push` (chưa từng chạy `scripts/setup_hooks.ps1`) và `AI_LOG_API_KEY` bị dán nhầm vào biến `AI_LOG_SERVER` trong `.env` — sửa xong, gửi bù thành công 1561 dòng log tồn đọng lên server (4 đợt, đều 202) | ✅ Done | `.git/hooks/pre-push`, `.env` | |
+| Nguyễn Minh Thu | Khôi phục khối menu "Sắp có" ở `BQLSidebar` bị rớt khi lấy trọn bản `main` lúc merge (checklist/thông báo/AI hỗ trợ/báo cáo/phân quyền) | ✅ Done | `2a2bb35` | |
+| Nguyễn Minh Thu | Nối thật khoá/mở tài khoản + đặt lại mật khẩu vào `/bql/residents` (API Hiếu thêm 18/08) — modal "Xem" gọi `GET/PATCH /admin/residents/{id}` + `POST .../reset-password`, hiện đúng trạng thái tài khoản thay vì đoán | ✅ Done | `web/lib/api.ts`, `web/app/bql/residents/page.tsx` | |
+| Nguyễn Minh Thu | Đổi mật khẩu tự phục vụ ở `/profile` — gọi thẳng `supabase.auth.updateUser()`, không qua backend nào | ✅ Done | `web/app/profile/page.tsx` | |
+| Nguyễn Minh Thu | 5 chip gợi ý AI Chat viết lại thành câu hỏi thật (neo đúng tài liệu KB), khớp 5 ý trong đề xuất UX thay vì dùng nguyên nhãn mục dễ bị guard từ chối | ✅ Done | `web/app/chat/page.tsx` | |
+| Nguyễn Minh Thu | Sửa lệch dữ liệu "giấy tờ cần nộp": bảng tự đoán ở FE (`applicationForms.ts`) không khớp `required_documents` thật Hiếu vừa thêm (migration `4b4ea98a4e85`, 11 mã giấy tờ) — bỏ hẳn bảng tự đoán, đọc thẳng từ `ChecklistItem.required_documents` (kèm `label` thật từ backend), gửi đúng mã khi tải ảnh thay vì đoán qua vị trí | ✅ Done | `web/lib/api.ts`, `web/lib/applicationForms.ts`, `web/app/components/AttachmentUploader.tsx`, `web/app/components/SubmitApplicationDialog.tsx`, `web/app/checklist/page.tsx` | |
+
+**Tổng kết ngày:** Trọng tâm là dọn IA phía cư dân (gộp 2 trang chồng chức năng thành 1, sửa hàng loạt phản hồi về giao diện mơ hồ/khó nhìn) và dựng thêm mảng "Quản lý cư dân" bên BQL. Merge `main` — bắt được đúng lúc backend đã có sẵn API khoá tài khoản/đặt lại mật khẩu; đã nối xong, không còn nút "Sắp có" giả cho hai việc đó nữa. Phát hiện quan trọng nhất cuối ngày: bảng "giấy tờ cần nộp" tự đoán trước đó (US-13 phần multi-doc) **lệch hẳn** với dữ liệu thật Hiếu thêm cùng lúc (vd "Làm thẻ cư dân" tự đoán thiếu/thừa giấy tờ so với `required_documents` seed thật) — sửa lại đọc thẳng từ API, tự động đúng khi backend đổi dữ liệu sau này, không phải tự tay đồng bộ hai nơi nữa. Phát hiện phụ nhưng quan trọng: hệ thống log AI dùng để chấm điểm chưa từng gửi được lên server từ đầu máy này do thiếu hook cài đặt — đã sửa, gửi bù xong 1561 dòng tồn đọng.
+
+---
+
+## 2026-08-15
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Minh Thu | Merge `main` (định tuyến US-13 backend của Hiếu) vào `MinhThu` trước khi code phần FE | ✅ Done | `b1eabc4` | |
+| Nguyễn Minh Thu | Hiệu ứng fade-in-up so le cho trang đăng nhập (logo/mascot/headline/dải 3 bước, delay 0/150/300/450ms) | ✅ Done | `9b67ffb` | |
+| Nguyễn Minh Thu | **US-13 phần 1 — hiện Bộ phận · Nơi nộp · Thời hạn** trên checklist, dùng 3 trường mới `GET /checklist` đã trả sẵn | ✅ Done | `c6e2f25` | |
+| Nguyễn Minh Thu | **US-13 phần 2 — nút "Nộp hồ sơ"** trên checklist: type `Application`/`Attachment`, `SubmitApplicationDialog` (bắt riêng 409 đã có hồ sơ mở, 404 mục không thuộc checklist của mình) | ✅ Done | `32cc13e` | |
+| Nguyễn Minh Thu | **US-13 phần 3 — tải ảnh minh chứng**: kiểm loại/kích thước phía client trước khi gửi (jpg/png/pdf, tối đa 5MB), bắt riêng 415/413; hồ sơ `self_declared` bắt buộc có ảnh; test end-to-end với backend thật (upload PNG giả, xác nhận 201) | ✅ Done | `9a65d1d` | |
+| Nguyễn Minh Thu | **US-13 phần 4 — trang "Hồ sơ đã nộp" dùng dữ liệu thật**: `/requests` đọc `GET /applications` thay mock, tách `applicationStatusLabel`/`applicationStatusTone` dùng chung với `/checklist` để tránh lệch nhãn; xoá `lib/mockRequests.ts` | ✅ Done | `2317870` | |
+| Nguyễn Minh Thu | **US-13 phần 5 — trang BQL duyệt & cập nhật hồ sơ**: `/bql/applications` xem hồ sơ mọi cư dân qua `GET /admin/applications`, lọc theo trạng thái/bộ phận; `UpdateApplicationStatusDialog` đổi trạng thái + ghi `bql_note`, báo rõ 409 khi duyệt hồ sơ tự khai chưa có ảnh; kiểm bằng curl với tài khoản admin thật, xác nhận cư dân thường bị chặn 403 | ✅ Done | `5a14c08` | |
+| Nguyễn Minh Thu | **US-13 phần 6 — form nộp riêng theo từng thủ tục**, mở nộp cho mục tự khai (`third_party_info` như "Đăng ký tạm trú"): dialog rẽ nhánh đúng theo `item_type` khớp logic backend suy ra `kind` | ✅ Done | `7a4724b` | |
+| Nguyễn Minh Thu | **US-13 phần 7 — bắt buộc ảnh giấy tờ** khi nộp thủ tục cần đối chiếu thật (thẻ xe, thẻ cư dân): dialog tách hai bước, khoá nút "Hoàn tất" tới khi tải ít nhất một ảnh | ✅ Done | `0015cd2` | |
+
+**Tổng kết ngày:** Đi trọn luồng US-13 (nộp hồ sơ trực tuyến + upload minh chứng) từ đầu đến cuối trong một ngày, đúng `CONTRACT_US13.md` đã chốt trước với Hiếu — tách rạch ròi hai loại hồ sơ (`bql_actionable` BQL xử lý thật vs. `self_declared` cư dân tự khai, BQL chỉ ghi nhận) để giao diện không mạo nhận quy trình của cơ quan khác. `npx tsc --noEmit` và `npm run build` sạch ở mọi bước, kiểm bằng curl với dữ liệu thật trên backend local xuyên suốt thay vì tin build pass là đủ. Đây cũng là ngày demo GATE 2 (tối nay).
+
+---
+
+## 2026-08-14
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Minh Thu | Nâng cấp UI Chat (chip nguồn gọn + modal chi tiết thay accordion, fallback gợi ý khi guard từ chối, panel ngữ cảnh 3 cột: tiến độ radial, checklist rút gọn, hotline BQL), checklist (hiệu ứng pulse khi highlight mục điều hướng tới), Tổng quan (nút "Xem lộ trình →" trỏ tới bước chưa hoàn thành đầu tiên) | ✅ Done | `web/app/chat/`, `web/app/checklist/`, `web/app/dashboard/` | |
+| Nguyễn Minh Thu | Sửa bug service worker cache cũ sống mãi qua mọi lần deploy — chuyển `sw.js` từ file tĩnh sang route động, `CACHE_NAME` gắn theo mã commit build | ✅ Done | `bf53798` | |
+| Nguyễn Minh Thu | Prototype nội bộ `/prototypes/action-card` (không vào nav) để team xem UI action-card trước khi chốt contract submit thật với BE/AI | ✅ Done | `bf53798` | |
+| Nguyễn Minh Thu | V7 — nút 👍/👎 dưới câu trả lời AI Chat | ✅ Done | `a614d2b` | |
+
+**Tổng kết ngày:** Nâng cấp trải nghiệm Chat/checklist/dashboard và vá đúng lỗi sẽ làm mọi bản deploy sau này vô hình với người xem — cache service worker đè code mới. V7 (feedback 👍/👎) mới lưu tạm ở localStorage; chưa đồng bộ backend vì `chat_history` chưa có cột rating và `POST /chat` chưa trả `chat_id` cho tin nhắn vừa gửi — cần Hiếu thêm cột + endpoint để hoàn thiện (`OPERATIONS.md` liệt V7 là việc chung Thu + Hiếu).
+
+---
+
 ## 2026-08-12
 
 | Member | Task | Status | Output | Time |
@@ -134,3 +188,4 @@
 
 Ký hiệu trạng thái: ✅ Done · 🔄 WIP · ❌ Blocked
 -->
+ 

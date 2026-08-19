@@ -39,6 +39,27 @@ export type Profile = {
   onboarding_completed_at: string | null;
 };
 
+/** 11 mã cố định — khớp `DocumentType` ở `src/models/schemas.py`. */
+export type DocumentType =
+  | "cccd"
+  | "bien_ban_ban_giao"
+  | "hop_dong_thue"
+  | "giay_uy_quyen"
+  | "dang_ky_xe"
+  | "the_cu_dan"
+  | "the_xe"
+  | "don_dang_ky"
+  | "to_khai_ct01"
+  | "anh_vneid"
+  | "khac";
+
+/** Một loại giấy tờ, kèm nhãn hiển thị — backend trả cả `label` để FE không
+ * phải tự giữ bảng nhãn riêng (xem `RequiredDocument` ở schemas.py). */
+export type RequiredDocument = {
+  code: DocumentType;
+  label: string;
+};
+
 export type ChecklistItem = {
   id: number;
   task_name: string;
@@ -52,6 +73,9 @@ export type ChecklistItem = {
   handling_department: string | null;
   submission_location: string | null;
   processing_time: string | null;
+  /** Rỗng = không đòi giấy tờ nào. Nguồn thật duy nhất — KHÔNG tự suy đoán
+   * ở FE (đã có một lần lệch dữ liệu thật vì làm vậy, xem lịch sử sửa). */
+  required_documents: RequiredDocument[];
 };
 
 export type ProgressSummary = {
@@ -143,6 +167,16 @@ export type Dashboard = {
   total_residents: number;
 };
 
+export type AccountStatus = "active" | "locked";
+
+/** `GET /admin/residents/{id}` — trang toàn cảnh một cư dân (Hiếu, 18/08). */
+export type ResidentDetail = {
+  profile: Profile;
+  checklist: Checklist;
+  applications: Application[];
+  account_status: AccountStatus;
+};
+
 // --- Hồ sơ nộp trực tuyến (US-13) — xem docs/CONTRACT_US13.md ------------
 
 export type ApplicationStatus =
@@ -169,6 +203,9 @@ export type Attachment = {
   /** Link đọc tạm thời, hết hạn sau vài phút — không cache, không chia sẻ. */
   url: string | null;
   uploaded_at: string;
+  /** Hiếu đã thêm cột thật (migration `4b4ea98a4e85`, 19/08) — null nghĩa là
+   * tệp tải lên trước khi có tính năng này, hoặc BQL chưa gán loại. */
+  document_type?: DocumentType | null;
 };
 
 export type Application = {
@@ -178,6 +215,9 @@ export type Application = {
   status: ApplicationStatus;
   kind: ApplicationKind;
   attachments: Attachment[];
+  /** `null` = còn tệp chưa phân loại nên backend chưa thể kết luận thiếu gì. */
+  missing_documents?: RequiredDocument[] | null;
+  unlabelled_count?: number;
   handling_department: string | null;
   submission_location: string | null;
   processing_time: string | null;
@@ -240,6 +280,17 @@ export type DemoAccount = {
 export function destinationFor(profile: Profile): string {
   if (profile.role === "admin") return "/bql/dashboard";
   return profile.onboarding_completed_at ? "/dashboard" : "/onboarding";
+}
+
+export const CHAT_AUTO_OPEN_KEY = "moveinmate.chat-auto-opened";
+
+/**
+ * Gọi ngay sau khi đăng nhập/đổi persona thành công (trước `router.push`) —
+ * xoá cờ "đã tự bung AI Chat" để mỗi lần đăng nhập đều thấy bong bóng chat tự
+ * bung ra ở /dashboard, không chỉ đúng một lần cho cả tuổi thọ của tab.
+ */
+export function resetChatAutoOpen(): void {
+  sessionStorage.removeItem(CHAT_AUTO_OPEN_KEY);
 }
 
 const STORAGE_KEY = "moveinmate.demo-user-id";
@@ -429,6 +480,28 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  /** Toàn cảnh một cư dân — hồ sơ, checklist, đơn đã nộp, trạng thái tài
+   * khoản trong một lần gọi. 404 nếu id không tồn tại hoặc không phải
+   * cư dân (kể cả khi trỏ vào tài khoản admin — backend cố tình chặn). */
+  getResidentDetail: (userId: number, targetUserId: number) =>
+    request<ResidentDetail>(`/admin/residents/${targetUserId}`, userId),
+
+  /** Khoá/mở tài khoản. 403 nếu người gọi không phải admin, 404 như trên. */
+  updateAccountStatus: (userId: number, targetUserId: number, status: AccountStatus) =>
+    request<ResidentDetail>(`/admin/residents/${targetUserId}/status`, userId, {
+      method: "PATCH",
+      body: JSON.stringify({ account_status: status }),
+    }),
+
+  /** Sinh mật khẩu tạm mới — chỉ hiện đúng một lần trong response, không
+   * lưu lại được. 409 nếu cư dân chưa từng được cấp tài khoản đăng nhập. */
+  resetResidentPassword: (userId: number, targetUserId: number) =>
+    request<{ temporary_password: string }>(
+      `/admin/residents/${targetUserId}/reset-password`,
+      userId,
+      { method: "POST" },
+    ),
+
   /** US-13 — nộp hồ sơ cho một mục checklist. 409 nếu mục đó đã có hồ sơ
    * đang mở, 404 nếu mục không thuộc checklist của chính người gọi. */
   createApplication: (userId: number, payload: CreateApplicationPayload) =>
@@ -443,10 +516,20 @@ export const api = {
 
   /** US-13 mục 7 — tải một tệp minh chứng (CCCD, VNeID...) lên cho một hồ sơ
    * đã nộp. Giới hạn 5MB, chỉ nhận jpg/png/pdf — backend chặn lại (415/413)
-   * dù FE có kiểm tay trước để phản hồi nhanh hơn. */
-  uploadAttachment: (userId: number, applicationId: number, file: File) => {
+   * dù FE có kiểm tay trước để phản hồi nhanh hơn.
+   *
+   * `documentType` — gắn tệp với đúng loại giấy tờ trong `required_documents`
+   * của mục checklist (route thật, Hiếu 19/08). Optional: để trống thì tệp
+   * ở trạng thái "chưa phân loại", không phải lỗi. */
+  uploadAttachment: (
+    userId: number,
+    applicationId: number,
+    file: File,
+    documentType?: DocumentType,
+  ) => {
     const form = new FormData();
     form.append("file", file);
+    if (documentType) form.append("document_type", documentType);
     return requestMultipart<Attachment>(
       `/applications/${applicationId}/attachments`,
       userId,

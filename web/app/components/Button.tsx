@@ -16,9 +16,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "bg-gold text-white hover:bg-gold-soft active:bg-ink disabled:opacity-40",
+    "bg-gradient-to-r from-gold to-gold-soft text-white shadow-[0_10px_22px_-12px_rgba(0,86,210,0.8)] hover:-translate-y-0.5 hover:shadow-[0_14px_28px_-14px_rgba(0,86,210,0.85)] active:translate-y-0 active:bg-ink disabled:opacity-40",
   secondary:
-    "border border-border bg-surface text-ink hover:border-gold/50 hover:text-gold active:bg-gold-tint disabled:opacity-40",
+    "border border-border bg-surface/90 text-ink shadow-sm hover:-translate-y-0.5 hover:border-gold/50 hover:text-gold hover:shadow-md active:translate-y-0 active:bg-gold-tint disabled:opacity-40",
   danger:
     "bg-danger text-white hover:bg-danger-hover active:bg-danger-hover disabled:opacity-40",
 };
@@ -46,7 +46,7 @@ export default function Button({
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center rounded-xl font-medium transition disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${fullWidth ? "w-full" : ""} ${className}`}
+      className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${fullWidth ? "w-full" : ""} ${className}`}
       {...props}
     >
       {loading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : leftIcon}

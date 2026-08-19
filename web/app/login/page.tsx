@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
-  Building2,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -16,8 +15,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { api, ApiError, destinationFor, writeUserId, type DemoAccount } from "../../lib/api";
+import {
+  api,
+  ApiError,
+  destinationFor,
+  resetChatAutoOpen,
+  writeUserId,
+  type DemoAccount,
+} from "../../lib/api";
 import { DEMO_PASSWORD, supabase, supabaseConfigured } from "../../lib/supabase";
+import LogoMark from "../components/LogoMark";
 
 // Badge số mục checklist trong danh sách tài khoản demo — xen kẽ 2 tông để
 // đỡ đơn điệu khi liệt kê nhiều tài khoản liền nhau, cả hai đều đạt AA trên
@@ -66,6 +73,7 @@ export default function LoginPage() {
       // `writeUserId` chỉ còn để bộ đổi persona của bản demo biết đang là ai.
       const profile = await api.getProfile(0);
       writeUserId(profile.user_id);
+      resetChatAutoOpen();
       router.push(destinationFor(profile));
     } catch (err) {
       // 403 ở đây nghĩa là: đăng nhập Supabase thành công (đúng mật khẩu),
@@ -99,10 +107,10 @@ export default function LoginPage() {
             Ảnh miễn phí bản quyền (Unsplash License), không phải ảnh thật của
             Vinhomes — tránh dùng ảnh marketing có bản quyền của bên khác. */}
         <div
-          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.4] saturate-[0.85]"
+          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.62] saturate-100"
           style={{ backgroundImage: "url(/login-skyline.jpg)" }}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0A192F]/60 via-[#0A192F]/55 to-[#1E3A8A]/90" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0A192F]/48 via-[#0A192F]/40 to-[#1E3A8A]/82" />
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
@@ -115,12 +123,15 @@ export default function LoginPage() {
           className="relative flex flex-col items-center gap-3 opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
           style={{ animationDelay: "0ms" }}
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-gold-soft/50 bg-gold shadow-[0_8px_24px_-6px_rgba(26,115,232,0.55)]">
-            <Building2 className="h-8 w-8 text-white" strokeWidth={1.5} />
-          </div>
-          <div className="text-center">
+          <LogoMark
+            size={104}
+            rounded="rounded-2xl"
+            border="border-gold-soft/50"
+            className="shadow-[0_8px_24px_-6px_rgba(26,115,232,0.55)]"
+          />
+          <div className="text-center [text-shadow:0_1px_6px_rgba(10,25,47,0.85)]">
             <p className="font-display text-xl font-semibold">MoveInMate</p>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-gold-soft/80">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-gold-soft">
               AI Concierge
             </p>
           </div>
@@ -142,13 +153,13 @@ export default function LoginPage() {
         </div>
 
         <div
-          className="relative max-w-md opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out]"
+          className="relative max-w-md opacity-0 [animation-fill-mode:forwards] animate-[fade-in-up_0.6s_ease-out] [text-shadow:0_2px_10px_rgba(10,25,47,0.7)]"
           style={{ animationDelay: "300ms" }}
         >
           <p className="font-display text-4xl font-semibold leading-tight">
             Nhận nhà an tâm, đồng hành chỉn chu.
           </p>
-          <p className="mt-5 text-sm leading-relaxed text-white/50">
+          <p className="mt-5 text-sm leading-relaxed text-white/75">
             Trợ lý AI riêng cho cư dân — hướng dẫn thủ tục, theo dõi tiến độ và
             giải đáp mọi thắc mắc trong hành trình nhận nhà của bạn.
           </p>
@@ -166,7 +177,7 @@ export default function LoginPage() {
                         ? "bg-gold text-ink shadow-[0_0_10px_2px_rgba(0,86,210,0.55)]"
                         : index === 1
                           ? "border-2 border-gold-soft text-gold-soft shadow-[0_0_8px_1px_rgba(26,115,232,0.5)]"
-                          : "border border-dashed border-white/30 text-white/50"
+                          : "border border-dashed border-white/30 text-white/75"
                     }`}
                   >
                     {index === 0 ? (
@@ -177,7 +188,7 @@ export default function LoginPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-white/85">{step.label}</p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-white/40">
+                    <p className="mt-0.5 text-[11px] leading-snug text-white/65">
                       {step.hint}
                     </p>
                   </div>
@@ -190,7 +201,7 @@ export default function LoginPage() {
           </ol>
         </div>
 
-        <p className="relative text-xs text-white/30">
+        <p className="relative text-xs text-white/60">
           © 2026 MoveInMate. Đẳng cấp trong từng trải nghiệm.
         </p>
       </div>
@@ -216,9 +227,7 @@ export default function LoginPage() {
         <div className="relative flex h-full justify-center overflow-y-auto px-6 py-12 lg:h-screen">
         <div className="relative w-full max-w-md self-start">
           <div className="mb-8 flex flex-col items-center text-center lg:hidden">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-gold/40 bg-gold-tint">
-              <Building2 className="h-6 w-6 text-gold" strokeWidth={1.5} />
-            </div>
+            <LogoMark size={72} rounded="rounded-xl" border="border-gold/40" />
             <h1 className="font-display mt-4 text-2xl font-semibold text-ink">
               MoveInMate AI
             </h1>
@@ -274,7 +283,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={busy || !email.trim() || !password}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold py-3.5 text-sm font-medium text-white shadow-lg shadow-gold/25 transition hover:bg-gold-soft disabled:opacity-40 disabled:shadow-none"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gold py-3.5 text-sm font-medium text-white shadow-lg shadow-gold/25 transition hover:bg-gold-soft disabled:cursor-not-allowed disabled:shadow-none"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 Đăng nhập

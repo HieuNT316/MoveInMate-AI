@@ -81,7 +81,8 @@ export default function OnboardingPage() {
   return (
     <Layout>
       <div className="mx-auto max-w-2xl space-y-6">
-        <div className="rounded-2xl border border-gold/30 bg-gold-tint p-6">
+        <div className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-6 shadow-soft">
+          <span className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-blue-200/60 blur-2xl" />
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.75} />
             <p className="text-sm leading-relaxed text-ink">
@@ -101,8 +102,8 @@ export default function OnboardingPage() {
                   onClick={() => setOwnership(option.value)}
                   className={`relative rounded-xl border-2 p-4 text-left transition ${
                     active
-                      ? "border-ink bg-ink text-white shadow-md"
-                      : "border-border bg-background hover:border-gold/40"
+                      ? "border-gold bg-gradient-to-br from-ink to-[#075985] text-white shadow-[0_14px_28px_-18px_rgba(0,45,98,0.8)]"
+                      : "border-border bg-white/80 hover:-translate-y-0.5 hover:border-gold/40 hover:shadow-md"
                   }`}
                 >
                   {active && (
@@ -172,7 +173,7 @@ export default function OnboardingPage() {
         <button
           onClick={submit}
           disabled={!complete || saving || !ready}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-4 text-sm font-medium text-white transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-soft py-4 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(0,86,210,0.8)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_34px_-16px_rgba(0,86,210,0.9)] disabled:cursor-not-allowed disabled:transform-none disabled:opacity-40"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           {saving ? "Đang tạo checklist..." : "Tạo checklist của tôi"}
@@ -192,7 +193,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-6">
+    <div className="interactive-card rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50">
       <div className="mb-4 flex items-center gap-2.5">
         <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
         <h3 className="text-sm font-medium text-ink">{title}</h3>

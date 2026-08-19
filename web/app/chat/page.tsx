@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Bot,
   Car,
@@ -9,30 +10,37 @@ import {
   Compass,
   ExternalLink,
   FileText,
+  HelpCircle,
   IdCard,
-  Image as ImageIcon,
+  ListChecks,
   Loader2,
   MapPin,
   MessageSquarePlus,
-  Paperclip,
   Scale,
   Send,
   ThumbsDown,
   ThumbsUp,
-  Wallet,
   X,
 } from "lucide-react";
 
 import Layout from "../components/Layout";
 import ChatContextPanel from "../components/ChatContextPanel";
+import AttachmentUploader from "../components/AttachmentUploader";
+import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import { SELF_DECLARED_DOCUMENT } from "../../lib/applicationForms";
 import {
   api,
+  type Application,
   type ChatHistoryEntry,
+  type Checklist,
+  type ChecklistItem,
   type ConversationSummary,
+  type Profile,
   type Source,
   type SuggestedAction,
 } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
+import { linkifyText } from "../../lib/linkify";
 
 type Message = {
   id: number;
@@ -46,17 +54,24 @@ type Message = {
 const GREETING: Message = {
   id: 0,
   role: "assistant",
-  text: "Xin chào 👋 Tôi là MoveInMate AI. Hỏi tôi bất kỳ thủ tục nào liên quan đến việc nhận nhà — mọi câu trả lời đều kèm nguồn tài liệu.",
+  text: "Xin chào 👋 Tôi là Trợ lý MoveInMate. Tôi có thể giúp bạn hiểu thủ tục, chuẩn bị giấy tờ và tìm đúng nơi cần nộp.",
 };
 
-// 4 nhóm câu hỏi hay gặp nhất, mỗi nhóm neo vào tài liệu KB đã kiểm chứng
-// (data/kb/web/) — tránh chọn câu hỏi ngoài phạm vi tài liệu để không vô tình
-// demo đúng vào chỗ guard chống bịa còn yếu (xem PROJECT_CHARTER.md mục 7).
+const CONTINUE_QUESTION = "Tôi còn thiếu giấy tờ gì?";
+
+// 5 nhóm câu hỏi hay gặp nhất — khớp 5 ý "Tôi cần làm đơn gì / chuẩn bị giấy
+// tờ gì / kiểm tra hồ sơ / giải thích giấy tờ / hướng dẫn nộp đơn" trong đề
+// xuất, nhưng viết lại thành câu hỏi THẬT thay vì nhãn mục — mỗi câu neo vào
+// đúng tài liệu KB đã kiểm chứng (data/kb/bql/, data/kb/web/), tránh chọn câu
+// ngoài phạm vi tài liệu để không vô tình demo vào chỗ guard chống bịa còn
+// yếu (xem PROJECT_CHARTER.md mục 7).
 const SUGGESTIONS = [
-  { icon: IdCard, text: "Hồ sơ làm thẻ cư dân gồm những gì?" },
-  { icon: Car, text: "Làm thẻ xe cần giấy tờ gì?" },
-  { icon: MapPin, text: "Đăng ký tạm trú thế nào?" },
-  { icon: Wallet, text: "Phí dịch vụ chung cư tính thế nào?" },
+  { icon: ListChecks, text: "Khi mới nhận nhà tôi cần làm những thủ tục gì?" },
+  { icon: IdCard, text: "Làm thẻ cư dân cần chuẩn bị giấy tờ gì?" },
+  { icon: HelpCircle, text: CONTINUE_QUESTION },
+  { icon: MapPin, text: "Đăng ký tạm trú cần hồ sơ gì?" },
+  { icon: HelpCircle, text: "Thẻ cư dân dùng để làm gì?" },
+  { icon: Car, text: "Nộp hồ sơ đăng ký thẻ xe ở đâu, mất bao lâu?" },
 ];
 
 /** Mỗi lượt hỏi đáp đã lưu tách thành 2 bong bóng (hỏi + đáp) để dùng chung
@@ -77,9 +92,90 @@ function historyToMessages(entries: ChatHistoryEntry[]): Message[] {
   ]);
 }
 
+function buildContinueMessage(checklist: Checklist, applications: Application[]): Message {
+  const openApplications = applications
+    .filter((application) => !["approved", "delivered"].includes(application.status))
+    .sort(
+      (left, right) =>
+        new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime(),
+    );
+  const latest = openApplications[0];
+  const item = latest
+    ? checklist.items.find((candidate) => candidate.id === latest.checklist_item_id)
+    : checklist.items.find((candidate) => !candidate.completed);
+
+  if (!item) {
+    return {
+      id: 1,
+      role: "assistant",
+      text: `Bạn đã hoàn thành ${checklist.overall.completed}/${checklist.overall.total} việc trong hành trình nhận nhà. Hiện không còn việc nào đang chờ bạn xử lý. Nếu cần kiểm tra lại thủ tục hoặc quy định, bạn cứ hỏi tôi.`,
+    };
+  }
+
+  const uploadedTypes = new Set(
+    (latest?.attachments ?? [])
+      .map((attachment) => attachment.document_type)
+      .filter((value): value is NonNullable<typeof value> => Boolean(value)),
+  );
+  const inferredMissing = item.required_documents.filter(
+    (document) => !uploadedTypes.has(document.code),
+  );
+  const missingDocuments = latest
+    ? latest.missing_documents === null
+      ? []
+      : latest.missing_documents ?? inferredMissing
+    : item.required_documents;
+  const lines = [
+    `Bạn đang làm ${item.task_name}.`,
+    latest
+      ? latest.status === "needs_info" || latest.status === "rejected"
+        ? "Hồ sơ đang cần bạn bổ sung giấy tờ."
+        : "Hồ sơ hiện đang được xử lý."
+      : "Bạn chưa nộp hồ sơ. Mình có thể giúp bạn bắt đầu ngay tại đây.",
+  ];
+
+  if (latest?.bql_note) lines.push(`BQL nhắn: ${latest.bql_note}`);
+  if (latest?.missing_documents === null || latest?.unlabelled_count) {
+    lines.push(
+      `Bạn có ${latest.unlabelled_count ?? latest.attachments.filter((attachment) => !attachment.document_type).length} tệp chưa được phân loại; cần kiểm tra lại trước khi kết luận còn thiếu giấy tờ nào.`,
+    );
+  } else if (missingDocuments.length > 0) {
+    lines.push(`Giấy tờ còn cần chuẩn bị: ${missingDocuments.map((document) => document.label).join(", ")}.`);
+  } else if (item.required_documents.length > 0 && latest?.attachments.length) {
+    lines.push("Các loại giấy tờ bắt buộc đã được tải lên; bạn nên kiểm tra lại phản hồi của BQL trước khi tiếp tục.");
+  }
+  lines.push(
+    latest
+      ? "Bạn có thể bổ sung giấy tờ ngay bên dưới."
+      : "Bấm “Nộp hồ sơ tại đây” để tiếp tục.",
+  );
+
+  return {
+    id: 1,
+    role: "assistant",
+    text: lines.join("\n\n"),
+    suggestedAction: {
+      type: "navigate_to_submission",
+      procedure_name: item.task_name,
+      checklist_item_id: item.id,
+    },
+  };
+}
+
 export default function ChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChatPageContent />
+    </Suspense>
+  );
+}
+
+// `useSearchParams()` bắt buộc nằm trong <Suspense> — đọc `?q=` để điền sẵn
+// câu hỏi khi có nơi khác (vd dialog "Ký nội quy") trỏ sang đây.
+function ChatPageContent() {
   const { userId, ready } = useDemoUser();
-  const [input, setInput] = useState("");
+  const searchParams = useSearchParams();
+  const [input, setInput] = useState(() => searchParams.get("q") ?? "");
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   // `null` = hội thoại mới, chưa gửi câu nào — chỉ có giá trị sau khi backend
   // trả về `conversation_id` ở lần gửi đầu tiên.
@@ -94,6 +190,13 @@ export default function ChatPage() {
   // Chỉ 1 nguồn được xem chi tiết tại một thời điểm — modal dùng chung cho
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const continuedRef = useRef(false);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, sending]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -108,8 +211,33 @@ export default function ChatPage() {
   }, [userId]);
 
   useEffect(() => {
-    if (ready) loadConversations();
-  }, [ready, loadConversations]);
+    if (ready) {
+      loadConversations();
+      api.getProfile(userId).then(setProfile).catch(() => setProfile(null));
+    }
+  }, [ready, loadConversations, userId]);
+
+  useEffect(() => {
+    if (!ready || searchParams.get("continue") !== "1" || continuedRef.current) return;
+    continuedRef.current = true;
+    setLoadingMessages(true);
+    Promise.all([api.getChecklist(userId), api.getApplications(userId)])
+      .then(([tasks, residentApplications]) => {
+        setMessages([GREETING, buildContinueMessage(tasks, residentApplications)]);
+      })
+      .catch(() => {
+        setMessages([
+          GREETING,
+          {
+            id: 1,
+            role: "assistant",
+            text: "Tôi chưa tải được tiến độ của bạn lúc này. Bạn có thể mở Việc cần làm để tiếp tục, hoặc thử lại sau ít phút.",
+            refused: true,
+          },
+        ]);
+      })
+      .finally(() => setLoadingMessages(false));
+  }, [ready, searchParams, userId]);
 
   const startNewConversation = () => {
     if (loadingMessages) return;
@@ -143,6 +271,27 @@ export default function ChatPage() {
     ]);
     setInput("");
     setSending(true);
+
+    if (question === CONTINUE_QUESTION) {
+      try {
+        const [tasks, residentApplications] = await Promise.all([
+          api.getChecklist(userId),
+          api.getApplications(userId),
+        ]);
+        setMessages((prev) => [
+          ...prev,
+          { ...buildContinueMessage(tasks, residentApplications), id: prev.length + 1 },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          { id: prev.length + 1, role: "assistant", text: "Mình chưa kiểm tra được hồ sơ lúc này. Bạn thử lại sau ít phút nhé.", refused: true },
+        ]);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     try {
       const reply = await api.sendChat(userId, question, conversationId ?? undefined);
@@ -188,9 +337,9 @@ export default function ChatPage() {
           onNew={startNewConversation}
         />
 
-        <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:h-[calc(100vh-9rem)]">
+        <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-[0_22px_52px_-34px_rgba(0,45,98,0.55)] ring-1 ring-border/50 lg:h-[calc(100vh-9rem)]">
           <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ink">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-ink to-[#075985] shadow-md">
               <Bot className="h-5 w-5 text-gold-soft" strokeWidth={1.75} />
             </div>
             <div>
@@ -227,7 +376,7 @@ export default function ChatPage() {
                       </span>
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-muted">
-                      {GREETING.text}
+                      Chào {profile?.full_name ?? "bạn"} 👋 Mình là Trợ lý MoveInMate. Mình có thể giúp bạn hoàn thành thủ tục nhận nhà, kiểm tra giấy tờ còn thiếu và hướng dẫn từng bước.
                     </p>
                   </div>
                 </div>
@@ -252,11 +401,11 @@ export default function ChatPage() {
                     {/* Câu trả lời chính — phải nhận ra được trong <1 giây, nên
                         đậm và lớn hơn hẳn phần nguồn bên dưới. */}
                     <p
-                      className={`text-[13.5px] font-normal leading-relaxed ${
+                      className={`whitespace-pre-line text-[13.5px] font-normal leading-relaxed ${
                         message.role === "user" ? "text-white" : "text-ink"
                       }`}
                     >
-                      {message.text}
+                      {linkifyText(message.text)}
                     </p>
 
                     {message.sources && message.sources.length > 0 && (
@@ -275,7 +424,11 @@ export default function ChatPage() {
                   </div>
 
                   {message.suggestedAction && (
-                    <SuggestedActionCard action={message.suggestedAction} />
+                    <ChatSubmissionCard
+                      action={message.suggestedAction}
+                      userId={userId}
+                      ready={ready}
+                    />
                   )}
 
                   {message.role === "assistant" && (
@@ -296,7 +449,7 @@ export default function ChatPage() {
                           <button
                             key={text}
                             onClick={() => send(text)}
-                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/70 transition hover:border-gold/50 hover:text-gold"
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-ink/85 transition hover:border-gold/50 hover:text-gold"
                           >
                             <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
                             {text}
@@ -317,39 +470,55 @@ export default function ChatPage() {
             )}
 
             {!loadingMessages && messages.length === 1 && (
-              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+              <div className="pt-1">
+                <p className="mb-2.5 text-sm font-semibold text-ink">Bạn muốn làm gì hôm nay?</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map(({ icon: Icon, text }) => (
                   <button
                     key={text}
                     onClick={() => send(text)}
-                    className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/80 transition hover:border-gold/50 hover:text-gold"
+                    className="flex items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5 text-left text-xs text-ink/90 transition hover:border-gold/50 hover:text-gold"
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
                     {text}
                   </button>
                 ))}
+                </div>
               </div>
             )}
+
+            <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-border bg-surface p-4">
+          <div className="border-t border-border bg-gradient-to-r from-white via-blue-50/25 to-cyan-50/25 p-4">
+            {/* Gõ tới đâu khớp gợi ý tới đó — chỉ so trong 4 câu đã neo vào
+                tài liệu KB kiểm chứng (SUGGESTIONS), không tự bịa câu mới,
+                giữ đúng nguyên tắc không demo vào chỗ guard chống bịa còn yếu. */}
+            {input.trim().length > 0 &&
+              (() => {
+                const query = input.trim().toLowerCase();
+                const matches = SUGGESTIONS.filter(({ text }) =>
+                  text.toLowerCase().includes(query),
+                );
+                if (matches.length === 0) return null;
+                return (
+                  <div className="mb-2.5 flex flex-wrap gap-1.5">
+                    {matches.map(({ icon: Icon, text }) => (
+                      <button
+                        key={text}
+                        onClick={() => send(text)}
+                        disabled={sending || loadingMessages}
+                        className="flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold-tint px-3 py-1.5 text-[11px] text-ink transition hover:border-gold disabled:opacity-50"
+                      >
+                        <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
+                        {text}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
             <div className="flex items-center gap-2">
-              <button
-                disabled
-                title="Sắp có — chưa nối API tải lên giấy tờ"
-                aria-label="Đính kèm tệp (sắp có)"
-                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-              >
-                <Paperclip className="h-4 w-4" strokeWidth={1.75} />
-              </button>
-              <button
-                disabled
-                title="Sắp có — chưa nối API tải ảnh giấy tờ (CCCD, thẻ xe...)"
-                aria-label="Tải ảnh (sắp có)"
-                className="flex h-11 w-11 shrink-0 cursor-not-allowed items-center justify-center rounded-xl text-muted/50"
-              >
-                <ImageIcon className="h-4 w-4" strokeWidth={1.75} />
-              </button>
               <input
                 className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-gold/50 focus:outline-none focus:ring-1 focus:ring-gold/30 disabled:opacity-60"
                 placeholder="Nhập câu hỏi của bạn..."
@@ -361,7 +530,7 @@ export default function ChatPage() {
               <button
                 onClick={() => send(input)}
                 disabled={sending || loadingMessages}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-gold-soft transition hover:bg-ink-soft disabled:opacity-40"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold to-gold-soft text-white shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:transform-none disabled:opacity-40"
                 aria-label="Gửi"
               >
                 <Send className="h-4 w-4" strokeWidth={1.75} />
@@ -382,7 +551,7 @@ export default function ChatPage() {
 
 /** Danh sách hội thoại đã lưu (US-07) — bấm vào để mở lại và hỏi tiếp có
  * ngữ cảnh (`rewrite_query` ở backend dùng vài lượt gần nhất của đúng hội
- * thoại đang mở). "Cuộc trò chuyện mới" không gọi API gì — chỉ dọn state,
+ * thoại đang mở). "Đặt câu hỏi mới" không gọi API gì — chỉ dọn state,
  * hội thoại thật chỉ được tạo ở backend khi gửi câu hỏi đầu tiên. */
 function ConversationSidebar({
   conversations,
@@ -398,15 +567,16 @@ function ConversationSidebar({
   onNew: () => void;
 }) {
   return (
-    <div className="hidden w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface lg:flex">
+    <div className="hidden w-44 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50 xl:flex">
       <div className="border-b border-border p-3">
         <button
           onClick={onNew}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-ink transition hover:border-gold/50 hover:text-gold"
         >
           <MessageSquarePlus className="h-4 w-4" strokeWidth={1.75} />
-          Cuộc trò chuyện mới
+          Câu hỏi mới
         </button>
+        <p className="mt-3 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Lịch sử hỗ trợ</p>
       </div>
 
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
@@ -437,7 +607,7 @@ function ConversationSidebar({
               <p className="truncate">{conv.preview}</p>
               <p
                 className={`mt-0.5 text-[11px] ${
-                  conv.conversation_id === activeId ? "text-white/60" : "text-muted"
+                  conv.conversation_id === activeId ? "text-white/75" : "text-muted"
                 }`}
               >
                 {conv.message_count} lượt hỏi đáp
@@ -490,10 +660,12 @@ function FeedbackButtons({ userId, messageId }: { userId: number; messageId: num
           aria-label="Câu trả lời hữu ích"
           aria-pressed={rating === "up"}
           className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
-            rating === "up" ? "bg-emerald/15 text-emerald" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+            rating === "up"
+              ? "bg-emerald text-white shadow-sm"
+              : "text-muted hover:bg-ink/[0.06] hover:text-ink"
           }`}
         >
-          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={rating === "up" ? 2.25 : 1.75} />
         </button>
         <button
           type="button"
@@ -501,15 +673,14 @@ function FeedbackButtons({ userId, messageId }: { userId: number; messageId: num
           aria-label="Câu trả lời chưa hữu ích"
           aria-pressed={rating === "down"}
           className={`flex h-6 w-6 items-center justify-center rounded-md transition ${
-            rating === "down" ? "bg-danger/15 text-danger" : "text-muted hover:bg-ink/[0.06] hover:text-ink"
+            rating === "down"
+              ? "bg-danger text-white shadow-sm"
+              : "text-muted hover:bg-ink/[0.06] hover:text-ink"
           }`}
         >
-          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={rating === "down" ? 2.25 : 1.75} />
         </button>
       </div>
-      {rating && (
-        <span className="text-[10px] text-muted/70">Đã ghi nhận trên trình duyệt này</span>
-      )}
     </div>
   );
 }
@@ -527,20 +698,112 @@ const SOURCE_LABELS: Record<Source["source_type"], string> = {
  * `checklist_item_id` null = backend không đối chiếu chắc chắn được mục nào
  * (xem docstring `SuggestedAction` phía backend) — khi đó chỉ hiện chữ, ẩn nút.
  */
-function SuggestedActionCard({ action }: { action: SuggestedAction }) {
+function ChatSubmissionCard({
+  action,
+  userId,
+  ready,
+}: {
+  action: SuggestedAction;
+  userId: number;
+  ready: boolean;
+}) {
+  const [item, setItem] = useState<ChecklistItem | null>(null);
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(action.checklist_item_id !== null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!ready || action.checklist_item_id === null) return;
+    setLoading(true);
+    try {
+      const [checklist, applications] = await Promise.all([
+        api.getChecklist(userId),
+        api.getApplications(userId),
+      ]);
+      setItem(
+        checklist.items.find((candidate) => candidate.id === action.checklist_item_id) ?? null,
+      );
+      setApplication(
+        applications.find(
+          (candidate) => candidate.checklist_item_id === action.checklist_item_id,
+        ) ?? null,
+      );
+    } catch {
+      setItem(null);
+      setApplication(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [action.checklist_item_id, ready, userId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const requiredDocuments = item
+    ? item.item_type === "bql_actionable"
+      ? item.required_documents
+      : [SELF_DECLARED_DOCUMENT]
+    : [];
+
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-2.5">
+    <div className="mt-2 rounded-xl border border-gold/40 bg-gold-tint px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <Compass className="h-3.5 w-3.5 shrink-0 text-gold" strokeWidth={1.75} />
         <p className="truncate text-xs text-ink">{action.procedure_name}</p>
       </div>
-      {action.checklist_item_id !== null && (
+      {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />}
+      {!loading && item && !application && (
+        <button
+          onClick={() => setSubmitting(true)}
+          className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-soft"
+        >
+          Nộp hồ sơ tại đây
+        </button>
+      )}
+      {!loading && action.checklist_item_id !== null && !item && (
         <Link
           href={`/checklist?item=${action.checklist_item_id}`}
           className="shrink-0 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-soft"
         >
           Đến mục này
         </Link>
+      )}
+      </div>
+
+      {!loading && item && application && (
+        <div className="mt-3 border-t border-gold/25 pt-2">
+          <p className="text-[11px] font-medium text-ink">
+            Bổ sung giấy tờ ngay trong Trợ lý AI
+          </p>
+          <AttachmentUploader
+            userId={userId}
+            applicationId={application.application_id}
+            attachments={application.attachments}
+            required={application.kind === "self_declared"}
+            requiredDocuments={requiredDocuments}
+            onUploaded={(attachment) =>
+              setApplication((current) =>
+                current
+                  ? { ...current, attachments: [...current.attachments, attachment] }
+                  : current,
+              )
+            }
+          />
+        </div>
+      )}
+
+      {submitting && item && (
+        <SubmitApplicationDialog
+          userId={userId}
+          item={item}
+          onClose={() => setSubmitting(false)}
+          onSubmitted={() => {
+            setSubmitting(false);
+            load();
+          }}
+        />
       )}
     </div>
   );
@@ -570,7 +833,7 @@ function SourceChip({ source, onOpen }: { source: Source; onOpen: () => void }) 
       className="flex min-w-0 max-w-full items-center gap-1.5 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] text-muted transition hover:bg-ink/[0.08]"
     >
       <Icon className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-      <span className="min-w-0 max-w-[10rem] truncate text-ink/80">{source.title}</span>
+      <span className="min-w-0 max-w-[10rem] truncate text-ink/90">{source.title}</span>
       <span className="shrink-0 rounded-full bg-ink/[0.06] px-1.5 py-0.5 text-[10px] text-muted">
         {SOURCE_LABELS_SHORT[source.source_type]}
       </span>
@@ -621,7 +884,7 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         aria-modal="true"
         aria-label={source.title}
         onClick={(event) => event.stopPropagation()}
-        className={`relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl transition-all duration-200 ${
+        className={`relative w-full max-w-md rounded-2xl border border-border bg-surface shadow-soft p-6 shadow-2xl transition-all duration-200 ${
           visible ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
       >
@@ -649,7 +912,7 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         </div>
 
         <div className="mt-4 max-h-64 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
-          <p className="text-[13px] leading-relaxed text-ink/85">{source.snippet}</p>
+          <p className="text-[13px] leading-relaxed text-ink/90">{source.snippet}</p>
         </div>
 
         <button

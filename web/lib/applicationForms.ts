@@ -6,6 +6,8 @@
  * thủ tục ở đây là lựa chọn riêng của FE: gom các trường có cấu trúc rồi nén
  * thành một đoạn `note` dễ đọc cho BQL, không phải trường riêng ở backend.
  */
+import type { RequiredDocument } from "./api";
+
 export type ApplicationFormField = {
   key: string;
   label: string;
@@ -13,6 +15,15 @@ export type ApplicationFormField = {
   placeholder?: string;
   options?: string[];
   required?: boolean;
+};
+
+/** Hồ sơ `self_declared` (third_party_info — tạm trú, cập nhật cư trú...)
+ * không có `required_documents` riêng ở backend (giấy tờ nộp cho công an,
+ * không phải BQL đối chiếu) — ảnh minh chứng chính là nội dung nộp, luôn
+ * đúng 1 loại này. Dùng mã `anh_vneid` có sẵn trong `DocumentType`. */
+export const SELF_DECLARED_DOCUMENT: RequiredDocument = {
+  code: "anh_vneid",
+  label: "Đơn đăng ký hoặc ảnh chụp màn hình VNeID",
 };
 
 /** Khớp theo `task_name` — đúng tên đã seed ở `scripts/seed_data.py`. Thủ tục
@@ -82,21 +93,18 @@ export function getApplicationFormFields(taskName: string): ApplicationFormField
 }
 
 /**
- * Thủ tục nào cần ảnh giấy tờ thật để BQL đối chiếu — không phải trang trí,
- * đây là thứ khiến hồ sơ có căn cứ thay vì chỉ là vài dòng chữ tự khai. Chỉ
- * liệt kê thủ tục THẬT SỰ cần giấy tờ; các thủ tục còn lại (kích hoạt tiện
- * ích theo gói đã đăng ký, đặt lịch chuyển đồ...) không cần ảnh vì hệ thống
- * đã có đủ dữ kiện qua hồ sơ cư dân.
+ * Nút bấm ghi cứng "Nộp hồ sơ" cho MỌI thủ tục từng gây khó hiểu — "Đăng ký
+ * thẻ xe" mà nút ghi "Nộp hồ sơ" nghe sai việc, dù về mặt hệ thống cả hai đều
+ * tạo ra 1 bản ghi `Application`. Lấy ĐÚNG động từ đầu câu của chính
+ * `task_name` (đã có sẵn trong seed, không cần khai báo trùng dữ liệu) — task
+ * nào không khớp mẫu quen thuộc thì rơi về "Nộp hồ sơ" như cũ.
  */
-const REQUIRED_DOCUMENTS: Record<string, string> = {
-  "Làm thẻ cư dân (chủ hộ)": "Ảnh CCCD và giấy tờ chứng minh quyền sở hữu căn hộ",
-  "Làm thẻ cư dân (người thuê)": "Ảnh CCCD, hợp đồng thuê nhà và giấy uỷ quyền của chủ hộ",
-  "Đăng ký thẻ xe": "Ảnh giấy đăng ký xe (cà vẹt)",
-  "Đăng ký chỗ đỗ xe cố định": "Ảnh giấy đăng ký xe (cà vẹt)",
-};
-
-export function getRequiredDocument(taskName: string): string | null {
-  return REQUIRED_DOCUMENTS[taskName] ?? null;
+export function submitActionLabel(taskName: string): string {
+  if (taskName.startsWith("Đăng ký")) return "Đăng ký";
+  if (taskName.startsWith("Kích hoạt")) return "Kích hoạt";
+  if (taskName.startsWith("Cập nhật")) return "Cập nhật";
+  if (taskName.startsWith("Ký")) return "Xác nhận";
+  return "Nộp hồ sơ";
 }
 
 /** Gộp các trường đã điền thành một đoạn text — đây là thứ thật sự gửi vào

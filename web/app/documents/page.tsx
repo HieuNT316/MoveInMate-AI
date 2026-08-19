@@ -78,7 +78,7 @@ export default function DocumentsPage() {
                 {docs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="rounded-2xl border border-border bg-surface p-5"
+                    className="interactive-card rounded-2xl border border-white/90 bg-surface/95 p-5 shadow-soft ring-1 ring-border/50"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-medium text-ink">
@@ -118,7 +118,7 @@ export default function DocumentsPage() {
                             key={file.name}
                             className="w-28 rounded-lg border border-border bg-background p-2.5 text-center"
                           >
-                            <p className="truncate text-[11px] text-ink/80">
+                            <p className="truncate text-[11px] text-ink/90">
                               {file.name}
                             </p>
                             <p className="text-[10px] text-muted">

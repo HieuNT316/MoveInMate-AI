@@ -25,12 +25,14 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
@@ -200,6 +202,20 @@ class Application(Base):
     """
 
     __tablename__ = "applications"
+    __table_args__ = (
+        # Chốt chặn ở tầng DB cho quy tắc "một hồ sơ đang mở cho mỗi mục checklist"
+        # mà tầng ứng dụng đã kiểm (get_open_application). Đọc-rồi-ghi ở tầng ứng
+        # dụng không chặn được hai request đến cùng lúc; index bộ phận này thì có.
+        # Chỉ áp cho hồ sơ CHƯA đóng — CLOSED_STATUSES đóng vòng đời, nộp lại là hợp lệ.
+        Index(
+            "uq_open_application_per_item",
+            "user_id",
+            "checklist_item_id",
+            unique=True,
+            postgresql_where=text("status NOT IN ('delivered', 'rejected')"),
+            sqlite_where=text("status NOT IN ('delivered', 'rejected')"),
+        ),
+    )
 
     application_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(

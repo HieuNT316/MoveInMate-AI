@@ -9,6 +9,7 @@ import {
   type AdminApplication,
   type ApplicationStatus,
 } from "../../lib/api";
+import { useToast } from "./Toast";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
   { value: "received", label: "Đã tiếp nhận" },
@@ -35,6 +36,7 @@ export default function UpdateApplicationStatusDialog({
   onClose: () => void;
   onUpdated: () => void;
 }) {
+  const toast = useToast();
   const [status, setStatus] = useState<ApplicationStatus>(application.status);
   const [bqlNote, setBqlNote] = useState(application.bql_note ?? "");
   const [saving, setSaving] = useState(false);
@@ -50,6 +52,7 @@ export default function UpdateApplicationStatusDialog({
         bql_note: bqlNote.trim() || undefined,
       });
       onUpdated();
+      toast.show("Đã lưu thay đổi");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError(
@@ -58,6 +61,7 @@ export default function UpdateApplicationStatusDialog({
       } else {
         setError("Không cập nhật được trạng thái, thử lại sau.");
       }
+      toast.show("Cập nhật trạng thái hồ sơ không thành công", "error");
     } finally {
       setSaving(false);
     }
@@ -65,7 +69,7 @@ export default function UpdateApplicationStatusDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F172A]/40 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[#1E293B]">
             Cập nhật trạng thái
@@ -73,22 +77,22 @@ export default function UpdateApplicationStatusDialog({
           <button
             onClick={onClose}
             aria-label="Đóng"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#1E293B]"
           >
             <X className="h-4 w-4" strokeWidth={1.75} />
           </button>
         </div>
 
-        <p className="mt-1 text-sm text-[#64748B]">
+        <p className="mt-1 text-sm text-[#475569]">
           {application.task_name} · {application.full_name} — {application.apartment}
         </p>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-xs font-medium text-[#64748B]">Trạng thái</span>
+          <span className="mb-1.5 block text-xs font-medium text-[#475569]">Trạng thái</span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as ApplicationStatus)}
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] focus:border-[#2563EB]/50 focus:outline-none focus:ring-1 focus:ring-[#2563EB]/30"
+            className="w-full rounded-xl border border-[#B6C4D6] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] focus:border-[#2563EB]/50 focus:outline-none focus:ring-1 focus:ring-[#2563EB]/30"
           >
             {STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -99,7 +103,7 @@ export default function UpdateApplicationStatusDialog({
         </label>
 
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-xs font-medium text-[#64748B]">
+          <span className="mb-1.5 block text-xs font-medium text-[#475569]">
             Ghi chú cho cư dân (tuỳ chọn)
           </span>
           <textarea
@@ -108,7 +112,7 @@ export default function UpdateApplicationStatusDialog({
             placeholder="Vd. Thiếu bản sao đăng ký xe"
             rows={3}
             maxLength={1000}
-            className="w-full resize-none rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] focus:border-[#2563EB]/50 focus:outline-none focus:ring-1 focus:ring-[#2563EB]/30"
+            className="w-full resize-none rounded-xl border border-[#B6C4D6] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] focus:border-[#2563EB]/50 focus:outline-none focus:ring-1 focus:ring-[#2563EB]/30"
           />
         </label>
 

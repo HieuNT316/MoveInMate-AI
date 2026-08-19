@@ -6,7 +6,7 @@ import { Clock, PhoneCall, ShieldCheck } from "lucide-react";
  * khi trả lời câu hỏi về hotline. Hard-code ở đây vì chưa có endpoint trả
  * cấu hình liên hệ; đổi số/giờ làm việc thì sửa cả hai chỗ cho khớp.
  */
-const HOTLINE = {
+export const HOTLINE = {
   number: "1900 2323 89",
   note: "Nhấn phím 4 để gặp nhân viên hỗ trợ · 24/7",
   hours: "Văn phòng BQL: 08:00–12:00 và 13:00–17:00",

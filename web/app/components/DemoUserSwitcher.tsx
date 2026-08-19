@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Users } from "lucide-react";
 
-import { api, clearUserId, destinationFor, type DemoAccount } from "../../lib/api";
+import {
+  api,
+  clearUserId,
+  destinationFor,
+  resetChatAutoOpen,
+  type DemoAccount,
+} from "../../lib/api";
 import { DEMO_PASSWORD, supabase } from "../../lib/supabase";
 import { useDemoUser } from "../../lib/useDemoUser";
 
@@ -48,6 +54,7 @@ export default function DemoUserSwitcher() {
       if (error) throw error;
       switchUser(account.user_id);
       const profile = await api.getProfile(account.user_id);
+      resetChatAutoOpen();
       router.push(destinationFor(profile));
     } finally {
       setBusy(false);

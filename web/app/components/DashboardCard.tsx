@@ -31,8 +31,9 @@ export default function DashboardCard({
   return (
     <Link href={href} className="group block">
       <div
-        className={`relative overflow-hidden rounded-2xl border border-border bg-surface p-6 ring-1 ring-transparent transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-24px_rgba(0,45,98,0.35)] ${tone.ring}`}
+        className={`interactive-card relative overflow-hidden rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/60 ${tone.ring}`}
       >
+        <span className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-blue-100/70 to-cyan-100/20 blur-2xl transition group-hover:scale-125" />
         <div
           className={`flex h-14 w-14 items-center justify-center rounded-xl ${tone.bg}`}
         >
@@ -45,7 +46,7 @@ export default function DashboardCard({
 
         <p className="mt-2 text-sm leading-relaxed text-muted">{desc}</p>
 
-        <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink/60 transition group-hover:text-gold">
+        <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink/75 transition group-hover:text-gold">
           Xem chi tiết
           <ArrowUpRight
             className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"

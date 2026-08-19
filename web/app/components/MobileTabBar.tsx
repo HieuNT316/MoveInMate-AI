@@ -19,7 +19,7 @@ export default function MobileTabBar({ items }: { items: NavItem[] }) {
   return (
     <nav
       aria-label="Điều hướng chính"
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 mx-2 mb-2 flex overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-[0_12px_36px_-12px_rgba(0,45,98,0.4)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {items.map((item) => {
         const Icon = item.icon;
@@ -29,8 +29,8 @@ export default function MobileTabBar({ items }: { items: NavItem[] }) {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] ${
-              active ? "text-gold" : "text-muted"
+            className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] transition ${
+              active ? "bg-gold-tint/70 text-gold" : "text-muted hover:bg-background/70"
             }`}
           >
             <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.75} />
