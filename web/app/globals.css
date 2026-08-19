@@ -188,6 +188,17 @@ textarea {
   }
 }
 
+/* Nút chưa đủ điều kiện vẫn phải nhìn rõ là hành động chính. Trước đây các
+   utility `disabled:opacity-40` làm nút bạc gần như biến mất, người dùng khó
+   biết cần điền form để làm gì. Giữ màu ở 88%, nhưng vẫn khóa click và bỏ
+   hiệu ứng hover để không tạo cảm giác nút đã sẵn sàng. */
+button:disabled {
+  opacity: 0.88 !important;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none;
+}
+
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
