@@ -90,6 +90,44 @@ def test_dien_thoai_84_cach_nhom_3_so_van_bi_che_o_question():
     assert "123 456 789" not in result
 
 
+# --- Fix round 2: guard round 1 mở lỗ hổng CCCD sống sót trong question ---
+
+
+def test_cccd_sau_tien_to_gia_dang_dien_thoai_van_bi_che_o_question():
+    """Regression của guard round 1 (đã bỏ). `_PHONE_PREFIX_GUARD` dùng
+    lookbehind cố định "0 " để né đuôi số điện thoại, nhưng "0 " đó khớp y hệt
+    "0" cuối trong "phòng 10" — chặn nhầm luôn CCCD thật đứng ngay sau, kể cả
+    trong `question`, nơi bảo đảm che PII cư dân tự gõ không được có ngoại lệ.
+    Cách sửa round 2 (đổi thứ tự điện thoại trước CCCD, bỏ guard) không còn
+    kiểu lỗi này vì không suy đoán tiền tố bằng lookbehind nữa."""
+    text = "phong 10 123456789 la cua ai"
+    result = mask_question(text)
+    assert "123456789" not in result
+
+
+def test_cccd_12_so_khong_bi_dien_thoai_an_mot_phan_truoc_khi_toi_luot():
+    r"""Thứ tự mới (điện thoại trước CCCD ở `question`) không được nuốt nhầm
+    một phần của CCCD 12 số dù nó bắt đầu bằng "0": `_PHONE_RE` cần đúng 9
+    chữ số theo sau tiền tố rồi kết thúc — với 12 chữ số liên tiếp, thử bắt
+    đầu ở vị trí nào cũng còn dư số phía sau nên biên `(?!\d)` chặn lại,
+    không có khớp một phần nào để CCCD bị hụt mất."""
+    text = f"CCCD của tôi là {CCCD_12}"
+    result_question = mask_question(text)
+    result_answer = mask_answer(text)
+    assert CCCD_12 not in result_question
+    assert "[ĐÃ ẨN THÔNG TIN CÁ NHÂN]" in result_question
+    assert CCCD_12 not in result_answer
+    assert "[ĐÃ ẨN THÔNG TIN CÁ NHÂN]" in result_answer
+
+
+def test_cau_hoi_co_ca_dien_thoai_va_cccd_deu_bi_che():
+    text = f"Gọi tôi số {PHONE_10}, CCCD của tôi là {CCCD_9}"
+    result = mask_question(text)
+    assert PHONE_10 not in result
+    assert CCCD_9 not in result
+    assert result.count("[ĐÃ ẨN THÔNG TIN CÁ NHÂN]") == 2
+
+
 # --- CCCD/CMND bị che ở cả hai trường -------------------------------------
 
 
