@@ -28,6 +28,7 @@ from src.models.db import (
     Document,
     User,
 )
+from src.models.schemas import FormSchemaPayload
 from src.services.documents import describe, evaluate_documents
 from src.services.pii import mask_answer, mask_question
 
@@ -346,6 +347,14 @@ def get_open_application(db: Session, user_id: int, item_id: int) -> dict[str, A
     return _application_dict(app) if app else None
 
 
+class ValidationError(Exception):
+    """Loi validate form_data cua AI Form Generation."""
+
+    def __init__(self, errors: list[str]):
+        self.errors = errors
+        super().__init__("\n".join(errors))
+
+
 class DuplicateApplicationError(Exception):
     """`uq_open_application_per_item` (src/models/db.py) chặn insert.
 
@@ -356,15 +365,50 @@ class DuplicateApplicationError(Exception):
     """
 
 
+def validate_form_data(schema: FormSchemaPayload, form_data: dict) -> list[str]:
+    """Tra ve danh sach loi. Empty = hop le."""
+    import re
+
+    errors = []
+    for field in schema.fields:
+        if field.required and field.key not in form_data:
+            errors.append(f"Thiếu: {field.label}")
+        elif field.key in form_data:
+            value = str(form_data[field.key])
+            if field.pattern and not re.match(field.pattern, value):
+                errors.append(f"{field.label} sai định dạng")
+    return errors
+
+
+def get_form_schema(db: Session, item_id: int) -> FormSchemaPayload | None:
+    item = db.get(ChecklistItem, item_id)
+    if item is None or item.form_schema is None:
+        return None
+    return FormSchemaPayload.model_validate(item.form_schema)
+
+
 def create_application(
-    db: Session, user_id: int, item_id: int, note: str | None, kind: str
+    db: Session,
+    user_id: int,
+    checklist_item_id: int,
+    kind: str,
+    note: str | None = None,
+    form_data: dict | None = None,
 ) -> dict[str, Any]:
+    # Validate form_data neu co
+    if form_data:
+        schema = get_form_schema(db, checklist_item_id)
+        if schema:
+            errors = validate_form_data(schema, form_data)
+            if errors:
+                raise ValidationError(errors)
     app = Application(
         user_id=user_id,
-        checklist_item_id=item_id,
+        checklist_item_id=checklist_item_id,
         note=note,
         status="received",
         kind=kind,
+        form_data=form_data or {},
     )
     db.add(app)
     try:

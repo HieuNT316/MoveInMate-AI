@@ -1786,3 +1786,37 @@ async def test_nap_tai_lieu_qua_han_muc_khong_lam_hong_polling_embed_status(
     for _ in range(5):
         r = await client.get("/api/v1/admin/documents", headers=ADMIN)
         assert r.status_code == 200
+
+
+# --- AI Form Generation (Task 5) ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_form_schema_ok(client, db_session):
+    from src.models.db import ChecklistItem
+
+    # Seed data khong co form_schema — them item voi form_schema de test.
+    item = ChecklistItem(
+        checklist_item_id=99,
+        task_name="Thu tuc test",
+        item_type="bql_actionable",
+        form_schema={"fields": [], "attachments": []},
+    )
+    db_session.add(item)
+    db_session.commit()
+
+    res = await client.get("/api/v1/checklist/99/form-schema", headers=OWNER)
+    assert res.status_code == 200
+    assert "fields" in res.json()
+
+
+@pytest.mark.asyncio
+async def test_get_form_schema_null(client, db_session):
+    from src.models.db import ChecklistItem
+
+    # Lay item tu seed data (khong co form_schema).
+    item = db_session.query(ChecklistItem).filter(
+        ChecklistItem.form_schema.is_(None)
+    ).first()
+    res = await client.get(f"/api/v1/checklist/{item.checklist_item_id}/form-schema", headers=OWNER)
+    assert res.status_code == 404

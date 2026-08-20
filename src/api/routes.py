@@ -34,6 +34,7 @@ from src.models.schemas import (
     AccountStatusUpdateRequest,
     AdminApplicationResponse,
     ApplicationCreateRequest,
+    ApplicationCreateV2,
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
     AttachmentResponse,
@@ -242,6 +243,22 @@ async def set_checklist_item(
     return _build_checklist(db, user)
 
 
+@router.get("/checklist/{item_id}/form-schema")
+async def get_checklist_item_form_schema(
+    item_id: int,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+):
+    """AI Form Generation (task 5) — lấy schema form cho một mục checklist.
+
+    Trả JSONB form_schema nếu có; 404 nếu mục không tồn tại HOẶC không có form.
+    """
+    schema = store.get_form_schema(db, item_id)
+    if schema is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Procedure does not have a form")
+    return schema
+
+
 # --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
 
 
@@ -289,7 +306,7 @@ async def submit_application(
     # là cư dân tự khai kèm ảnh minh chứng.
     kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
     try:
-        return store.create_application(db, user["user_id"], item["id"], payload.note, kind)
+        return store.create_application(db, user["user_id"], item["id"], kind, note=payload.note)
     except store.DuplicateApplicationError:
         # Race: request khác cũng đọc "chưa có hồ sơ mở" và commit trước —
         # `uq_open_application_per_item` (src/models/db.py) chặn insert này ở
@@ -297,6 +314,54 @@ async def submit_application(
         # trên, không phải 500 — dùng lại CHÍNH nhánh đó để hai đường tới
         # cùng một kết quả không lệch câu chữ.
         _raise_da_co_ho_so_mo()
+
+
+@router.post(
+    "/applications",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_application_v2(
+    body: ApplicationCreateV2,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 + AI Form Generation — nộp hồ sơ với form_data.
+
+    Tương tự submit_application nhưng hỗ trợ form_data được sinh bởi AI.
+    """
+    matched = generate_checklist(user, store.list_checklist_items(db))
+    item = next((i for i in matched if i["id"] == body.checklist_item_id), None)
+
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mục này không có trong checklist của bạn.",
+        )
+
+    def _raise_da_co_ho_so_mo() -> None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Bạn đã có hồ sơ đang xử lý cho '{item['task_name']}'.",
+        )
+
+    if store.get_open_application(db, user["user_id"], item["id"]):
+        _raise_da_co_ho_so_mo()
+
+    kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
+    try:
+        return store.create_application(
+            db,
+            user["user_id"],
+            item["id"],
+            kind,
+            note=body.note,
+            form_data=body.form_data,
+        )
+    except store.DuplicateApplicationError:
+        _raise_da_co_ho_so_mo()
+    except store.ValidationError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"detail": e.errors})
 
 
 @router.post(
