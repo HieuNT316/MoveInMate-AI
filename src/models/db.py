@@ -171,6 +171,9 @@ class ChecklistItem(Base):
     # lệ lúc nạp.
     required_documents: Mapped[list[str]] = mapped_column(JSONType, default=list)
 
+    # AI Form Generation (task 3) — schema for dynamic form, NULL = no form.
+    form_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONType, default=None)
+
 
 class ChecklistCompletion(Base):
     """Chỉ lưu mục ĐÃ xong. Không có dòng = chưa xong, không cần cột trạng thái."""
