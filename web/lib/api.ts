@@ -233,6 +233,32 @@ export type AdminApplication = Application & {
   apartment: string;
 };
 
+// --- AI Form Generation (Task 6) -----------------------------------
+
+export type FormField = {
+  key: string;
+  label: string;
+  type: "text" | "number" | "select" | "date";
+  options?: string[];
+  required: boolean;
+  question?: string;
+  pattern?: string;
+  default?: string;
+};
+
+export type AttachmentSpec = {
+  code: string;
+  label: string;
+  required: boolean;
+};
+
+export type FormSchema = {
+  fields: FormField[];
+  attachments: AttachmentSpec[];
+};
+
+export type ApplicationFormData = Record<string, string>;
+
 export type CreateApplicationPayload = {
   checklist_item_id: number;
   note?: string;
@@ -508,6 +534,25 @@ export const api = {
     request<Application>("/applications", userId, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  /** AI Form Generation (Task 6) — lấy schema form từ backend. */
+  getFormSchema: (itemId: number, token: string) =>
+    request<FormSchema | null>(`/checklist/${itemId}/form-schema`, itemId, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  /** AI Form Generation (Task 6) — nộp hồ sơ kèm form_data. */
+  submitApplicationWithFormData: (
+    userId: number,
+    itemId: number,
+    formData: ApplicationFormData,
+    token: string,
+  ) =>
+    request<Application>("/applications", userId, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ checklist_item_id: itemId, form_data: formData }),
     }),
 
   /** Hồ sơ của chính cư dân đang đăng nhập, mới nhất trước. */
