@@ -26,6 +26,8 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
+from src.ai.form_extraction import extract_form_fields
+from src.ai.intent import detect_procedure_intent
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
@@ -53,6 +55,7 @@ from src.models.schemas import (
     DemoAccount,
     DocumentIngestRequest,
     DocumentResponse,
+    FormSchemaPayload,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -75,6 +78,30 @@ from src.services.vectorstore import RetrievalError
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# --- Form generation helpers ----------------------------------------------
+
+
+def _build_form_confirmation(
+    schema: FormSchemaPayload, extracted: dict[str, str], task_name: str
+) -> str:
+    lines = [f"Đây là hồ sơ của bạn cho **{task_name}**:", ""]
+    for field in schema.fields:
+        value = extracted.get(field.key, "—")
+        lines.append(f"- **{field.label}**: {value}")
+    lines.append("")
+    lines.append(
+        "Đúng không? Bạn có thể sửa trực tiếp trên form hoặc nhắn tôi để cập nhật."
+    )
+    return "\n".join(lines)
+
+
+def _build_disambiguation_message(options: list[dict[str, Any]]) -> str:
+    lines = ["Có nhiều thủ tục phù hợp. Bạn muốn:"]
+    for i, opt in enumerate(options[:4], 1):
+        lines.append(f"{i}. {opt.get('task_name', 'không tên')}")
+    return "\n".join(lines)
 
 
 # --- Đăng nhập ----------------------------------------------------------
@@ -627,6 +654,33 @@ async def chat(
     else:
         history = []
         conversation_id = uuid.uuid4()
+
+    # AI Form Generation (task 7) — intent detection + form extraction.
+    # Chạy trước RAG để khớp procedure ngay khi người dùng nhắn muốn nộp hồ sơ.
+    if not payload.checklist_item_id:
+        match = detect_procedure_intent(payload.message, db)
+        if match.item:
+            schema = store.get_form_schema(db, match.item.id)
+            if schema:
+                # Build history from stored messages
+                msg_history = [{"role": "user", "content": turn["question"]} for turn in history]
+                extracted = extract_form_fields(schema, msg_history)
+                return {
+                    "answer": _build_form_confirmation(
+                        schema, extracted, match.item.task_name
+                    ),
+                    "intent": "form_generation",
+                    "checklist_item_id": match.item.id,
+                    "form_schema": schema.model_dump(),
+                    "form_data": extracted,
+                }
+        elif match.ambiguous:
+            return {
+                "answer": _build_disambiguation_message(
+                    [{"task_name": o.task_name} for o in match.disambiguation_options]
+                ),
+                "intent": "disambiguation",
+            }
 
     settings = get_settings()
     recent_turns = [
