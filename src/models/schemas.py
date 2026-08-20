@@ -350,6 +350,14 @@ class ApplicationCreateRequest(BaseModel):
     )
 
 
+class ApplicationCreateV2(BaseModel):
+    """US-13 + AI Form Generation — hỗ trợ form_data từ AI sinh."""
+
+    checklist_item_id: int
+    note: str | None = None
+    form_data: dict | None = None
+
+
 class ApplicationResponse(BaseModel):
     """Một hồ sơ đã nộp.
 
