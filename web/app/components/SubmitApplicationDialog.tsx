@@ -8,7 +8,6 @@ import {
   api,
   ApiError,
   type Application,
-  type ApplicationFormData,
   type Attachment,
   type ChecklistItem,
   type FormSchema,
@@ -75,7 +74,7 @@ export default function SubmitApplicationDialog({
 
   // AI Form Generation (Task 6) — form schema từ backend
   const [formSchema, setFormSchema] = useState<FormSchema | null>(null);
-  const [extractedData, setExtractedData] = useState<ApplicationFormData>({});
+  const [extractedData, setExtractedData] = useState<Record<string, string>>({});
 
   // Sau khi tạo hồ sơ, dialog chuyển sang bước tải ảnh nếu thủ tục cần giấy
   // tờ. `createdApp` khác null nghĩa là bước 1 đã xong, không quay lại được.
@@ -149,26 +148,6 @@ export default function SubmitApplicationDialog({
   // bước này vẫn phải báo cho checklist tải lại, không phải huỷ thao tác.
   const closeAfterCreated = () => onSubmitted();
 
-  // AI Form Generation (Task 6) — handler cho FormReviewDialog
-  const handleFormSubmit = async (data: ApplicationFormData) => {
-    const { currentAccessToken } = await import("../../lib/supabase");
-    const token = await currentAccessToken();
-    if (!token) throw new Error("No access token");
-
-    const app = await api.submitApplicationWithFormData(
-      userId,
-      item.id,
-      data,
-      token,
-    );
-    toast.show("Đã nộp hồ sơ thành công");
-    if (requiredDocuments.length > 0) {
-      setCreatedApp(app);
-    } else {
-      onSubmitted();
-    }
-  };
-
   // AI Form Generation (Task 6) — nếu có schema từ backend thì hiện FormReviewDialog
   if (formSchema && formSchema.fields.length > 0) {
     return (
@@ -176,7 +155,9 @@ export default function SubmitApplicationDialog({
         schema={formSchema}
         initialData={extractedData}
         itemName={item.task_name}
-        onConfirm={handleFormSubmit}
+        userId={userId}
+        checklistItemId={item.id}
+        onSubmitted={onSubmitted}
         onBack={onClose}
       />
     );
