@@ -243,6 +243,7 @@ class Application(Base):
     # giấy tờ gì). Hai chiều tách riêng để cư dân không sửa được lời của BQL.
     note: Mapped[str | None] = mapped_column(Text)
     bql_note: Mapped[str | None] = mapped_column(Text)
+    form_data: Mapped[dict | None] = mapped_column(JSONType, default=None)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
