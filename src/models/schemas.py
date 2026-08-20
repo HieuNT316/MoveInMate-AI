@@ -445,6 +445,43 @@ class TemporaryPasswordResponse(BaseModel):
     temporary_password: str
 
 
+# --- AI Form Generation (Task 1, 20/08) -----------------------------------
+
+
+class FormFieldSchema(BaseModel):
+    """Một trường trong form, định nghĩa bởi AI.
+
+    `pattern` là regex để validate input, vd. '^[0-9]{12}$' cho CCCD.
+    """
+
+    key: str
+    label: str
+    type: Literal["text", "number", "select", "date"]
+    options: list[str] | None = None
+    required: bool = False
+    question: str
+    pattern: str | None = None
+    default: str | None = None
+
+
+class AttachmentSpecSchema(BaseModel):
+    """Yêu cầu tệp đính kèm cho form.
+
+    `code` là mã loại giấy tờ, phải nằm trong `DocumentType`.
+    """
+
+    code: str
+    label: str
+    required: bool = False
+
+
+class FormSchemaPayload(BaseModel):
+    """Tùy chỉnh form cho một thủ tục, do AI sinh ra."""
+
+    fields: list[FormFieldSchema]
+    attachments: list[AttachmentSpecSchema] = []
+
+
 # --- BQL nạp tài liệu (US-08) --------------------------------------------
 
 
