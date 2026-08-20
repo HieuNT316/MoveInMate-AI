@@ -265,3 +265,17 @@ questions:
     procedure: ngoai-du-lieu
     dimension: tu-choi
     expect: refuse
+
+  # ---------- Form generation ----------
+  - id: FG01
+    question: "Tôi muốn đăng ký thẻ xe máy biển 29P1-123.45"
+    procedure: "Đăng ký thẻ xe"
+    expect: form_generation
+    expected_fields: { vehicle_type: "Xe máy", plate: "29P1-123.45" }
+    dimension: intent_detection
+
+  - id: FG02
+    question: "Làm thẻ cư dân cho tôi"
+    procedure: "Làm thẻ cư dân"
+    expect: disambiguation
+    dimension: ambiguity_handling
