@@ -11,6 +11,7 @@ import {
   type Application,
   type Attachment,
   type ChecklistItem,
+  type FormSchema,
   type RequiredDocument,
 } from "../../lib/api";
 import {
@@ -19,6 +20,7 @@ import {
   SELF_DECLARED_DOCUMENT,
   submitActionLabel,
 } from "../../lib/applicationForms";
+import FormReviewDialog from "./FormReviewDialog";
 import AttachmentUploader from "./AttachmentUploader";
 import { useToast } from "./Toast";
 
@@ -71,6 +73,10 @@ export default function SubmitApplicationDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // AI Form Generation (Task 6) — form schema từ backend
+  const [formSchema, setFormSchema] = useState<FormSchema | null>(null);
+  const [extractedData, setExtractedData] = useState<Record<string, string>>({});
+
   // Sau khi tạo hồ sơ, dialog chuyển sang bước tải ảnh nếu thủ tục cần giấy
   // tờ. `createdApp` khác null nghĩa là bước 1 đã xong, không quay lại được.
   const [createdApp, setCreatedApp] = useState<Application | null>(null);
@@ -86,6 +92,30 @@ export default function SubmitApplicationDialog({
 
   const missingRequired =
     fields?.some((f) => f.required && !values[f.key]?.trim()) ?? false;
+
+  // AI Form Generation (Task 6) — lấy schema form từ backend khi dialog mở
+  useEffect(() => {
+    async function fetchSchema() {
+      try {
+        // Lấy token từ Supabase
+        const { currentAccessToken } = await import("../../lib/supabase");
+        const token = await currentAccessToken();
+        if (!token) return;
+
+        const schema = await api.getFormSchema(item.id, token);
+        if (schema && schema.fields.length > 0) {
+          setFormSchema(schema);
+          // TODO: Gọi AI để trích xuất dữ liệu từ ảnh/chat (AI extraction sẽ làm ở task tiếp theo)
+          // Hiện tại để trống, cư dân sẽ tự điền
+          setExtractedData({});
+        }
+      } catch (err) {
+        // Schema không tồn tại hoặc lỗi — fallback về flow cũ
+        console.error("[FormReview] Failed to fetch schema:", err);
+      }
+    }
+    fetchSchema();
+  }, [item.id]);
 
   const submit = async () => {
     if (saving || missingRequired) return;
@@ -124,6 +154,21 @@ export default function SubmitApplicationDialog({
   // Hồ sơ đã tồn tại ở backend rồi (kể cả khi chưa tải ảnh) — đóng dialog ở
   // bước này vẫn phải báo cho checklist tải lại, không phải huỷ thao tác.
   const closeAfterCreated = () => onSubmitted();
+
+  // AI Form Generation (Task 6) — nếu có schema từ backend thì hiện FormReviewDialog
+  if (formSchema && formSchema.fields.length > 0) {
+    return (
+      <FormReviewDialog
+        schema={formSchema}
+        initialData={extractedData}
+        itemName={item.task_name}
+        userId={userId}
+        checklistItemId={item.id}
+        onSubmitted={onSubmitted}
+        onBack={onClose}
+      />
+    );
+  }
 
   if (createdApp) {
     return createPortal(

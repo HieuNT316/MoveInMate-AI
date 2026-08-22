@@ -19,6 +19,14 @@ ItemType = Literal["bql_actionable", "third_party_info"]
 DocSourceType = Literal["bql_internal", "public_regulation", "unofficial_web", "synthetic_demo"]
 AnswerSource = Literal["faq", "rag", "no_context"]
 
+# Lượt chat thuộc kiểu nào. `qa` là hỏi đáp RAG như cũ; ba giá trị còn lại
+# thuộc luồng AI dẫn dắt điền hồ sơ (`src/ai/form_dialog.py`).
+#
+# Tách khỏi `AnswerSource` có chủ đích: `AnswerSource` được lưu xuống DB dưới
+# một SAEnum có ràng buộc, thêm giá trị vào đó là phải migrate. `intent` chỉ
+# sống trong một lượt trả lời nên không cần cột riêng.
+ChatIntent = Literal["qa", "form_generation", "form_review", "disambiguation"]
+
 # Danh sách đóng, không dùng str tự do: giá trị lệch (vd. "POOL", "swimming")
 # sẽ không khớp `conditions` nào và mục tiện ích âm thầm biến mất khỏi
 # checklist mà không báo lỗi. Cùng loại rủi ro mà `validate_conditions` phòng
@@ -177,6 +185,46 @@ class CompletionRequest(BaseModel):
     completed: bool
 
 
+# --- AI Form Generation (Task 1, 20/08) -----------------------------------
+#
+# Khai trước `ChatRequest`/`ChatResponse` vì hai lớp đó tham chiếu tới
+# `FormSchemaPayload`.
+
+
+class FormFieldSchema(BaseModel):
+    """Một trường trong form, định nghĩa bởi AI.
+
+    `pattern` là regex để validate input, vd. '^[0-9]{12}$' cho CCCD.
+    """
+
+    key: str
+    label: str
+    type: Literal["text", "number", "select", "date"]
+    options: list[str] | None = None
+    required: bool = False
+    question: str
+    pattern: str | None = None
+    default: str | None = None
+
+
+class AttachmentSpecSchema(BaseModel):
+    """Yêu cầu tệp đính kèm cho form.
+
+    `code` là mã loại giấy tờ, phải nằm trong `DocumentType`.
+    """
+
+    code: str
+    label: str
+    required: bool = False
+
+
+class FormSchemaPayload(BaseModel):
+    """Tùy chỉnh form cho một thủ tục, do AI sinh ra."""
+
+    fields: list[FormFieldSchema]
+    attachments: list[AttachmentSpecSchema] = []
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     conversation_id: UUID | None = Field(
@@ -186,6 +234,22 @@ class ChatRequest(BaseModel):
             "đúng hội thoại này để hiểu câu hỏi tiếp nối (vd 'còn phí thì "
             "sao?'). Bỏ trống để bắt đầu hội thoại mới."
         ),
+    )
+
+    # Hai trường dưới là toàn bộ trạng thái của luồng AI dẫn dắt điền hồ sơ.
+    # Backend không nhớ gì giữa hai lượt: FE nhận `checklist_item_id` và
+    # `form_data` ở lượt trước rồi gửi lại nguyên vẹn ở lượt sau. Bỏ trống cả
+    # hai thì `/chat` chạy như hỏi đáp thường.
+    checklist_item_id: int | None = Field(
+        default=None,
+        description=(
+            "Đang giữa luồng điền hồ sơ của thủ tục này — chép lại từ phản hồi "
+            "lượt trước. Bỏ trống để AI tự nhận ý định từ câu hỏi."
+        ),
+    )
+    form_data: dict[str, str] | None = Field(
+        default=None,
+        description="Các trường đã thu được tới lượt trước, chép lại nguyên vẹn.",
     )
 
 
@@ -230,6 +294,32 @@ class ChatResponse(BaseModel):
     conversation_id: UUID = Field(
         description="Hội thoại vừa hỏi thuộc về — FE cần lưu lại để gửi kèm "
         "cho câu hỏi tiếp theo nếu muốn AI hiểu ngữ cảnh."
+    )
+
+    # --- Luồng AI dẫn dắt điền hồ sơ ---
+    #
+    # `intent="qa"` (mặc định) là hỏi đáp thường, ba trường dưới đều null và FE
+    # hiển thị y như trước. Khác `qa` thì FE gửi lại `checklist_item_id` +
+    # `form_data` ở lượt kế tiếp để nối tiếp hội thoại.
+    intent: ChatIntent = Field(
+        default="qa",
+        description=(
+            "`qa` hỏi đáp thường · `form_generation` AI đang hỏi để điền hồ sơ "
+            "· `form_review` đã đủ trường, chờ cư dân xem lại và gửi · "
+            "`disambiguation` khớp nhiều thủ tục, cư dân chọn một."
+        ),
+    )
+    checklist_item_id: int | None = Field(
+        default=None,
+        description="Thủ tục đang điền — gửi lại nguyên vẹn ở lượt sau.",
+    )
+    form_schema: FormSchemaPayload | None = Field(
+        default=None,
+        description="Định nghĩa form của thủ tục, để FE dựng màn xem lại.",
+    )
+    form_data: dict[str, str] | None = Field(
+        default=None,
+        description="Các trường AI đã thu được — gửi lại nguyên vẹn ở lượt sau.",
     )
 
 
@@ -348,6 +438,14 @@ class ApplicationCreateRequest(BaseModel):
         max_length=1000,
         description="Ghi chú của cư dân, vd. biển số xe cần đăng ký thẻ.",
     )
+
+
+class ApplicationCreateV2(BaseModel):
+    """US-13 + AI Form Generation — hỗ trợ form_data từ AI sinh."""
+
+    checklist_item_id: int
+    note: str | None = None
+    form_data: dict | None = None
 
 
 class ApplicationResponse(BaseModel):

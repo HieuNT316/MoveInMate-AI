@@ -26,6 +26,8 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
+from src.ai import form_dialog
+from src.ai.intent import wants_to_act
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
@@ -34,6 +36,7 @@ from src.models.schemas import (
     AccountStatusUpdateRequest,
     AdminApplicationResponse,
     ApplicationCreateRequest,
+    ApplicationCreateV2,
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
     AttachmentResponse,
@@ -52,6 +55,7 @@ from src.models.schemas import (
     DemoAccount,
     DocumentIngestRequest,
     DocumentResponse,
+    FormSchemaPayload,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -74,6 +78,10 @@ from src.services.vectorstore import RetrievalError
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# Câu chữ của luồng điền hồ sơ nằm ở `src/ai/form_dialog.py` (vai AI giữ phần
+# soạn lời), không dựng ở đây nữa.
 
 
 # --- Đăng nhập ----------------------------------------------------------
@@ -242,6 +250,22 @@ async def set_checklist_item(
     return _build_checklist(db, user)
 
 
+@router.get("/checklist/{item_id}/form-schema", response_model=FormSchemaPayload)
+async def get_checklist_item_form_schema(
+    item_id: int,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """AI Form Generation (task 5) — lấy schema form cho một mục checklist.
+
+    Trả JSONB form_schema nếu có; 404 nếu mục không tồn tại HOẶC không có form.
+    """
+    schema = store.get_form_schema(db, item_id)
+    if schema is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Procedure does not have a form")
+    return schema
+
+
 # --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
 
 
@@ -289,7 +313,7 @@ async def submit_application(
     # là cư dân tự khai kèm ảnh minh chứng.
     kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
     try:
-        return store.create_application(db, user["user_id"], item["id"], payload.note, kind)
+        return store.create_application(db, user["user_id"], item["id"], kind, note=payload.note)
     except store.DuplicateApplicationError:
         # Race: request khác cũng đọc "chưa có hồ sơ mở" và commit trước —
         # `uq_open_application_per_item` (src/models/db.py) chặn insert này ở
@@ -297,6 +321,54 @@ async def submit_application(
         # trên, không phải 500 — dùng lại CHÍNH nhánh đó để hai đường tới
         # cùng một kết quả không lệch câu chữ.
         _raise_da_co_ho_so_mo()
+
+
+@router.post(
+    "/applications",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_application_v2(
+    body: ApplicationCreateV2,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """US-13 + AI Form Generation — nộp hồ sơ với form_data.
+
+    Tương tự submit_application nhưng hỗ trợ form_data được sinh bởi AI.
+    """
+    matched = generate_checklist(user, store.list_checklist_items(db))
+    item = next((i for i in matched if i["id"] == body.checklist_item_id), None)
+
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Mục này không có trong checklist của bạn.",
+        )
+
+    def _raise_da_co_ho_so_mo() -> None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Bạn đã có hồ sơ đang xử lý cho '{item['task_name']}'.",
+        )
+
+    if store.get_open_application(db, user["user_id"], item["id"]):
+        _raise_da_co_ho_so_mo()
+
+    kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
+    try:
+        return store.create_application(
+            db,
+            user["user_id"],
+            item["id"],
+            kind,
+            note=body.note,
+            form_data=body.form_data,
+        )
+    except store.DuplicateApplicationError:
+        _raise_da_co_ho_so_mo()
+    except store.ValidationError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"detail": e.errors})
 
 
 @router.post(
@@ -473,24 +545,11 @@ def _strip_action_prefix(text: str) -> str:
 # Ranh giới mà tool của vai AI cố ý giữ: "cần giấy tờ gì" là câu hỏi THÔNG TIN
 # (trả lời bằng chữ là đủ), "cho tôi nộp" là ý định HÀNH ĐỘNG (mới gắn nút).
 #
-# Phải có cả hai danh sách. Chỉ bắt động từ hành động là chưa đủ: "Làm thẻ xe
-# cần giấy tờ gì?" có "làm thẻ" nhưng đuôi câu cho thấy người ta chỉ đang hỏi.
-_ACTION_MARKERS = (
-    "nop ", "nop ho so", "dan toi", "dua toi", "cho toi nop", "giup toi nop",
-    "toi muon lam", "toi muon dang ky", "muon nop", "can nop", "toi nop",
-)
-_INFO_TAILS = (
-    "can giay to gi", "can gi", "gom nhung gi", "gom gi", "la gi",
-    "bao nhieu", "the nao", "ra sao", "mat bao lau", "khi nao", "thu tuc gi",
-)
-
-
-def _wants_to_act(question: str) -> bool:
-    """True khi câu hỏi là ý định LÀM thủ tục, không phải hỏi về nó."""
-    normalized = _normalize(question)
-    if any(tail in normalized for tail in _INFO_TAILS):
-        return False
-    return any(marker in normalized for marker in _ACTION_MARKERS)
+# Vốn từ nhận ý định chuyển về `src/ai/intent.py` (vai AI) ngày 22/08 và import
+# lại từ đó — luồng điền hồ sơ dùng chung đúng ranh giới này. Giữ hai bản sao ở
+# hai file thì một hôm sửa một bên là nút điều hướng và luồng form hiểu cùng
+# một câu theo hai kiểu khác nhau.
+_wants_to_act = wants_to_act
 
 
 def _core_name(text: str) -> str:
@@ -562,6 +621,37 @@ async def chat(
     else:
         history = []
         conversation_id = uuid.uuid4()
+
+    # AI dẫn dắt điền hồ sơ — chạy TRƯỚC RAG để giữ lượt khi cư dân đang khai
+    # thông tin. Trả None nghĩa là câu này không thuộc luồng form và RAG xử lý
+    # tiếp như cũ; toàn bộ phần quyết định nằm ở `src/ai/form_dialog.py`.
+    form_turn = await form_dialog.run_form_turn(
+        db, payload.message, payload.checklist_item_id, payload.form_data
+    )
+    if form_turn is not None:
+        form_result: dict[str, Any] = {
+            "answer": form_turn.answer,
+            # Lượt điền form không truy xuất tài liệu nên không có nguồn để
+            # trích. Dùng `no_context` thay vì thêm giá trị mới vào
+            # `AnswerSource` — cột `chat_history.answer_source` là SAEnum có
+            # ràng buộc, thêm giá trị là phải migrate. FE phân biệt bằng
+            # `intent`, không bằng `answer_source`.
+            "answer_source": "no_context",
+            "conversation_id": conversation_id,
+            "intent": form_turn.intent,
+            "checklist_item_id": form_turn.checklist_item_id,
+            "form_schema": form_turn.form_schema.model_dump() if form_turn.form_schema else None,
+            "form_data": form_turn.form_data,
+        }
+        # Ghi vào lịch sử như mọi lượt khác: thiếu bước này thì hội thoại điền
+        # hồ sơ biến mất khỏi `/chat/conversations` và cư dân mở lại thấy trống.
+        store.add_chat(
+            db,
+            user["user_id"],
+            conversation_id,
+            {"question": payload.message, "answer": form_turn.answer, "answer_source": "no_context"},
+        )
+        return form_result
 
     settings = get_settings()
     recent_turns = [
