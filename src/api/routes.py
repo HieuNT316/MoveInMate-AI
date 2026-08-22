@@ -642,6 +642,10 @@ async def chat(
             "checklist_item_id": form_turn.checklist_item_id,
             "form_schema": form_turn.form_schema.model_dump() if form_turn.form_schema else None,
             "form_data": form_turn.form_data,
+            "options": [
+                {"id": item.checklist_item_id, "task_name": item.task_name}
+                for item in (form_turn.options or [])
+            ],
         }
         # Ghi vào lịch sử như mọi lượt khác: thiếu bước này thì hội thoại điền
         # hồ sơ biến mất khỏi `/chat/conversations` và cư dân mở lại thấy trống.

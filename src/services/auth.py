@@ -23,6 +23,13 @@ from jwt import PyJWKClient
 from src.config import get_settings
 
 
+# Supabase và API có thể chạy trên hai máy có đồng hồ lệch nhau vài giây.
+# PyJWT mặc định kiểm tra `iat` với sai số 0 nên token vừa phát đôi lúc bị từ
+# chối là "not yet valid". 30 giây đủ hấp thụ clock skew thông thường nhưng
+# vẫn chặn token được phát quá xa trong tương lai.
+JWT_CLOCK_SKEW_SECONDS = 30
+
+
 class AuthError(Exception):
     """Token thiếu, sai chữ ký, hết hạn, hoặc không đúng đối tượng."""
 
@@ -54,6 +61,7 @@ def verify_token(token: str) -> uuid.UUID:
             algorithms=["ES256", "RS256"],
             audience="authenticated",
             issuer=f"{settings.supabase_url}/auth/v1",
+            leeway=JWT_CLOCK_SKEW_SECONDS,
         )
     except jwt.PyJWTError as exc:
         raise AuthError(f"Token không hợp lệ: {exc}") from exc

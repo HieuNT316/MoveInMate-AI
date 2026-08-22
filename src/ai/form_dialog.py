@@ -51,6 +51,7 @@ class FormTurn(NamedTuple):
     checklist_item_id: int | None = None
     form_schema: FormSchemaPayload | None = None
     form_data: dict[str, str] | None = None
+    options: list[ChecklistItem] | None = None
 
 
 def _normalize(text: str) -> str:
@@ -291,6 +292,7 @@ async def _start_form(db: Session, message: str) -> FormTurn | None:
         return FormTurn(
             answer=build_disambiguation_message(match.disambiguation_options),
             intent="disambiguation",
+            options=match.disambiguation_options[:4],
         )
 
     return None

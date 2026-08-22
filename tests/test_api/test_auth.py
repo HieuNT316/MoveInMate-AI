@@ -11,7 +11,12 @@ import uuid
 import pytest
 
 from src.api import deps
-from src.services.auth import AuthError, bearer_token
+from src.services.auth import (
+    JWT_CLOCK_SKEW_SECONDS,
+    AuthError,
+    bearer_token,
+    verify_token,
+)
 from tests.conftest import AUTH_UID_OWNER
 
 BEARER = {"Authorization": "Bearer bat-ky-chuoi-nao"}
@@ -45,6 +50,30 @@ def token_of(monkeypatch):
 )
 def test_tach_bearer_token(header, expected):
     assert bearer_token(header) == expected
+
+
+def test_verify_token_cho_phep_clock_skew_nho(monkeypatch):
+    """Token Supabase vừa phát không được lỗi chỉ vì hai máy lệch vài giây."""
+    subject = "11111111-1111-4111-8111-111111111111"
+    captured = {}
+
+    class SigningKey:
+        key = "public-key"
+
+    class JwksClient:
+        def get_signing_key_from_jwt(self, token):
+            assert token == "token"
+            return SigningKey()
+
+    def fake_decode(token, key, **kwargs):
+        captured.update(kwargs)
+        return {"sub": subject}
+
+    monkeypatch.setattr("src.services.auth._jwks_client", lambda: JwksClient())
+    monkeypatch.setattr("src.services.auth.jwt.decode", fake_decode)
+
+    assert verify_token("token") == uuid.UUID(subject)
+    assert captured["leeway"] == JWT_CLOCK_SKEW_SECONDS
 
 
 # --- Nhánh JWT ------------------------------------------------------------

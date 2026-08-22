@@ -29,6 +29,7 @@ import Layout from "../components/Layout";
 import ChatContextPanel from "../components/ChatContextPanel";
 import AttachmentUploader from "../components/AttachmentUploader";
 import SubmitApplicationDialog from "../components/SubmitApplicationDialog";
+import FormReviewDialog from "../components/FormReviewDialog";
 import { SELF_DECLARED_DOCUMENT } from "../../lib/applicationForms";
 import {
   api,
@@ -38,8 +39,12 @@ import {
   type ChecklistItem,
   type ConversationSummary,
   type Profile,
+  type ProcedureOption,
   type Source,
   type SuggestedAction,
+  type ApplicationFormData,
+  type ChatFormState,
+  type FormSchema,
 } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { linkifyText } from "../../lib/linkify";
@@ -51,7 +56,17 @@ type Message = {
   sources?: Source[];
   refused?: boolean;
   suggestedAction?: SuggestedAction | null;
+  procedureOptions?: ProcedureOption[];
 };
+
+type PendingFormReview = {
+  checklistItemId: number;
+  itemName: string;
+  schema: FormSchema;
+  initialData: ApplicationFormData;
+};
+
+type ActiveFormFlow = PendingFormReview & ChatFormState;
 
 const GREETING: Message = {
   id: 0,
@@ -193,6 +208,8 @@ function ChatPageContent() {
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [formReview, setFormReview] = useState<PendingFormReview | null>(null);
+  const [activeForm, setActiveForm] = useState<ActiveFormFlow | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const continuedRef = useRef(false);
@@ -256,10 +273,14 @@ function ChatPageContent() {
     setConversationId(null);
     setMessages([GREETING]);
     setInput("");
+    setFormReview(null);
+    setActiveForm(null);
   };
 
   const openConversation = async (id: string) => {
     if (id === conversationId || loadingMessages) return;
+    setActiveForm(null);
+    setFormReview(null);
     setLoadingMessages(true);
     try {
       const entries = await api.getConversationMessages(userId, id);
@@ -306,7 +327,20 @@ function ChatPageContent() {
     }
 
     try {
-      const reply = await api.sendChat(userId, question, conversationId ?? undefined);
+      const reply = await api.sendChat(
+        userId,
+        question,
+        conversationId ?? undefined,
+        activeForm
+          ? {
+              checklist_item_id: activeForm.checklist_item_id,
+              form_data: activeForm.form_data,
+            }
+          : undefined,
+      );
+      const selectedProcedure = messages
+        .flatMap((message) => message.procedureOptions ?? [])
+        .find((option) => option.task_name === question);
       setMessages((prev) => [
         ...prev,
         {
@@ -314,14 +348,49 @@ function ChatPageContent() {
           role: "assistant",
           text: reply.answer,
           sources: reply.sources,
-          refused: reply.answer_source === "no_context",
+          refused:
+            (reply.intent == null || reply.intent === "qa") &&
+            reply.answer_source === "no_context",
           suggestedAction: reply.suggested_action,
+          procedureOptions:
+            reply.intent === "disambiguation" ? reply.options ?? [] : undefined,
         },
       ]);
+      if (
+        (reply.intent === "form_generation" || reply.intent === "form_review") &&
+        reply.checklist_item_id != null &&
+        reply.form_schema
+      ) {
+        let itemName = selectedProcedure?.task_name ?? activeForm?.itemName;
+        if (!itemName) {
+          try {
+            const checklist = await api.getChecklist(userId);
+            itemName = checklist.items.find(
+              (item) => item.id === reply.checklist_item_id,
+            )?.task_name;
+          } catch {
+            // Tên chỉ là nhãn hiển thị; lỗi tải checklist không được làm mất
+            // state của luồng form đang diễn ra.
+          }
+        }
+        const nextForm: ActiveFormFlow = {
+          checklistItemId: reply.checklist_item_id,
+          checklist_item_id: reply.checklist_item_id,
+          itemName: itemName ?? "Hồ sơ thủ tục",
+          schema: reply.form_schema,
+          initialData: reply.form_data ?? {},
+          form_data: reply.form_data ?? {},
+        };
+        setActiveForm(nextForm);
+        setFormReview(reply.intent === "form_review" ? nextForm : null);
+      } else if (reply.intent === "disambiguation" || reply.intent === "qa") {
+        setActiveForm(null);
+        setFormReview(null);
+      }
       // Lần gửi đầu của hội thoại mới: đây là lúc backend chính thức sinh ra
       // `conversation_id` — mọi câu hỏi sau đó trong phiên này gửi kèm id
       // này để AI hiểu ngữ cảnh (rewrite_query).
-      setConversationId(reply.conversation_id);
+      if (reply.conversation_id) setConversationId(reply.conversation_id);
       loadConversations(); // cập nhật preview/số lượt/thứ tự mới nhất ở sidebar
     } catch {
       setMessages((prev) => [
@@ -440,6 +509,23 @@ function ChatPageContent() {
                             />
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {message.procedureOptions && message.procedureOptions.length > 0 && (
+                      <div className="mt-3 grid gap-2 border-t border-dashed border-border pt-3">
+                        {message.procedureOptions.map((option, index) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => send(option.task_name)}
+                            disabled={sending || loadingMessages}
+                            className="flex items-center justify-between rounded-xl border border-gold/40 bg-surface px-3.5 py-2.5 text-left text-xs font-medium text-ink transition hover:border-gold hover:text-gold disabled:opacity-50"
+                          >
+                            <span>{index + 1}. {option.task_name}</span>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -565,6 +651,28 @@ function ChatPageContent() {
 
       {openSource && (
         <SourceModal source={openSource} onClose={() => setOpenSource(null)} />
+      )}
+      {formReview && (
+        <FormReviewDialog
+          schema={formReview.schema}
+          initialData={formReview.initialData}
+          itemName={formReview.itemName}
+          userId={userId}
+          checklistItemId={formReview.checklistItemId}
+          onBack={() => setFormReview(null)}
+          onSubmitted={() => {
+            setFormReview(null);
+            setActiveForm(null);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: prev.length + 1,
+                role: "assistant",
+                text: "Hồ sơ đã được gửi đến Ban quản lý. Bạn có thể theo dõi tiến độ ở mục Việc cần làm.",
+              },
+            ]);
+          }}
+        />
       )}
     </Layout>
   );

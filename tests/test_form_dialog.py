@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.ai import form_dialog
+from src.ai.intent import ProcedureMatch
 from src.models.db import Base, ChecklistItem
 from src.models.schemas import AttachmentSpecSchema, FormFieldSchema, FormSchemaPayload
 
@@ -134,6 +135,36 @@ def test_khong_doan_bua_truong_chu_tu_do():
 
 
 # --- Trọn một luồng ------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_disambiguation_tra_lai_lua_chon_co_cau_truc(db_session, monkeypatch):
+    items = db_session.query(ChecklistItem).all()
+    second = ChecklistItem(
+        task_name="Làm thẻ cư dân",
+        item_type="bql_actionable",
+        form_schema=VEHICLE_FORM.model_dump(),
+    )
+    db_session.add(second)
+    db_session.commit()
+    options = [items[0], second]
+
+    async def ambiguous_match(_message, _db):
+        return ProcedureMatch(
+            item=None,
+            confidence="low",
+            ambiguous=True,
+            disambiguation_options=options,
+        )
+
+    monkeypatch.setattr(form_dialog, "detect_procedure_intent", ambiguous_match)
+    turn = await form_dialog.run_form_turn(db_session, "Tôi muốn làm thẻ", None, None)
+
+    assert turn.intent == "disambiguation"
+    assert [item.task_name for item in turn.options] == [
+        "Đăng ký thẻ xe",
+        "Làm thẻ cư dân",
+    ]
 
 
 @pytest.mark.asyncio

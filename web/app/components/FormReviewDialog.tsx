@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { Check, Loader2, Paperclip, ShieldAlert, X } from "lucide-react";
-import { api, ApiError, type Application, type ApplicationFormData, type FormSchema } from "../../lib/api";
+import { api, ApiError, type Application, type ApplicationFormData, type DocumentType, type FormSchema } from "../../lib/api";
 import { useToast } from "./Toast";
 
 interface FormReviewDialogProps {
@@ -28,7 +28,7 @@ export default function FormReviewDialog({
 }: FormReviewDialogProps) {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
-  const pendingCodeRef = useRef<string | undefined>(undefined);
+  const pendingCodeRef = useRef<DocumentType | undefined>(undefined);
 
   // Phase 1: form editing
   const [values, setValues] = useState<ApplicationFormData>(
@@ -53,7 +53,7 @@ export default function FormReviewDialog({
     requiredAttachments.length === 0 ||
     requiredAttachments.every((a) => uploadedCodes.has(a.code));
 
-  const handlePickFile = (code: string) => {
+  const handlePickFile = (code: DocumentType) => {
     pendingCodeRef.current = code;
     inputRef.current?.click();
   };
@@ -76,7 +76,7 @@ export default function FormReviewDialog({
 
     setUploading(true);
     try {
-      await api.uploadAttachment(userId, application.application_id, file, code as any);
+      await api.uploadAttachment(userId, application.application_id, file, code);
       setUploadedCodes((prev) => new Set([...prev, code]));
       toast.show("Đã tải lên giấy tờ");
     } catch (err) {
@@ -109,10 +109,9 @@ export default function FormReviewDialog({
       );
       setApplication(app);
       toast.show("Đã tạo hồ sơ");
-    } catch (e: any) {
-      if (e?.status === 422) {
-        const detail = e?.data?.detail;
-        setFormErrors(Array.isArray(detail) ? detail : [detail ?? "Lỗi xác thực"]);
+    } catch (error: unknown) {
+      if (error instanceof ApiError && error.status === 422) {
+        setFormErrors([error.message || "Thông tin chưa hợp lệ"]);
       } else {
         toast.show("Không tạo được hồ sơ lúc này", "error");
       }

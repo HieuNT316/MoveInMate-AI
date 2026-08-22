@@ -280,6 +280,13 @@ class SuggestedAction(BaseModel):
     checklist_item_id: int | None = None
 
 
+class ProcedureOption(BaseModel):
+    """Một thủ tục để FE hiển thị khi AI cần cư dân chọn lại."""
+
+    id: int
+    task_name: str
+
+
 class ChatResponse(BaseModel):
     """US-05 — câu trả lời kèm nguồn.
 
@@ -320,6 +327,10 @@ class ChatResponse(BaseModel):
     form_data: dict[str, str] | None = Field(
         default=None,
         description="Các trường AI đã thu được — gửi lại nguyên vẹn ở lượt sau.",
+    )
+    options: list[ProcedureOption] = Field(
+        default_factory=list,
+        description="Các thủ tục có thể chọn khi intent là disambiguation.",
     )
 
 

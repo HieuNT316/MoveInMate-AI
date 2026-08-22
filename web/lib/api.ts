@@ -122,6 +122,23 @@ export type ChatAnswer = {
   /** Hội thoại vừa hỏi thuộc về — gửi lại đúng id này ở câu hỏi tiếp theo
    * (`sendChat(userId, message, conversationId)`) để AI hiểu ngữ cảnh. */
   conversation_id: string;
+  /** AI form-generation flow. Các field này chỉ có khi backend phát hiện
+   * người dùng muốn bắt đầu một thủ tục hoặc cần chọn giữa nhiều thủ tục. */
+  intent?: "qa" | "form_generation" | "form_review" | "disambiguation" | null;
+  checklist_item_id?: number | null;
+  form_schema?: FormSchema | null;
+  form_data?: ApplicationFormData | null;
+  options?: ProcedureOption[];
+};
+
+export type ProcedureOption = {
+  id: number;
+  task_name: string;
+};
+
+export type ChatFormState = {
+  checklist_item_id: number;
+  form_data: ApplicationFormData;
 };
 
 /** Một lượt hỏi đáp đã lưu, thuộc về đúng một hội thoại. */
@@ -257,7 +274,7 @@ export type FormField = {
 };
 
 export type AttachmentSpec = {
-  code: string;
+  code: DocumentType;
   label: string;
   required: boolean;
 };
@@ -488,10 +505,20 @@ export const api = {
   /** Bỏ trống `conversationId` để bắt đầu hội thoại mới; truyền lại giá trị
    * từ `ChatAnswer.conversation_id` trước đó để AI hiểu ngữ cảnh câu hỏi
    * tiếp nối (vd "còn phí thì sao?"). */
-  sendChat: (userId: number, message: string, conversationId?: string) =>
+  sendChat: (
+    userId: number,
+    message: string,
+    conversationId?: string,
+    formState?: ChatFormState,
+  ) =>
     request<ChatAnswer>("/chat", userId, {
       method: "POST",
-      body: JSON.stringify({ message, conversation_id: conversationId ?? null }),
+      body: JSON.stringify({
+        message,
+        conversation_id: conversationId ?? null,
+        checklist_item_id: formState?.checklist_item_id ?? null,
+        form_data: formState?.form_data ?? null,
+      }),
     }),
 
   /** US-07 — danh sách hội thoại đã lưu. Backend lọc theo `user_id` xác
