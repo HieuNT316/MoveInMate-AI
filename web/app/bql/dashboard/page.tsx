@@ -15,6 +15,8 @@ import {
 
 import { api, describeError, type Dashboard, type ResidentProgress } from "../../../lib/api";
 import { useDemoUser } from "../../../lib/useDemoUser";
+import EmptyState from "../../components/EmptyState";
+import ErrorState from "../../components/ErrorState";
 
 const ATTENTION_THRESHOLD = 30;
 
@@ -37,11 +39,7 @@ export default function BQLDashboardPage() {
   }, [ready, load]);
 
   if (error) {
-    return (
-      <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-        {error}
-      </p>
-    );
+    return <ErrorState message={error} onRetry={load} />;
   }
 
   if (!dashboard) {
@@ -54,6 +52,7 @@ export default function BQLDashboardPage() {
   }
 
   const { total_residents } = dashboard;
+  if (total_residents === 0) return <EmptyState icon={UserRound} title="Chưa có cư dân" description="Hãy tạo tài khoản cư dân để bắt đầu theo dõi tiến độ nhận nhà." />;
   const avgPercent = dashboard.residents.length
     ? Math.round(
         dashboard.residents.reduce((sum, r) => sum + r.bql_scope.percent, 0) /

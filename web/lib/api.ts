@@ -208,6 +208,16 @@ export type Attachment = {
   document_type?: DocumentType | null;
 };
 
+export type EmbedStatus = "pending" | "processing" | "ready" | "failed";
+
+export type AdminDocument = {
+  document_id: number;
+  title: string;
+  file_path: string;
+  embed_status: EmbedStatus;
+  uploaded_at: string;
+};
+
 export type Application = {
   application_id: number;
   checklist_item_id: number;
@@ -582,6 +592,13 @@ export const api = {
     );
   },
 
+  /** URL ký chỉ được lấy khi người dùng bấm mở; không gọi trước cho danh sách. */
+  getAttachmentUrl: (userId: number, applicationId: number, attachmentId: number) =>
+    request<{ url: string }>(
+      `/applications/${applicationId}/attachments/${attachmentId}/url`,
+      userId,
+    ),
+
   /** BQL xem hồ sơ của mọi cư dân. `status`/`department` là bộ lọc tuỳ chọn
    * — bỏ trống để lấy tất cả. Yêu cầu role admin, backend tự chặn 403. */
   getAdminApplications: (
@@ -605,6 +622,15 @@ export const api = {
   ) =>
     request<Application>(`/admin/applications/${applicationId}`, userId, {
       method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  getAdminDocuments: (userId: number) =>
+    request<AdminDocument[]>("/admin/documents", userId),
+
+  createAdminDocument: (userId: number, payload: { title: string; content: string }) =>
+    request<AdminDocument>("/admin/documents", userId, {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
 };

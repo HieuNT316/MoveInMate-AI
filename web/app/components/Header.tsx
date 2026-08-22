@@ -10,7 +10,8 @@ const titles: Record<string, { title: string; subtitle: string }> = {
     title: "Việc cần làm",
     subtitle: "Theo dõi các thủ tục và hoàn thành từng bước nhận nhà",
   },
-  "/profile": { title: "Hồ sơ", subtitle: "Thông tin cư dân" },
+  "/profile": { title: "Tài khoản", subtitle: "Thông tin cá nhân, căn hộ và bảo mật" },
+  "/documents": { title: "Hồ sơ", subtitle: "Quản lý hồ sơ và giấy tờ bạn đã nộp" },
   "/onboarding": {
     title: "Thiết lập hồ sơ",
     subtitle: "Cho chúng tôi biết về căn hộ của bạn",

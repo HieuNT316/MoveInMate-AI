@@ -16,6 +16,8 @@ import {
   Loader2,
   MapPin,
   MessageSquarePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Scale,
   Send,
   ThumbsDown,
@@ -191,8 +193,18 @@ function ChatPageContent() {
   // mọi chip trong mọi bong bóng, không cần state riêng theo từng chip.
   const [openSource, setOpenSource] = useState<Source | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const continuedRef = useRef(false);
+
+  useEffect(() => {
+    setHistoryOpen(window.localStorage.getItem("moveinmate.chat-history-open") !== "0");
+  }, []);
+
+  const setHistoryVisibility = (open: boolean) => {
+    setHistoryOpen(open);
+    window.localStorage.setItem("moveinmate.chat-history-open", open ? "1" : "0");
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -327,15 +339,24 @@ function ChatPageContent() {
   };
 
   return (
-    <Layout>
-      <div className="flex gap-4">
-        <ConversationSidebar
-          conversations={conversations}
-          activeId={conversationId}
-          loading={loadingConversations}
-          onSelect={openConversation}
-          onNew={startNewConversation}
-        />
+    <Layout wide>
+      <div className="flex gap-5">
+        <div className="hidden shrink-0 2xl:flex">
+          {historyOpen ? (
+            <ConversationSidebar
+              conversations={conversations}
+              activeId={conversationId}
+              loading={loadingConversations}
+              onSelect={openConversation}
+              onNew={startNewConversation}
+              onCollapse={() => setHistoryVisibility(false)}
+            />
+          ) : (
+            <button type="button" onClick={() => setHistoryVisibility(true)} title="Mở lịch sử chat" aria-label="Mở lịch sử chat" className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-white text-muted shadow-sm hover:border-blue-300 hover:text-blue-600">
+              <PanelLeftOpen className="h-5 w-5" />
+            </button>
+          )}
+        </div>
 
         <div className="flex h-[calc(100dvh-13rem)] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-[0_22px_52px_-34px_rgba(0,45,98,0.55)] ring-1 ring-border/50 lg:h-[calc(100vh-9rem)]">
           <div className="flex items-center gap-3 border-b border-border px-6 py-4">
@@ -388,7 +409,7 @@ function ChatPageContent() {
                 key={message.id}
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div className="max-w-lg">
+                <div className="max-w-[min(46rem,88%)]">
                   <div
                     className={`rounded-2xl px-5 py-3.5 ${
                       message.role === "user"
@@ -559,23 +580,22 @@ function ConversationSidebar({
   loading,
   onSelect,
   onNew,
+  onCollapse,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
   loading: boolean;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onCollapse: () => void;
 }) {
   return (
-    <div className="hidden w-44 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50 xl:flex">
+    <div className="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-white/90 bg-surface/95 shadow-soft ring-1 ring-border/50">
       <div className="border-b border-border p-3">
-        <button
-          onClick={onNew}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-ink transition hover:border-gold/50 hover:text-gold"
-        >
-          <MessageSquarePlus className="h-4 w-4" strokeWidth={1.75} />
-          Câu hỏi mới
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onNew} className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-medium text-ink transition hover:border-gold/50 hover:text-gold"><MessageSquarePlus className="h-4 w-4" strokeWidth={1.75} />Câu hỏi mới</button>
+          <button type="button" onClick={onCollapse} title="Đóng lịch sử chat" aria-label="Đóng lịch sử chat" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-muted hover:text-blue-600"><PanelLeftClose className="h-4 w-4" /></button>
+        </div>
         <p className="mt-3 px-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Lịch sử hỗ trợ</p>
       </div>
 
@@ -604,7 +624,7 @@ function ConversationSidebar({
                   : "text-ink hover:bg-background"
               }`}
             >
-              <p className="truncate">{conv.preview}</p>
+              <p className="line-clamp-2 leading-5">{conv.preview}</p>
               <p
                 className={`mt-0.5 text-[11px] ${
                   conv.conversation_id === activeId ? "text-white/75" : "text-muted"
@@ -911,8 +931,9 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
           </div>
         </div>
 
-        <div className="mt-4 max-h-64 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
-          <p className="text-[13px] leading-relaxed text-ink/90">{source.snippet}</p>
+        <div className="mt-4 max-h-72 overflow-y-auto rounded-xl border border-border bg-background px-4 py-3.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Đoạn trích liên quan</p>
+          <SourceSnippet text={source.snippet} />
         </div>
 
         <button
@@ -926,5 +947,32 @@ function SourceModal({ source, onClose }: { source: Source; onClose: () => void 
         </button>
       </div>
     </div>
+  );
+}
+
+/** Backend nén whitespace của snippet thành một dòng. Khôi phục các ý có
+ * dấu gạch đầu dòng để modal nguồn không biến danh sách giấy tờ thành một
+ * đoạn văn khó đọc. Dấu … cuối chuỗi vẫn phản ánh giới hạn snippet backend. */
+function SourceSnippet({ text }: { text: string }) {
+  const normalized = text.trim();
+  const parts = normalized
+    .replace(/^[-–—]\s*/, "")
+    .split(/\s+[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return <p className="whitespace-pre-line text-[13px] leading-6 text-ink/90">{normalized}</p>;
+  }
+
+  return (
+    <ul className="space-y-2 text-[13px] leading-6 text-ink/90">
+      {parts.map((part, index) => (
+        <li key={`${index}-${part.slice(0, 16)}`} className="flex items-start gap-2">
+          <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+          <span>{part}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

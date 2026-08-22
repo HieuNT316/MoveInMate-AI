@@ -21,6 +21,11 @@ import { api, type Application, type Checklist, type ChecklistItem } from "../..
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
 import { SELF_DECLARED_DOCUMENT, submitActionLabel } from "../../lib/applicationForms";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import Pagination from "../components/Pagination";
+
+const PAGE_SIZE = 5;
 
 export default function ChecklistPage() {
   return (
@@ -43,6 +48,7 @@ function ChecklistContent() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [submittingFor, setSubmittingFor] = useState<ChecklistItem | null>(null);
+  const [page, setPage] = useState(1);
 
   // Đích tới từ nút "Đến mục này" trong chat (SuggestedAction) — cuộn và
   // đánh dấu đúng mục một lần sau khi checklist tải xong.
@@ -80,13 +86,19 @@ function ChecklistContent() {
 
   useEffect(() => {
     if (!data || !highlightId) return;
+    const itemIndex = data.items.findIndex((item) => item.id === highlightId);
+    const targetPage = itemIndex >= 0 ? Math.floor(itemIndex / PAGE_SIZE) + 1 : page;
+    if (targetPage !== page) {
+      setPage(targetPage);
+      return;
+    }
     const el = document.getElementById(`checklist-item-${highlightId}`);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     setHighlighted(highlightId);
     const timer = setTimeout(() => setHighlighted(null), 2500);
     return () => clearTimeout(timer);
-  }, [data, highlightId]);
+  }, [data, highlightId, page]);
 
   const toggle = async (itemId: number, completed: boolean) => {
     setPending(itemId);
@@ -104,9 +116,7 @@ function ChecklistContent() {
   if (error) {
     return (
       <Layout>
-        <p className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {error}
-        </p>
+        <ErrorState message={error} onRetry={load} />
       </Layout>
     );
   }
@@ -123,6 +133,9 @@ function ChecklistContent() {
   }
 
   const { items, overall, bql_scope } = data;
+  if (items.length === 0) return <Layout><EmptyState title="Chưa có việc cần làm" description="Checklist sẽ được tạo theo thông tin căn hộ và nhu cầu bạn đã khai báo." /></Layout>;
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const paginatedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Mỗi mục chỉ có MỘT hồ sơ đang mở — `applications` trả mới nhất trước nên
   // giữ bản ghi đầu tiên gặp cho mỗi `checklist_item_id` là đủ, không cần lọc
@@ -181,7 +194,7 @@ function ChecklistContent() {
           </h2>
 
           <div className="space-y-3">
-            {items.map((item) => {
+            {paginatedItems.map((item) => {
               const external = item.item_type === "third_party_info";
               // Cập nhật 15/08 (CONTRACT_US13.md mục 2): mọi mục đều nộp
               // được — backend tự gắn kind theo item_type (routes.py), mục
@@ -321,6 +334,7 @@ function ChecklistContent() {
               );
             })}
           </div>
+          <Pagination page={page} pageCount={pageCount} onChange={(nextPage) => { setPage(nextPage); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         </div>
       </div>
 

@@ -4,7 +4,6 @@ import {
   Inbox,
   LayoutDashboard,
   Users,
-  UserRound,
   FileText,
   type LucideIcon,
 } from "lucide-react";
@@ -22,7 +21,7 @@ export const RESIDENT_NAV: NavItem[] = [
   { title: "Trang chủ", icon: LayoutDashboard, href: "/dashboard" },
   { title: "Trợ lý AI", icon: Bot, href: "/chat" },
   { title: "Việc cần làm", icon: ClipboardList, href: "/checklist" },
-  { title: "Hồ sơ", icon: UserRound, href: "/profile" },
+  { title: "Hồ sơ", icon: FileText, href: "/documents" },
 ];
 
 export const BQL_NAV: NavItem[] = [

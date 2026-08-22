@@ -29,7 +29,7 @@ export default function ChatContextPanel({
   const topItems = checklist?.items.slice(0, 5) ?? [];
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col gap-3 overflow-y-auto xl:flex">
+    <aside className="hidden w-64 shrink-0 flex-col gap-3 overflow-y-auto 2xl:flex">
       {checklist && (
         <div className="rounded-2xl border border-white/90 bg-surface/95 p-5 shadow-soft ring-1 ring-border/50">
           <div className="flex items-center justify-between">

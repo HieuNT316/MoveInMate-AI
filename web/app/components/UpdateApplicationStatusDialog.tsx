@@ -41,9 +41,10 @@ export default function UpdateApplicationStatusDialog({
   const [bqlNote, setBqlNote] = useState(application.bql_note ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasChanges = status !== application.status || bqlNote.trim() !== (application.bql_note ?? "").trim();
 
   const submit = async () => {
-    if (saving) return;
+    if (saving || !hasChanges) return;
     setSaving(true);
     setError(null);
     try {
@@ -72,7 +73,7 @@ export default function UpdateApplicationStatusDialog({
       <div className="w-full max-w-md rounded-2xl border border-[#B6C4D6] bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[#1E293B]">
-            Cập nhật trạng thái
+            Xác nhận cập nhật trạng thái
           </h3>
           <button
             onClick={onClose}
@@ -124,11 +125,11 @@ export default function UpdateApplicationStatusDialog({
 
         <button
           onClick={submit}
-          disabled={saving}
+          disabled={saving || !hasChanges}
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563EB] py-3 text-sm font-medium text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          {saving ? "Đang lưu..." : "Lưu"}
+          {saving ? "Đang lưu..." : hasChanges ? "Xác nhận thay đổi" : "Chưa có thay đổi"}
         </button>
       </div>
     </div>

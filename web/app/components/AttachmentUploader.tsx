@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, FileText, Loader2, Paperclip } from "lucide-react";
+import { Check, Eye, FileText, Loader2, Paperclip } from "lucide-react";
 
 import { api, ApiError, type Attachment, type DocumentType, type RequiredDocument } from "../../lib/api";
 import { useToast } from "./Toast";
+import AttachmentPreviewModal from "./AttachmentPreviewModal";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -49,6 +50,7 @@ export default function AttachmentUploader({
   const pendingSlotRef = useRef<DocumentType | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<Attachment | null>(null);
 
   const pick = (slotCode?: DocumentType) => {
     pendingSlotRef.current = slotCode;
@@ -138,15 +140,10 @@ export default function AttachmentUploader({
                     </span>
                   )}
 
-                  {att && att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-w-0 flex-1 truncate underline decoration-dotted hover:text-gold"
-                    >
-                      {doc.label}
-                    </a>
+                  {att ? (
+                    <button type="button" onClick={() => setPreviewing(att)} className="flex min-w-0 flex-1 items-center gap-1 truncate text-left underline decoration-dotted hover:text-gold">
+                      <span className="truncate">{doc.label}</span><Eye className="h-3 w-3" />
+                    </button>
                   ) : (
                     <span className="min-w-0 flex-1 truncate">{doc.label}</span>
                   )}
@@ -187,18 +184,7 @@ export default function AttachmentUploader({
                   className="flex items-center gap-1.5 text-[11px] text-muted"
                 >
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-                  {att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-ink/85 underline decoration-dotted hover:text-gold"
-                    >
-                      {att.filename}
-                    </a>
-                  ) : (
-                    <span className="truncate">{att.filename}</span>
-                  )}
+                  <button type="button" onClick={() => setPreviewing(att)} className="truncate text-ink/85 underline decoration-dotted hover:text-gold">{att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
                 </li>
               ))}
@@ -215,18 +201,7 @@ export default function AttachmentUploader({
                   className="flex items-center gap-1.5 text-[11px] text-muted"
                 >
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
-                  {att.url ? (
-                    <a
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-ink/85 underline decoration-dotted hover:text-gold"
-                    >
-                      {att.filename}
-                    </a>
-                  ) : (
-                    <span className="truncate">{att.filename}</span>
-                  )}
+                  <button type="button" onClick={() => setPreviewing(att)} className="truncate text-ink/85 underline decoration-dotted hover:text-gold">{att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
                 </li>
               ))}
@@ -268,6 +243,7 @@ export default function AttachmentUploader({
       />
 
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+      {previewing && <AttachmentPreviewModal userId={userId} applicationId={applicationId} attachment={previewing} onClose={() => setPreviewing(null)} />}
     </div>
   );
 }
