@@ -26,8 +26,8 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
-from src.ai.form_extraction import extract_form_fields
-from src.ai.intent import detect_procedure_intent
+from src.ai import form_dialog
+from src.ai.intent import wants_to_act
 from src.api.deps import get_current_user, require_admin, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
@@ -80,28 +80,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# --- Form generation helpers ----------------------------------------------
-
-
-def _build_form_confirmation(
-    schema: FormSchemaPayload, extracted: dict[str, str], task_name: str
-) -> str:
-    lines = [f"Đây là hồ sơ của bạn cho **{task_name}**:", ""]
-    for field in schema.fields:
-        value = extracted.get(field.key, "—")
-        lines.append(f"- **{field.label}**: {value}")
-    lines.append("")
-    lines.append(
-        "Đúng không? Bạn có thể sửa trực tiếp trên form hoặc nhắn tôi để cập nhật."
-    )
-    return "\n".join(lines)
-
-
-def _build_disambiguation_message(options: list[dict[str, Any]]) -> str:
-    lines = ["Có nhiều thủ tục phù hợp. Bạn muốn:"]
-    for i, opt in enumerate(options[:4], 1):
-        lines.append(f"{i}. {opt.get('task_name', 'không tên')}")
-    return "\n".join(lines)
+# Câu chữ của luồng điền hồ sơ nằm ở `src/ai/form_dialog.py` (vai AI giữ phần
+# soạn lời), không dựng ở đây nữa.
 
 
 # --- Đăng nhập ----------------------------------------------------------
@@ -270,12 +250,12 @@ async def set_checklist_item(
     return _build_checklist(db, user)
 
 
-@router.get("/checklist/{item_id}/form-schema")
+@router.get("/checklist/{item_id}/form-schema", response_model=FormSchemaPayload)
 async def get_checklist_item_form_schema(
     item_id: int,
     user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
-):
+) -> Any:
     """AI Form Generation (task 5) — lấy schema form cho một mục checklist.
 
     Trả JSONB form_schema nếu có; 404 nếu mục không tồn tại HOẶC không có form.
@@ -565,24 +545,11 @@ def _strip_action_prefix(text: str) -> str:
 # Ranh giới mà tool của vai AI cố ý giữ: "cần giấy tờ gì" là câu hỏi THÔNG TIN
 # (trả lời bằng chữ là đủ), "cho tôi nộp" là ý định HÀNH ĐỘNG (mới gắn nút).
 #
-# Phải có cả hai danh sách. Chỉ bắt động từ hành động là chưa đủ: "Làm thẻ xe
-# cần giấy tờ gì?" có "làm thẻ" nhưng đuôi câu cho thấy người ta chỉ đang hỏi.
-_ACTION_MARKERS = (
-    "nop ", "nop ho so", "dan toi", "dua toi", "cho toi nop", "giup toi nop",
-    "toi muon lam", "toi muon dang ky", "muon nop", "can nop", "toi nop",
-)
-_INFO_TAILS = (
-    "can giay to gi", "can gi", "gom nhung gi", "gom gi", "la gi",
-    "bao nhieu", "the nao", "ra sao", "mat bao lau", "khi nao", "thu tuc gi",
-)
-
-
-def _wants_to_act(question: str) -> bool:
-    """True khi câu hỏi là ý định LÀM thủ tục, không phải hỏi về nó."""
-    normalized = _normalize(question)
-    if any(tail in normalized for tail in _INFO_TAILS):
-        return False
-    return any(marker in normalized for marker in _ACTION_MARKERS)
+# Vốn từ nhận ý định chuyển về `src/ai/intent.py` (vai AI) ngày 22/08 và import
+# lại từ đó — luồng điền hồ sơ dùng chung đúng ranh giới này. Giữ hai bản sao ở
+# hai file thì một hôm sửa một bên là nút điều hướng và luồng form hiểu cùng
+# một câu theo hai kiểu khác nhau.
+_wants_to_act = wants_to_act
 
 
 def _core_name(text: str) -> str:
@@ -655,32 +622,36 @@ async def chat(
         history = []
         conversation_id = uuid.uuid4()
 
-    # AI Form Generation (task 7) — intent detection + form extraction.
-    # Chạy trước RAG để khớp procedure ngay khi người dùng nhắn muốn nộp hồ sơ.
-    if not payload.checklist_item_id:
-        match = detect_procedure_intent(payload.message, db)
-        if match.item:
-            schema = store.get_form_schema(db, match.item.id)
-            if schema:
-                # Build history from stored messages
-                msg_history = [{"role": "user", "content": turn["question"]} for turn in history]
-                extracted = extract_form_fields(schema, msg_history)
-                return {
-                    "answer": _build_form_confirmation(
-                        schema, extracted, match.item.task_name
-                    ),
-                    "intent": "form_generation",
-                    "checklist_item_id": match.item.id,
-                    "form_schema": schema.model_dump(),
-                    "form_data": extracted,
-                }
-        elif match.ambiguous:
-            return {
-                "answer": _build_disambiguation_message(
-                    [{"task_name": o.task_name} for o in match.disambiguation_options]
-                ),
-                "intent": "disambiguation",
-            }
+    # AI dẫn dắt điền hồ sơ — chạy TRƯỚC RAG để giữ lượt khi cư dân đang khai
+    # thông tin. Trả None nghĩa là câu này không thuộc luồng form và RAG xử lý
+    # tiếp như cũ; toàn bộ phần quyết định nằm ở `src/ai/form_dialog.py`.
+    form_turn = await form_dialog.run_form_turn(
+        db, payload.message, payload.checklist_item_id, payload.form_data
+    )
+    if form_turn is not None:
+        form_result: dict[str, Any] = {
+            "answer": form_turn.answer,
+            # Lượt điền form không truy xuất tài liệu nên không có nguồn để
+            # trích. Dùng `no_context` thay vì thêm giá trị mới vào
+            # `AnswerSource` — cột `chat_history.answer_source` là SAEnum có
+            # ràng buộc, thêm giá trị là phải migrate. FE phân biệt bằng
+            # `intent`, không bằng `answer_source`.
+            "answer_source": "no_context",
+            "conversation_id": conversation_id,
+            "intent": form_turn.intent,
+            "checklist_item_id": form_turn.checklist_item_id,
+            "form_schema": form_turn.form_schema.model_dump() if form_turn.form_schema else None,
+            "form_data": form_turn.form_data,
+        }
+        # Ghi vào lịch sử như mọi lượt khác: thiếu bước này thì hội thoại điền
+        # hồ sơ biến mất khỏi `/chat/conversations` và cư dân mở lại thấy trống.
+        store.add_chat(
+            db,
+            user["user_id"],
+            conversation_id,
+            {"question": payload.message, "answer": form_turn.answer, "answer_source": "no_context"},
+        )
+        return form_result
 
     settings = get_settings()
     recent_turns = [

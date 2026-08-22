@@ -4,6 +4,8 @@ Người dùng seed sẵn: 1 = BQL, 2 = chủ hộ đã onboarding, 3 = người
 onboarding.
 """
 
+import uuid
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -1820,3 +1822,108 @@ async def test_get_form_schema_null(client, db_session):
     ).first()
     res = await client.get(f"/api/v1/checklist/{item.checklist_item_id}/form-schema", headers=OWNER)
     assert res.status_code == 404
+
+
+# --- AI dẫn dắt điền hồ sơ, đi qua HTTP thật (22/08) --------------------
+#
+# Ba bug lọt tới nhánh này (`ChatRequest` thiếu `checklist_item_id`, dùng
+# `item.id` thay `item.checklist_item_id`, phản hồi thiếu trường bắt buộc của
+# `ChatResponse`) đều là loại chỉ lộ ra khi gọi thật qua HTTP — unit test gọi
+# thẳng hàm không đụng tới lớp Pydantic. Giữ ít nhất một luồng trọn vẹn ở đây.
+
+
+@pytest.fixture
+def vehicle_form(db_session):
+    """Gắn `form_schema` vào một thủ tục có thật trong seed."""
+    from src.models.db import ChecklistItem
+
+    item = db_session.query(ChecklistItem).filter(
+        ChecklistItem.task_name == "Đăng ký thẻ xe"
+    ).one()
+    item.form_schema = {
+        "fields": [
+            {"key": "vehicle_type", "label": "Loại phương tiện", "type": "select",
+             "options": ["Ô tô", "Xe máy"], "required": True,
+             "question": "Bạn đăng ký thẻ xe gì?"},
+            {"key": "plate", "label": "Biển số xe", "type": "text", "required": True,
+             "question": "Biển số xe của bạn là gì?", "pattern": r"^[0-9A-Z\-\.]{5,15}$"},
+        ],
+        "attachments": [],
+    }
+    db_session.commit()
+    return item
+
+
+@pytest.mark.asyncio
+async def test_luong_dien_ho_so_qua_http(client, fake_chat_graph, vehicle_form):
+    """AI hỏi từng trường, FE chỉ việc gửi lại state — không cần nhớ gì ở server."""
+    first = (await client.post(
+        "/api/v1/chat",
+        json={"message": "Tôi muốn đăng ký thẻ xe"},
+        headers=OWNER,
+    )).json()
+
+    assert first["intent"] == "form_generation"
+    assert first["checklist_item_id"] == vehicle_form.checklist_item_id
+    assert "Bạn đăng ký thẻ xe gì?" in first["answer"]
+    assert first["form_schema"]["fields"][0]["key"] == "vehicle_type"
+    assert first["sources"] == [], "lượt điền form không truy xuất tài liệu nên không có nguồn"
+
+    second = (await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "ô tô",
+            "checklist_item_id": first["checklist_item_id"],
+            "form_data": first["form_data"],
+            "conversation_id": first["conversation_id"],
+        },
+        headers=OWNER,
+    )).json()
+
+    assert second["form_data"]["vehicle_type"] == "Ô tô"
+    assert "Biển số xe của bạn là gì?" in second["answer"]
+
+    third = (await client.post(
+        "/api/v1/chat",
+        json={
+            "message": "30A-123.45",
+            "checklist_item_id": second["checklist_item_id"],
+            "form_data": second["form_data"],
+            "conversation_id": second["conversation_id"],
+        },
+        headers=OWNER,
+    )).json()
+
+    assert third["intent"] == "form_review"
+    assert third["form_data"] == {"vehicle_type": "Ô tô", "plate": "30A-123.45"}
+
+
+@pytest.mark.asyncio
+async def test_cau_hoi_thong_tin_van_di_duong_rag(client, fake_chat_graph, vehicle_form):
+    """Hồi quy quan trọng nhất: có `form_schema` rồi thì câu hỏi thường vẫn phải
+    được RAG trả lời kèm nguồn, không bị nuốt vào luồng điền form."""
+    data = (await client.post(
+        "/api/v1/chat",
+        json={"message": "Đăng ký thẻ xe cần giấy tờ gì?"},
+        headers=OWNER,
+    )).json()
+
+    assert data["intent"] == "qa"
+    assert data["answer_source"] == "rag"
+    assert data["sources"], "US-05 đòi câu trả lời phải kèm nguồn trích dẫn"
+
+
+@pytest.mark.asyncio
+async def test_luot_dien_form_van_vao_lich_su_hoi_thoai(
+    client, fake_chat_graph, vehicle_form, db_session
+):
+    """Thiếu bước ghi lịch sử thì hội thoại điền hồ sơ biến mất khỏi danh sách."""
+    first = (await client.post(
+        "/api/v1/chat", json={"message": "Tôi muốn đăng ký thẻ xe"}, headers=OWNER
+    )).json()
+
+    rows = db_session.query(ChatHistory).filter(
+        ChatHistory.conversation_id == uuid.UUID(first["conversation_id"])
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].question == "Tôi muốn đăng ký thẻ xe"
