@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Loader2, Paperclip, ShieldAlert, X } from "lucide-react";
 import { api, ApiError, type Application, type ApplicationFormData, type DocumentType, type FormSchema } from "../../lib/api";
 import { useToast } from "./Toast";
@@ -53,6 +54,12 @@ export default function FormReviewDialog({
     requiredAttachments.length === 0 ||
     requiredAttachments.every((a) => uploadedCodes.has(a.code));
 
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
   const handlePickFile = (code: DocumentType) => {
     pendingCodeRef.current = code;
     inputRef.current?.click();
@@ -97,15 +104,10 @@ export default function FormReviewDialog({
     setSubmitting(true);
     setFormErrors([]);
     try {
-      const { currentAccessToken } = await import("../../lib/supabase");
-      const token = await currentAccessToken();
-      if (!token) throw new Error("No access token");
-
       const app = await api.submitApplicationWithFormData(
         userId,
         checklistItemId,
         values,
-        token,
       );
       setApplication(app);
       toast.show("Đã tạo hồ sơ");
@@ -121,10 +123,9 @@ export default function FormReviewDialog({
   };
 
   // Phase 2: Attachment upload after application created
-  if (application) {
-    return (
+  const dialog = application ? (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+        <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl">
           <div className="flex items-center justify-between">
             <h3 className="font-display text-lg font-semibold text-ink">
               Tải giấy tờ bổ sung
@@ -224,13 +225,9 @@ export default function FormReviewDialog({
           />
         </div>
       </div>
-    );
-  }
-
-  // Phase 1: Form fields
-  return (
+  ) : (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-ink">
             Xem lại thông tin đăng ký
@@ -339,4 +336,8 @@ export default function FormReviewDialog({
       </div>
     </div>
   );
+
+  // Portal ra ngoài `.page-content`: ancestor này có animation transform nên
+  // `position: fixed` bên trong nó bị neo theo trang đã cuộn, không theo viewport.
+  return createPortal(dialog, document.body);
 }

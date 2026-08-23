@@ -211,7 +211,7 @@ function ChatPageContent() {
   const [formReview, setFormReview] = useState<PendingFormReview | null>(null);
   const [activeForm, setActiveForm] = useState<ActiveFormFlow | null>(null);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const continuedRef = useRef(false);
 
   useEffect(() => {
@@ -224,7 +224,12 @@ function ChatPageContent() {
   };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // `scrollIntoView` cuộn tất cả ancestor có thể cuộn, gồm cả khung trang
+    // trong Layout. Khi lịch sử chat dài, nó kéo toàn bộ page xuống sâu và
+    // để lại một vùng trắng lớn. Chỉ cuộn đúng danh sách tin nhắn.
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
   const loadConversations = useCallback(async () => {
@@ -443,7 +448,7 @@ function ChatPageContent() {
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+          <div ref={messagesContainerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6">
             {loadingMessages && (
               <div className="flex items-center gap-2 text-sm text-muted">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -594,7 +599,6 @@ function ChatPageContent() {
               </div>
             )}
 
-            <div ref={bottomRef} />
           </div>
 
           <div className="border-t border-border bg-gradient-to-r from-white via-blue-50/25 to-cyan-50/25 p-4">
