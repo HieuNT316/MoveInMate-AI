@@ -387,6 +387,22 @@ class DashboardResponse(BaseModel):
     total_residents: int
 
 
+# --- Thông báo cư dân ---------------------------------------------------
+
+NotificationKind = Literal["onboarding", "checklist", "needs_info", "rejected"]
+
+
+class NotificationResponse(BaseModel):
+    """Thông báo hành động được tính trực tiếp từ trạng thái thật."""
+
+    id: str
+    kind: NotificationKind
+    title: str
+    message: str
+    href: str
+    action_label: str
+
+
 # --- Hồ sơ nộp trực tuyến (US-13) ---------------------------------------
 
 ApplicationStatus = Literal[

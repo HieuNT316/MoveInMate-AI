@@ -97,12 +97,7 @@ export default function SubmitApplicationDialog({
   useEffect(() => {
     async function fetchSchema() {
       try {
-        // Lấy token từ Supabase
-        const { currentAccessToken } = await import("../../lib/supabase");
-        const token = await currentAccessToken();
-        if (!token) return;
-
-        const schema = await api.getFormSchema(item.id, token);
+        const schema = await api.getFormSchema(userId, item.id);
         if (schema && schema.fields.length > 0) {
           setFormSchema(schema);
           // TODO: Gọi AI để trích xuất dữ liệu từ ảnh/chat (AI extraction sẽ làm ở task tiếp theo)
@@ -115,7 +110,7 @@ export default function SubmitApplicationDialog({
       }
     }
     fetchSchema();
-  }, [item.id]);
+  }, [item.id, userId]);
 
   const submit = async () => {
     if (saving || missingRequired) return;

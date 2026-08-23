@@ -1,7 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
+
+import { api, type Notification } from "../../lib/api";
+import { useDemoUser } from "../../lib/useDemoUser";
 
 const titles: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Trang chủ", subtitle: "Đây là tiến độ hành trình nhận nhà của bạn" },
@@ -33,6 +38,23 @@ const titles: Record<string, { title: string; subtitle: string }> = {
 export default function Header() {
   const pathname = usePathname();
   const current = titles[pathname] ?? { title: "MoveInMate AI", subtitle: "" };
+  const { userId, ready } = useDemoUser();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ready) return;
+    api.getNotifications(userId).then(setNotifications).catch(() => setNotifications([]));
+  }, [pathname, ready, userId]);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
 
   return (
     <header className="glass-header sticky top-0 z-10 flex h-16 items-center justify-between border-b border-white/70 px-4 backdrop-blur-xl lg:h-20 lg:px-8">
@@ -50,18 +72,53 @@ export default function Header() {
         </div>
       </div>
 
-      <div className="flex items-center gap-5">
-        {/* Chưa có hệ thống thông báo ở backend (xem BQLSidebar — mục "Thông
-            báo" đang khoá "Sắp có") — khoá luôn nút này, không hiện chấm đỏ
-            giả vờ có tin mới. */}
+      <div ref={panelRef} className="relative flex items-center gap-5">
         <button
-          disabled
-          aria-label="Thông báo — chưa có hệ thống thông báo"
-          title="Sắp có — chưa có hệ thống thông báo ở backend"
-          className="flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-xl border border-white bg-white/70 text-ink/35 shadow-sm"
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-label={`${notifications.length} thông báo cần xử lý`}
+          aria-expanded={open}
+          className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white bg-white/90 text-ink shadow-sm transition hover:border-blue-200"
         >
           <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          {notifications.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {notifications.length > 9 ? "9+" : notifications.length}
+            </span>
+          )}
         </button>
+
+        {open && (
+          <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-white shadow-xl">
+            <div className="border-b border-border px-4 py-3">
+              <p className="font-semibold text-ink">Thông báo</p>
+              <p className="text-xs text-muted">Các việc đang cần bạn xử lý</p>
+            </div>
+            {notifications.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-muted">Bạn không có việc nào cần nhắc.</p>
+            ) : (
+              <div className="max-h-[24rem] divide-y divide-border overflow-y-auto">
+                {notifications.map((notification) => (
+                  <Link
+                    key={notification.id}
+                    href={notification.href}
+                    onClick={() => setOpen(false)}
+                    className="block px-4 py-3.5 transition hover:bg-blue-50"
+                  >
+                    <div className="flex gap-3">
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${notification.kind === "rejected" ? "bg-red-500" : notification.kind === "needs_info" ? "bg-amber-500" : "bg-blue-500"}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{notification.title}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted">{notification.message}</p>
+                        <p className="mt-2 text-xs font-semibold text-gold">{notification.action_label} →</p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

@@ -106,6 +106,32 @@ async def test_checklist_bao_ro_khi_chua_onboarding(client):
 
 
 @pytest.mark.asyncio
+async def test_thong_bao_nhac_cu_dan_chua_hoan_thanh(client):
+    response = await client.get("/api/v1/notifications", headers=OWNER)
+
+    assert response.status_code == 200
+    notifications = response.json()
+    reminder = next(row for row in notifications if row["kind"] == "checklist")
+    assert "chưa hoàn thành" in reminder["title"]
+    assert reminder["href"].startswith("/checklist?item=")
+
+
+@pytest.mark.asyncio
+async def test_thong_bao_huong_cu_dan_chua_onboarding_vao_form(client):
+    response = await client.get("/api/v1/notifications", headers=RENTER)
+
+    assert response.status_code == 200
+    assert response.json() == [{
+        "id": "onboarding",
+        "kind": "onboarding",
+        "title": "Hoàn tất thiết lập hồ sơ",
+        "message": "Trả lời 4 câu hỏi để nhận checklist phù hợp với căn hộ của bạn.",
+        "href": "/onboarding",
+        "action_label": "Thiết lập ngay",
+    }]
+
+
+@pytest.mark.asyncio
 async def test_onboarding_xong_thi_co_checklist(client):
     created = await client.post(
         "/api/v1/onboarding", json=RENTER_PROFILE, headers=RENTER

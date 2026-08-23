@@ -184,6 +184,15 @@ export type Dashboard = {
   total_residents: number;
 };
 
+export type Notification = {
+  id: string;
+  kind: "onboarding" | "checklist" | "needs_info" | "rejected";
+  title: string;
+  message: string;
+  href: string;
+  action_label: string;
+};
+
 export type AccountStatus = "active" | "locked";
 
 /** `GET /admin/residents/{id}` — trang toàn cảnh một cư dân (Hiếu, 18/08). */
@@ -496,6 +505,9 @@ export const api = {
 
   getChecklist: (userId: number) => request<Checklist>("/checklist", userId),
 
+  getNotifications: (userId: number) =>
+    request<Notification[]>("/notifications", userId),
+
   setChecklistItem: (userId: number, itemId: number, completed: boolean) =>
     request<Checklist>(`/checklist/${itemId}`, userId, {
       method: "PATCH",
@@ -574,21 +586,17 @@ export const api = {
     }),
 
   /** AI Form Generation (Task 6) — lấy schema form từ backend. */
-  getFormSchema: (itemId: number, token: string) =>
-    request<FormSchema | null>(`/checklist/${itemId}/form-schema`, itemId, {
-      headers: { Authorization: `Bearer ${token}` },
-    }),
+  getFormSchema: (userId: number, itemId: number) =>
+    request<FormSchema | null>(`/checklist/${itemId}/form-schema`, userId),
 
   /** AI Form Generation (Task 6) — nộp hồ sơ kèm form_data. */
   submitApplicationWithFormData: (
     userId: number,
     itemId: number,
     formData: ApplicationFormData,
-    token: string,
   ) =>
     request<Application>("/applications", userId, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ checklist_item_id: itemId, form_data: formData }),
     }),
 

@@ -38,7 +38,6 @@ from src.models.rbac import Permission
 from src.models.schemas import (
     AccountStatusUpdateRequest,
     AdminApplicationResponse,
-    ApplicationCreateRequest,
     ApplicationCreateV2,
     ApplicationResponse,
     ApplicationStatusUpdateRequest,
@@ -63,6 +62,7 @@ from src.models.schemas import (
     DocumentIngestRequest,
     DocumentResponse,
     FormSchemaPayload,
+    NotificationResponse,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
@@ -272,6 +272,53 @@ async def get_checklist(
     return _build_checklist(db, user)
 
 
+@router.get("/notifications", response_model=list[NotificationResponse])
+async def get_notifications(
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> list[NotificationResponse]:
+    """Nhắc việc chưa hoàn thành và hồ sơ đang cần cư dân phản hồi."""
+    if user["onboarding_completed_at"] is None:
+        return [NotificationResponse(
+            id="onboarding",
+            kind="onboarding",
+            title="Hoàn tất thiết lập hồ sơ",
+            message="Trả lời 4 câu hỏi để nhận checklist phù hợp với căn hộ của bạn.",
+            href="/onboarding",
+            action_label="Thiết lập ngay",
+        )]
+
+    checklist = _build_checklist(db, user)
+    applications = store.list_applications(db, user["user_id"])
+    notifications: list[NotificationResponse] = []
+    for application in applications:
+        app_status = application["status"]
+        if app_status not in {"needs_info", "rejected"}:
+            continue
+        rejected = app_status == "rejected"
+        notifications.append(NotificationResponse(
+            id=f"application-{application['application_id']}-{app_status}",
+            kind="rejected" if rejected else "needs_info",
+            title="Hồ sơ bị từ chối" if rejected else "Hồ sơ cần bổ sung",
+            message=application.get("bql_note") or application["task_name"],
+            href=f"/checklist?item={application['checklist_item_id']}",
+            action_label="Xem hồ sơ",
+        ))
+
+    unfinished = [item for item in checklist.items if not item.completed]
+    if unfinished:
+        first = unfinished[0]
+        notifications.append(NotificationResponse(
+            id=f"checklist-{first.id}-{len(unfinished)}",
+            kind="checklist",
+            title=f"Bạn còn {len(unfinished)} thủ tục chưa hoàn thành",
+            message=f"Việc tiếp theo: {first.task_name}",
+            href=f"/checklist?item={first.id}",
+            action_label="Tiếp tục",
+        ))
+    return notifications
+
+
 @router.patch("/checklist/{item_id}", response_model=ChecklistResponse)
 async def set_checklist_item(
     item_id: int,
@@ -318,7 +365,7 @@ async def get_checklist_item_form_schema(
     status_code=status.HTTP_201_CREATED,
 )
 async def submit_application(
-    payload: ApplicationCreateRequest,
+    payload: ApplicationCreateV2,
     user: dict[str, Any] = Depends(require_resident),
     db: Session = Depends(get_db),
 ) -> Any:
@@ -356,7 +403,14 @@ async def submit_application(
     # là cư dân tự khai kèm ảnh minh chứng.
     kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
     try:
-        return store.create_application(db, user["user_id"], item["id"], kind, note=payload.note)
+        return store.create_application(
+            db,
+            user["user_id"],
+            item["id"],
+            kind,
+            note=payload.note,
+            form_data=payload.form_data,
+        )
     except store.DuplicateApplicationError:
         # Race: request khác cũng đọc "chưa có hồ sơ mở" và commit trước —
         # `uq_open_application_per_item` (src/models/db.py) chặn insert này ở
@@ -364,54 +418,11 @@ async def submit_application(
         # trên, không phải 500 — dùng lại CHÍNH nhánh đó để hai đường tới
         # cùng một kết quả không lệch câu chữ.
         _raise_da_co_ho_so_mo()
-
-
-@router.post(
-    "/applications",
-    response_model=ApplicationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_application_v2(
-    body: ApplicationCreateV2,
-    user: dict[str, Any] = Depends(require_resident),
-    db: Session = Depends(get_db),
-) -> Any:
-    """US-13 + AI Form Generation — nộp hồ sơ với form_data.
-
-    Tương tự submit_application nhưng hỗ trợ form_data được sinh bởi AI.
-    """
-    matched = generate_checklist(user, store.list_checklist_items(db))
-    item = next((i for i in matched if i["id"] == body.checklist_item_id), None)
-
-    if item is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Mục này không có trong checklist của bạn.",
-        )
-
-    def _raise_da_co_ho_so_mo() -> None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Bạn đã có hồ sơ đang xử lý cho '{item['task_name']}'.",
-        )
-
-    if store.get_open_application(db, user["user_id"], item["id"]):
-        _raise_da_co_ho_so_mo()
-
-    kind = "bql_processing" if item["item_type"] == "bql_actionable" else "self_declared"
-    try:
-        return store.create_application(
-            db,
-            user["user_id"],
-            item["id"],
-            kind,
-            note=body.note,
-            form_data=body.form_data,
-        )
-    except store.DuplicateApplicationError:
-        _raise_da_co_ho_so_mo()
     except store.ValidationError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"detail": e.errors})
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="; ".join(e.errors),
+        ) from e
 
 
 @router.post(
