@@ -659,7 +659,7 @@ async def chat(
 
     settings = get_settings()
     recent_turns = [
-        {"question": turn["question"], "answer": turn["answer"]}
+        {"question": turn.get("question", ""), "answer": turn.get("answer", "")}
         for turn in history[-settings.rag_history_turns :]
     ]
 
