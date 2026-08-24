@@ -192,8 +192,11 @@ async def detect_procedure_intent(message: str, db: Session) -> ProcedureMatch:
 
     # Lớp 1: Keyword exact — so sánh trong Python de dam bao Unicode normalization
     # chính xác. SQLite ILIKE khong nhan Unicode decomposition.
-    all_items = db.query(ChecklistItem).all()
-    form_items = [item for item in all_items if _has_form(item)]
+    # Filter tai DB level thay vi load het roi filter: tranh bottleneck khi so
+    # procedures tang, giam database load.
+    form_items = db.query(ChecklistItem).filter(
+        ChecklistItem.form_schema.isnot(None)
+    ).all()
     for kw in keywords:
         candidates = [item for item in form_items if _task_name_contains(item.task_name, kw)]
         if len(candidates) == 1:
