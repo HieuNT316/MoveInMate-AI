@@ -2,8 +2,6 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-**Trạng thái:** đang phát triển (Phase 1).
-
 | | Đang chạy tại |
 |---|---|
 | **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
@@ -15,45 +13,27 @@ Xem [`docs/PROJECT_CHARTER.md`](./docs/PROJECT_CHARTER.md) để biết scope v�
 
 Tài khoản do Ban quản lý cấp — cư dân không tự đăng ký. Mật khẩu **dùng chung cho mọi tài khoản demo**: `MoveInMate!2026`
 
-| Email | Vai | Checklist |
-|---|---|---|
-| `mentor@moveinmate.demo` | **hồ sơ trắng — dành cho người thử lần đầu** | 4 mục nền |
-| `bql@moveinmate.demo` | Ban quản lý | — |
-| `tran.hong.tuan1@moveinmate.demo` | chủ hộ · có ô tô · 2 gói tiện ích | 10 mục |
-| `dang.ngoc.lan5@moveinmate.demo` | người thuê · có xe | 9 mục |
-| `duong.ngoc.mai3@moveinmate.demo` | chủ hộ · không xe | 6 mục |
-| `pham.thi.dung4@moveinmate.demo` | người thuê · không xe | 6 mục |
-| `phan.quang.trang8@moveinmate.demo` | chưa thiết lập hồ sơ | 4 mục |
+Trang đăng nhập liệt kê sẵn các persona tương phản — bấm chọn để đăng nhập ngay. Danh sách được sinh động từ dữ liệu, mỗi persona hiển thị số mục checklist cá nhân hóa để thấy sự khác biệt giữa các hồ sơ. Hai cặp đáng xem nhất:
 
-Hai dòng **6 mục** là cặp đáng xem nhất: cùng số lượng nhưng khác nội dung — chủ hộ được hướng dẫn *cập nhật thông tin cư trú*, người thuê được hướng dẫn *đăng ký tạm trú tại công an phường*. Cá nhân hóa nằm ở nội dung, không ở số lượng.
-
-Muốn tự trải nghiệm từ đầu thì đăng nhập bằng `mentor@moveinmate.demo`, tự điền form onboarding và xem checklist sinh ra theo lựa chọn của mình. **Tài khoản này chỉ trắng một lần** — điền xong là hết. Cần một hồ sơ trắng nữa thì cấp thêm bằng chính chức năng của Ban quản lý (`POST /api/v1/admin/users`), đừng chạy `seed_data`: script đó xoá và dựng lại toàn bộ dữ liệu chứ không khôi phục riêng một tài khoản.
-
-⚠️ `mentor@moveinmate.demo` **phải gõ tay** — màn đăng nhập chỉ liệt kê sáu tài khoản mẫu còn lại, chọn theo hồ sơ tương phản để demo. Các dòng khác trong bảng đều bấm chọn được.
+- **Chủ hộ · có ô tô · 2 gói** vs **Người thuê · có xe** — cùng số mục nhưng khác nội dung: chủ hộ được hướng dẫn *cập nhật thông tin cư trú*, người thuê được hướng dẫn *đăng ký tạm trú tại công an phường*.
+- **Chủ hộ · không xe** vs **Người thuê · không xe** — số mục giống nhau nhưng người thuê có thêm bước đăng ký tạm trú.
 
 ## Vấn đề
 
 Cư dân mới nhận nhà tại chung cư phải hoàn thành nhiều thủ tục rời rạc — đăng ký thẻ cư dân, thẻ xe, internet, ký nội quy, kích hoạt tiện ích — mà không có hướng dẫn tập trung.
 
 - **Cư dân** choáng ngợp, không biết bắt đầu từ đâu, dễ sót việc hoặc làm sai thứ tự.
-- **Ban quản lý (BQL)** phải trả lời lặp đi lặp lại cùng những câu hỏi: đăng ký ở đâu, cần giấy tờ gì, hồ sơ đến đâu rồi. Ở các dự án lớn có thể lên tới hàng trăm lượt hỏi mỗi ngày.
+- **Ban quản lý (BQL)** phải trả lời lặp đi lặp lại cùng những câu hỏi: đăng ký ở đâu, cần giấy tờ gì, hồ sơ đến đâu rồi.
 - Phát sinh **chi phí vận hành ẩn**: nhân sự CSKH xử lý thủ công, nhập liệu, sai sót hồ sơ, cư dân gọi điện hỏi tiến độ nhiều lần.
-
-**Vì sao app hiện có chưa đủ:** Vinhomes Resident xử lý đặt tiện ích, thanh toán phí, gửi phản ánh — phục vụ cư dân *đã ổn định*. Hồ sơ giấy tờ và thẻ ra/vào vẫn phải làm việc trực tiếp qua BQL. MoveInMate lấp khoảng trống của **4-6 tuần đầu tiên**, khi cư dân chưa biết mình cần làm gì.
 
 ## Giải pháp
 
-- **Checklist cá nhân hóa** — cư dân điền form ngắn (chủ hộ hay người thuê, loại căn hộ, có xe, gói tiện ích đã đăng ký); hệ thống sinh đúng danh sách thủ tục cho hoàn cảnh của họ, không phải danh sách chung chung. Dùng rule engine tất định, không dùng LLM.
+- **Checklist cá nhân hóa** — cư dân điền form ngắn (chủ hộ hay người thuê, loại căn hộ, có xe, gói tiện ích); hệ thống sinh đúng danh sách thủ tục cho hoàn cảnh của họ. Dùng rule engine tất định, không dùng LLM.
 - **Hỏi đáp thủ tục có trích nguồn** — RAG trên tài liệu của dự án. Nguồn trích dẫn lấy tất định từ bước truy xuất, không do LLM tự liệt kê; không tìm được tài liệu thì hệ thống từ chối trả lời thay vì bịa.
 - **Theo dõi tiến độ** — cư dân thấy còn thiếu bước nào; BQL thấy ai đang tắc ở đâu để chủ động hỗ trợ.
+- **Nộp hồ sơ trực tuyến** — cư dân bấm nộp từ mục checklist, kèm ảnh minh chứng; BQL duyệt và chuyển trạng thái ngay trên hệ thống.
 
-Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục thuộc cơ quan bên thứ ba (ví dụ đăng ký tạm trú qua công an) chỉ được hướng dẫn theo quy định công khai và ghi rõ nguồn — hệ thống không mạo nhận đó là quy trình của BQL.
-
-## Người dùng
-
-- **Khách hàng (buyer):** Ban quản lý chung cư — đơn vị triển khai và trả phí.
-- **Người dùng cuối:** cư dân mới, được BQL cấp tài khoản. Persona chính là **chủ căn hộ**, có nhánh riêng cho **người thuê**.
-- **Phạm vi:** Vinhomes Smart City.
+Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục thuộc cơ quan bên thứ ba (ví dụ đăng ký tạm trú qua công an) chỉ được hướng dẫn theo quy định công khai và ghi rõ nguồn.
 
 ## Tech Stack
 
@@ -62,11 +42,11 @@ Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục 
 | AI Agent | LangGraph + GPT-4o-mini |
 | RAG | ChromaDB + Google `gemini-embedding-001` |
 | Backend | FastAPI + Python 3.11 |
-| Frontend | Next.js 16 + React 19 + TypeScript (PWA) |
+| Frontend | Next.js 15 + React 19 + TypeScript (PWA) |
 | Database | PostgreSQL qua Supabase |
-| Auth | Supabase Auth |
-| DevOps | Docker + GitHub Actions · Railway (backend) + Vercel (frontend) |
-| Observability | LangSmith — *chưa triển khai, xem [`docs/OPERATIONS.md`](./docs/OPERATIONS.md)* |
+| Auth | Supabase Auth (JWT ES256 + JWKS) |
+| DevOps | Docker · Railway (backend) · Vercel (frontend) |
+| Observability | structured logging + exception handler (`src/observability.py`) |
 
 ## Quick Start
 
@@ -102,78 +82,97 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 ## Project Structure
 
 ```
-├── src/                      # Backend Python
-│   ├── agents/               # LangGraph — graph, state, nodes
-│   ├── api/                  # FastAPI routes
+├── src/
+│   ├── agents/               # LangGraph — graph, state, nodes (đã chuyển sang src/ai/)
+│   ├── ai/                   # Form generation, intent detection
+│   ├── api/                  # FastAPI routes (25 endpoint)
 │   ├── models/               # Pydantic schemas + SQLAlchemy models
-│   ├── services/             # Rule engine checklist, vectorstore, ingest
+│   ├── services/             # Rule engine, vectorstore, storage, auth, PII
+│   ├── observability.py      # Structured logging + exception handler
 │   ├── config.py
 │   └── main.py
 ├── web/                      # Frontend Next.js (PWA)
-├── tests/                    # pytest
+├── tests/                    # pytest (197 test, 80% coverage)
 ├── docs/
 │   ├── PROJECT_CHARTER.md    # Scope, quyết định, rủi ro — nguồn sự thật
 │   ├── architecture_diagram.md
+│   ├── superpowers/          # Plans, specs, handovers
 │   └── guide/                # Technical guidebook của chương trình
 ├── eval/                     # Bằng chứng đánh giá
-├── presentation/             # Slide + video demo
-├── scripts/                  # AI usage logging hooks
-├── Dockerfile
+├── presentation/            # Slide + video demo
+├── scripts/                  # Seed, provision, deploy, AI logging hooks
 └── .github/workflows/        # CI: ruff + pytest
 ```
 
 ## API Endpoints
 
-`src/api/routes.py` khai 23 endpoint dưới tiền tố `/api/v1`, cộng hai endpoint health ở `src/main.py`. Đánh dấu **mới** là phần Task 22 (18-19/08) thêm vào — trước đó README mới dừng ở 15 endpoint.
+`/api/v1` prefix · 25 endpoint · Chi tiết hợp đồng: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
 
+### Authentication & Profile
 | Method | Path | Mô tả |
-|--------|------|-------|
-| GET | `/health` | Health nông — chỉ kiểm tiến trình còn sống |
-| GET | `/health/deep` | Kiểm DB + Chroma thật, trả **503** nếu một trong hai hỏng hoặc Chroma rỗng |
-| GET | `/api/v1/auth/demo-accounts` | Persona mẫu để demo (⚠️ tạm thời) |
-| GET | `/api/v1/profile` · PATCH | Xem/sửa hồ sơ |
-| POST | `/api/v1/onboarding` | Lưu hồ sơ cư dân |
-| GET | `/api/v1/checklist` | Checklist cá nhân hóa + % tiến độ |
-| PATCH | `/api/v1/checklist/{id}` | Đánh dấu hoàn thành |
-| POST | `/api/v1/applications` | Cư dân nộp hồ sơ trực tuyến cho một mục checklist (US-13) |
-| GET | `/api/v1/applications` | Hồ sơ của chính cư dân đang đăng nhập |
-| POST | `/api/v1/applications/{id}/attachments` | Tải ảnh/PDF minh chứng lên một hồ sơ |
-| GET | `/api/v1/applications/{id}/attachments/{aid}/url` | Ký link đọc ảnh tạm thời, hết hạn ngắn |
-| POST | `/api/v1/chat` | Hỏi đáp thủ tục (RAG có trích nguồn) |
-| GET | `/api/v1/chat/conversations` | Danh sách hội thoại đã lưu |
-| GET | `/api/v1/chat/conversations/{id}/messages` | Toàn bộ lượt hỏi đáp của một hội thoại |
-| POST | `/api/v1/admin/users` | BQL tạo tài khoản cư dân |
-| GET | `/api/v1/admin/dashboard` | Tiến độ toàn bộ cư dân |
-| GET | `/api/v1/admin/residents/{id}` | **Mới.** Toàn cảnh một cư dân — hồ sơ + checklist + hồ sơ đã nộp |
-| PATCH | `/api/v1/admin/residents/{id}/status` | **Mới.** Khoá/mở tài khoản cư dân (`active`/`locked`) |
-| POST | `/api/v1/admin/residents/{id}/reset-password` | **Mới.** Đặt lại mật khẩu tạm; **409** nếu cư dân chưa có tài khoản đăng nhập |
-| GET | `/api/v1/admin/applications` | Hồ sơ cư dân đã nộp, lọc theo `status`/`department` |
-| PATCH | `/api/v1/admin/applications/{id}` | BQL chuyển trạng thái hồ sơ |
-| PATCH | `/api/v1/admin/applications/{id}/attachments/{aid}` | BQL gán lại loại giấy tờ cho một tệp đã tải lên |
-| POST | `/api/v1/admin/documents` | **Mới.** BQL dán tiêu đề + nội dung, nạp vào KB ở nền, theo dõi qua `embed_status` |
-| GET | `/api/v1/admin/documents` | **Mới.** Danh sách tài liệu đã nạp |
+|--------|------|--------|
+| GET | `/auth/demo-accounts` | Persona mẫu cho trang đăng nhập |
+| GET | `/profile` | Hồ sơ cư dân hiện tại |
+| PATCH | `/profile` | Sửa hồ sơ |
+| POST | `/onboarding` | Lưu hồ sơ (lần đầu đăng nhập) |
 
-`CRUD /api/v1/admin/faq` (US-09) từng liệt kê ở đây **chưa được code** — không có route nào trong `src/api/routes.py` khớp `/admin/faq`. Bỏ khỏi bảng để bảng phản ánh đúng endpoint có thật; US-09 vẫn nằm ở `[W4]` theo `docs/PROJECT_CHARTER.md` mục 4.
+### Checklist
+| Method | Path | Mô tả |
+|--------|------|--------|
+| GET | `/checklist` | Checklist cá nhân hóa + % tiến độ |
+| PATCH | `/checklist/{id}` | Đánh dấu hoàn thành |
+| GET | `/checklist/{id}/form-schema` | **Mới.** Schema form động cho thủ tục |
 
-**`attachment.url` trong mọi phản hồi danh sách nay luôn `null`.** Đọc ảnh phải gọi riêng `GET .../attachments/{id}/url` — ký khi người dùng thật sự mở ảnh, không ký sẵn hàng loạt cho cả danh sách (một lời gọi mạng đồng bộ tới Supabase mỗi tệp sẽ chặn event loop nếu ký sẵn).
+### Applications (US-13)
+| Method | Path | Mô tả |
+|--------|------|--------|
+| POST | `/applications` | Nộp hồ sơ cho một mục checklist |
+| GET | `/applications` | Hồ sơ của cư dân đang đăng nhập |
+| GET | `/applications/{id}/attachments/{aid}/url` | Ký link đọc ảnh tạm thời (hết hạn 5 phút) |
 
-Chi tiết hợp đồng API: [`docs/architecture_diagram.md`](./docs/architecture_diagram.md) mục 4.3.
+### Chat
+| Method | Path | Mô tả |
+|--------|------|--------|
+| POST | `/chat` | Hỏi đáp thủ tục (RAG có trích nguồn) |
+| GET | `/chat/conversations` | Danh sách hội thoại đã lưu |
+| GET | `/chat/conversations/{id}/messages` | Toàn bộ lượt hỏi đáp |
 
-## Giới hạn tốc độ (rate limiting)
+### BQL — Residents
+| Method | Path | Mô tả |
+|--------|------|--------|
+| POST | `/admin/users` | Tạo tài khoản cư dân |
+| GET | `/admin/dashboard` | Tiến độ toàn bộ cư dân |
+| GET | `/admin/residents/{id}` | Toàn cảnh một cư dân (hồ sơ + checklist + hồ sơ đã nộp) |
+| PATCH | `/admin/residents/{id}/status` | Khoá/mở tài khoản (`active`/`locked`) |
+| POST | `/admin/residents/{id}/reset-password` | Đặt lại mật khẩu tạm |
 
-Bộ đếm tự viết tay trong bộ nhớ tiến trình (`src/services/rate_limit.py`), **không** dùng `slowapi`/`limits` hay Redis — dịch vụ chạy MỘT instance duy nhất (Chroma sống trong tiến trình FastAPI, xem [`docs/DEPLOY.md`](./docs/DEPLOY.md) mục 213), nên một bộ đếm cục bộ là đủ đúng đắn.
+### BQL — Applications
+| Method | Path | Mô tả |
+|--------|------|--------|
+| GET | `/admin/applications` | Tất cả hồ sơ, lọc theo `status`/`department` |
+| PATCH | `/admin/applications/{id}` | Chuyển trạng thái hồ sơ |
+| PATCH | `/admin/applications/{id}/attachments/{aid}` | Gán lại loại giấy tờ cho tệp đã tải |
+| POST | `/admin/applications/{id}/attachments` | Tải ảnh/PDF minh chứng lên hồ sơ |
 
-Chỉ áp cho các endpoint TỐN TIỀN (gọi LLM, gọi Google embedding, hoặc ghi tệp/nạp tài liệu); mọi endpoint đọc (checklist, dashboard, danh sách hồ sơ/tài liệu — kể cả endpoint frontend poll `embed_status`) **không** bị giới hạn.
+### BQL — Knowledge Base
+| Method | Path | Mô tả |
+|--------|------|--------|
+| POST | `/admin/documents` | Dán tiêu đề + nội dung, nạp vào KB ở nền |
+| GET | `/admin/documents` | Danh sách tài liệu đã nạp, kèm `embed_status` |
 
-| Endpoint | Ngưỡng mặc định | Setting (`src/config.py`) |
-|---|---|---|
-| `POST /api/v1/chat` | 10 lượt/phút **và** 100 lượt/giờ | `CHAT_RATE_LIMIT_PER_MINUTE`, `CHAT_RATE_LIMIT_PER_HOUR` |
-| `POST /api/v1/applications/{id}/attachments` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
-| `POST /api/v1/admin/documents` | 20 lượt/phút | `UPLOAD_RATE_LIMIT_PER_MINUTE` |
+### Health
+| Method | Path | Mô tả |
+|--------|------|--------|
+| GET | `/health` | Health nông — kiểm tiến trình còn sống |
+| GET | `/health/deep` | Kiểm DB + Chroma thật; trả **503** nếu một trong hai hỏng |
 
-Khoá theo IP client thật (đọc mục đầu `X-Forwarded-For` do Railway forward, không phải IP của proxy — xem docstring `get_client_ip`). Vượt ngưỡng trả **429** kèm header `Retry-After` và thông điệp tiếng Việt yêu cầu chờ, không lộ chi tiết nội bộ.
+## Security
 
-**Cố tình KHÔNG có trần tổng số request/ngày trên toàn hệ thống.** Đó mới là thứ thật sự bảo vệ hạn mức Google 1000 request/ngày dùng chung cả nhóm, nhưng một trần như vậy tự nó trở thành rủi ro: chạm ngưỡng giữa buổi demo là trợ lý im lặng với **mọi người**, đúng thảm hoạ đang cố tránh. Hạn mức ngày vẫn là rủi ro **được theo dõi thủ công**, không phải rủi ro được chặn bằng code.
+- **JWT Supabase ES256 + JWKS** — backend verify chữ ký, đọc `sub` rồi tra sang `users.auth_user_id`. Không nhận `user_id` do client tự khai.
+- **`X-User-Id` chỉ dev** — bị chặn cứng khi `APP_ENV=production`.
+- **Bucket ảnh private** — ảnh CCCD/VNeID chỉ đọc qua signed URL hết hạn 5 phút. URL được ký khi người dùng thật sự mở ảnh, không ký sẵn hàng loạt.
+- **Che PII** — CCCD, email, số điện thoại bị che khỏi `chat_history` trước khi ghi.
+- **Rate limiting** — giới hạn theo IP trên endpoint tốn tiền (chat, upload).
 
 ## Deliverables Checklist
 
@@ -181,19 +180,19 @@ Khoá theo IP client thật (đọc mục đầu `X-Forwarded-For` do Railway fo
 - [x] README.md
 - [x] Architecture Diagram (`docs/architecture_diagram.md`)
 - [x] AI Logs (tự động qua pre-push hook)
-- [x] Live URL / Deploy — [frontend](https://web-ten-ruby-48.vercel.app) · [backend](https://moveinmate-api-production.up.railway.app/health)
+- [x] Live URL — [frontend](https://web-ten-ruby-48.vercel.app) · [backend](https://moveinmate-api-production.up.railway.app/health)
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
 - [x] Weekly Journal (`JOURNAL.md`)
 - [x] Worklog (`WORKLOG.md`)
-- [x] Evaluation Evidence ([`eval/results/report.md`](./eval/results/report.md)) — 35 câu, **32/35 · 91%**
+- [x] Evaluation Evidence (`eval/results/`) — 37 câu hỏi, `scripts/run_eval.py`
 
 ## Team
 
 | Thành viên | Role | Phụ trách |
 |------------|------|-----------|
-| Nguyễn Trung Hiếu | Backend + Data | FastAPI, schema DB, rule engine checklist, Supabase Auth, thu thập tài liệu KB |
-| Nguyễn Việt Hải | AI | Pipeline RAG, LangGraph, prompt, chất lượng truy xuất |
+| Nguyễn Trung Hiếu | Backend + Data | FastAPI, schema DB, rule engine checklist, Supabase Auth, storage, US-13 |
+| Nguyễn Việt Hải | AI | RAG pipeline, LangGraph, prompt, form generation |
 | Nguyễn Minh Thu | Frontend | Next.js PWA, giao diện cư dân và BQL |
 
 **Mentor:** Đặng Hải Lộc · **Chương trình:** VinUni AI20K Build Phase, Cohort 3
