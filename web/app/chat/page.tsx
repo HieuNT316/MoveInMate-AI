@@ -922,6 +922,9 @@ function ChatSubmissionCard({
                   : current,
               )
             }
+            onDeleted={(attachment) =>
+              setApplication((current) => current ? { ...current, attachments: current.attachments.filter((item) => item.attachment_id !== attachment.attachment_id) } : current)
+            }
           />
         </div>
       )}

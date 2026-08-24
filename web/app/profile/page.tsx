@@ -11,6 +11,8 @@ import {
   Loader2,
   Lock,
   Mail,
+  BellRing,
+  Smartphone,
 } from "lucide-react";
 
 import Layout from "../components/Layout";
@@ -191,9 +193,39 @@ export default function ProfilePage() {
         </div>
 
         <ChangePasswordCard />
+        <NotificationSettingsCard />
       </div>
     </Layout>
   );
+}
+
+function NotificationSettingsCard() {
+  const supported = typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
+  const [permission, setPermission] = useState<NotificationPermission>(() => supported ? Notification.permission : "denied");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const enable = async () => {
+    if (!supported || busy) return;
+    setBusy(true);
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    setMessage(result === "granted" ? "Điện thoại đã cho phép thông báo. Hệ thống sẽ nhận push sau khi backend đăng ký thiết bị." : result === "denied" ? "Thông báo đang bị chặn trong cài đặt trình duyệt." : "Bạn chưa cấp quyền thông báo.");
+    setBusy(false);
+  };
+
+  const test = async () => {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification("MoveInMate", { body: "Thông báo trên thiết bị đang hoạt động.", icon: "/pwa/icon-192", data: { url: "/documents" } });
+  };
+
+  return <div className="rounded-2xl border border-white/90 bg-surface/95 p-6 shadow-soft ring-1 ring-border/50 sm:p-8">
+    <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><BellRing className="h-5 w-5" /></span><div><h3 className="font-display text-lg font-semibold text-ink">Thông báo trên điện thoại</h3><p className="mt-1 text-sm text-muted">Nhận cập nhật hồ sơ ngay cả khi không mở ứng dụng.</p></div></div>
+    {!supported ? <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Trình duyệt này chưa hỗ trợ thông báo đẩy.</p> : <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+      {permission !== "granted" ? <button type="button" onClick={() => void enable()} disabled={busy || permission === "denied"} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Smartphone className="h-4 w-4" />{busy ? "Đang yêu cầu..." : permission === "denied" ? "Thông báo đã bị chặn" : "Cho phép thông báo"}</button> : <button type="button" onClick={() => void test()} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100">Gửi thông báo thử</button>}
+    </div>}
+    {message && <p className="mt-3 text-xs leading-5 text-muted">{message}</p>}
+  </div>;
 }
 
 /**

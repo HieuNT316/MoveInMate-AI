@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Eye, FileText, Loader2, Paperclip } from "lucide-react";
+import { Check, Eye, FileText, Loader2, Paperclip, RefreshCw, Trash2 } from "lucide-react";
 
 import { api, ApiError, type Attachment, type DocumentType, type RequiredDocument } from "../../lib/api";
 import { useToast } from "./Toast";
@@ -33,6 +33,7 @@ export default function AttachmentUploader({
   required,
   requiredDocuments,
   onUploaded,
+  onDeleted,
 }: {
   userId: number;
   applicationId: number;
@@ -42,19 +43,41 @@ export default function AttachmentUploader({
   required?: boolean;
   requiredDocuments?: RequiredDocument[];
   onUploaded: (attachment: Attachment) => void;
+  onDeleted?: (attachment: Attachment) => void;
 }) {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   // Slot đang chờ chọn tệp — input file dùng chung cho mọi slot, cần nhớ
   // đang tải CHO mã nào để gắn `document_type` đúng lúc submit.
   const pendingSlotRef = useRef<DocumentType | undefined>(undefined);
+  const replacingRef = useRef<Attachment | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<Attachment | null>(null);
 
-  const pick = (slotCode?: DocumentType) => {
+  const pick = (slotCode?: DocumentType, replacing?: Attachment) => {
     pendingSlotRef.current = slotCode;
+    replacingRef.current = replacing ?? null;
     inputRef.current?.click();
+  };
+
+  const remove = async (attachment: Attachment, ask = true) => {
+    if (ask && !window.confirm(`Xóa tệp “${attachment.filename}”?`)) return false;
+    setDeletingId(attachment.attachment_id);
+    setError(null);
+    try {
+      await api.deleteAttachment(userId, applicationId, attachment.attachment_id);
+      onDeleted?.(attachment);
+      toast.show("Đã xóa tệp");
+      return true;
+    } catch {
+      setError("Không xóa được tệp lúc này, thử lại sau.");
+      toast.show("Xóa tệp không thành công", "error");
+      return false;
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -77,7 +100,13 @@ export default function AttachmentUploader({
         pendingSlotRef.current,
       );
       onUploaded(created);
-      toast.show("Đã lưu thay đổi");
+      const oldAttachment = replacingRef.current;
+      if (oldAttachment) {
+        const removed = await remove(oldAttachment, false);
+        toast.show(removed ? "Đã thay thế tệp" : "Đã tải tệp mới nhưng chưa xóa được tệp cũ", removed ? "success" : "error");
+      } else {
+        toast.show("Đã lưu thay đổi");
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 415) {
         setError("Chỉ nhận ảnh JPG, PNG hoặc file PDF.");
@@ -88,6 +117,7 @@ export default function AttachmentUploader({
       }
       toast.show("Tải ảnh minh chứng không thành công", "error");
     } finally {
+      replacingRef.current = null;
       setUploading(false);
     }
   };
@@ -154,6 +184,13 @@ export default function AttachmentUploader({
                     </span>
                   )}
 
+                  {att && onDeleted && (
+                    <span className="flex shrink-0 items-center gap-0.5">
+                      <button type="button" onClick={() => pick(doc.code, att)} disabled={uploading || deletingId !== null} aria-label={`Thay thế ${doc.label}`} title="Thay thế tệp" className="rounded p-1 text-blue-600 hover:bg-blue-100 disabled:opacity-40"><RefreshCw className="h-3 w-3" /></button>
+                      <button type="button" onClick={() => void remove(att)} disabled={uploading || deletingId !== null} aria-label={`Xóa ${doc.label}`} title="Xóa tệp" className="rounded p-1 text-red-600 hover:bg-red-100 disabled:opacity-40">{deletingId === att.attachment_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</button>
+                    </span>
+                  )}
+
                   {isNext && (
                     <button
                       type="button"
@@ -186,6 +223,7 @@ export default function AttachmentUploader({
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
                   <button type="button" onClick={() => setPreviewing(att)} className="truncate text-ink/85 underline decoration-dotted hover:text-gold">{att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
+                  {onDeleted && <><button type="button" onClick={() => pick(att.document_type ?? undefined, att)} disabled={uploading || deletingId !== null} title="Thay thế tệp" aria-label={`Thay thế ${att.filename}`} className="ml-auto rounded p-1 text-blue-600 hover:bg-blue-100"><RefreshCw className="h-3 w-3" /></button><button type="button" onClick={() => void remove(att)} disabled={uploading || deletingId !== null} title="Xóa tệp" aria-label={`Xóa ${att.filename}`} className="rounded p-1 text-red-600 hover:bg-red-100"><Trash2 className="h-3 w-3" /></button></>}
                 </li>
               ))}
             </ul>
@@ -203,6 +241,7 @@ export default function AttachmentUploader({
                   <FileText className="h-3 w-3 shrink-0 text-gold" strokeWidth={1.75} />
                   <button type="button" onClick={() => setPreviewing(att)} className="truncate text-ink/85 underline decoration-dotted hover:text-gold">{att.filename}</button>
                   <span className="shrink-0">· {formatSize(att.size_bytes)}</span>
+                  {onDeleted && <><button type="button" onClick={() => pick(att.document_type ?? undefined, att)} disabled={uploading || deletingId !== null} title="Thay thế tệp" aria-label={`Thay thế ${att.filename}`} className="ml-auto rounded p-1 text-blue-600 hover:bg-blue-100"><RefreshCw className="h-3 w-3" /></button><button type="button" onClick={() => void remove(att)} disabled={uploading || deletingId !== null} title="Xóa tệp" aria-label={`Xóa ${att.filename}`} className="rounded p-1 text-red-600 hover:bg-red-100"><Trash2 className="h-3 w-3" /></button></>}
                 </li>
               ))}
             </ul>

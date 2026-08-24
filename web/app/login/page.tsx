@@ -10,6 +10,8 @@ import {
   Loader2,
   Lock,
   Mail,
+  Eye,
+  EyeOff,
   Sparkles,
   UserRound,
   ShieldCheck,
@@ -45,6 +47,9 @@ export default function LoginPage() {
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -94,6 +99,21 @@ export default function LoginPage() {
       );
       setBusy(false);
     }
+  };
+
+  const requestPasswordReset = async () => {
+    if (!email.trim() || resetBusy) {
+      setError("Nhập email tài khoản trước khi chọn Quên mật khẩu.");
+      return;
+    }
+    setResetBusy(true);
+    setError(null);
+    setResetMessage(null);
+    const redirectTo = `${window.location.origin}/reset-password`;
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    if (resetError) setError(resetError.message);
+    else setResetMessage("Nếu email thuộc một tài khoản hợp lệ, liên kết đặt lại mật khẩu đã được gửi.");
+    setResetBusy(false);
   };
 
   return (
@@ -247,10 +267,11 @@ export default function LoginPage() {
               }}
             >
               <div>
-                <label className="mb-2 block text-sm font-medium text-ink">Email</label>
+                <label htmlFor="login-email" className="mb-2 block text-sm font-medium text-ink">Email</label>
                 <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-4 py-3 shadow-inner transition focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/25">
                   <Mail className="h-4 w-4 text-muted" strokeWidth={1.75} />
                   <input
+                    id="login-email"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
@@ -261,18 +282,27 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-ink">Mật khẩu</label>
+                <label htmlFor="login-password" className="mb-2 block text-sm font-medium text-ink">Mật khẩu</label>
                 <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-4 py-3 shadow-inner transition focus-within:border-gold focus-within:ring-2 focus-within:ring-gold/25">
                   <Lock className="h-4 w-4 text-muted" strokeWidth={1.75} />
                   <input
-                    type="password"
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="••••••••"
                     className="w-full bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
                   />
+                  <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"} className="text-muted hover:text-ink">
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+                <button type="button" onClick={() => void requestPasswordReset()} disabled={resetBusy} className="mt-2 text-xs font-medium text-blue-700 hover:underline disabled:opacity-50">
+                  {resetBusy ? "Đang gửi liên kết..." : "Quên mật khẩu?"}
+                </button>
               </div>
+
+              {resetMessage && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{resetMessage}</p>}
 
               {error && (
                 <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
