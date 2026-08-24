@@ -301,6 +301,7 @@ def _application_dict(app: Application) -> dict[str, Any]:
         "processing_time": app.item.processing_time,
         "note": app.note,
         "bql_note": app.bql_note,
+        "form_data": app.form_data or {},
         "attachments": [_attachment_dict(a) for a in app.attachments],
         **evaluate_documents(
             app.item.required_documents, [a.document_type for a in app.attachments]
@@ -523,7 +524,8 @@ def list_all_applications(
 
 
 def update_application_status(
-    db: Session, application_id: int, status: str, bql_note: str | None
+    db: Session, application_id: int,
+    status: str, bql_note: str | None, form_data: dict[str, str] | None
 ) -> dict[str, Any] | None:
     app = db.scalar(select(Application).where(Application.application_id == application_id))
     if app is None:
@@ -534,6 +536,9 @@ def update_application_status(
     # thì giữ nguyên lời nhắn cũ, đừng xoá mất lý do "cần bổ sung" trước đó.
     if bql_note is not None:
         app.bql_note = bql_note
+    # Chỉ ghi đè khi BQL thực sự gửi form_data — None = giữ nguyên, {} = xoá.
+    if form_data is not None:
+        app.form_data = form_data
 
     db.commit()
     db.refresh(app)

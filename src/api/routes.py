@@ -865,7 +865,7 @@ async def update_application_status(
         )
 
     return store.update_application_status(
-        db, application_id, payload.status, payload.bql_note
+        db, application_id, payload.status, payload.bql_note, payload.form_data
     )
 
 
