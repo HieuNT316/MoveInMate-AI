@@ -116,6 +116,29 @@ class Settings(BaseSettings):
     # model bám nhầm vào chủ đề cũ đã hết liên quan.
     rag_history_turns: int = Field(default=3, ge=0, le=10)
 
+    # Ngưỡng để `faq_lookup` dám trả lời thay RAG (US-05/US-09).
+    #
+    # ⚠️ **Con số này CHƯA được hiệu chỉnh trên dữ liệu thật** — bảng `faq` còn
+    # rỗng lúc đặt (25/08). Đặt cao có chủ ý: FAQ trả lời không kèm trích dẫn,
+    # nên khớp lỏng là cướp mất câu mà RAG lẽ ra trả lời được KÈM NGUỒN. Sai về
+    # phía "để RAG lo" thì cùng lắm chậm hơn một nhịp; sai về phía kia thì cư
+    # dân nhận đáp án của một câu hỏi khác mà không có dấu hiệu gì để nhận ra.
+    #
+    # Có FAQ thật rồi thì đo lại bằng `scripts/run_eval` trước khi hạ xuống.
+    faq_min_similarity: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    # LangSmith tracing (V1/E3/B8) — deliverable #4 của BTC.
+    #
+    # Ba biến này đã có trong `.env.example` từ lâu nhưng chưa từng có tác
+    # dụng: LangChain đọc cấu hình tracing từ `os.environ`, còn pydantic-settings
+    # chỉ nạp `.env` vào đối tượng `Settings` chứ KHÔNG export ra environ. Khai
+    # ở đây rồi `src/services/tracing.py` export sang environ lúc khởi động —
+    # đó là mắt xích còn thiếu.
+    langchain_tracing_v2: bool = False
+    langchain_api_key: str = ""
+    langchain_project: str = "moveinmate"
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+
 
 @lru_cache
 def get_settings() -> Settings:

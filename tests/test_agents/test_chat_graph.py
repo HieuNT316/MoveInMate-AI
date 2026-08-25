@@ -277,3 +277,75 @@ async def test_loi_viet_lai_cau_hoi_khong_chan_ca_pipeline(monkeypatch):
 
     assert store.received_queries == ["Câu hỏi mơ hồ"]  # rơi về câu gốc
     assert result["answer"] == "Vẫn trả lời được."
+
+
+# --- Guard tầng 2: có tài liệu nhưng tài liệu không chứa câu trả lời -------
+#
+# Chế độ hỏng nguy hiểm nhất còn lại theo charter mục 11, đo được 0/3 ở
+# eval/results/report.md mục 2. Hai chiều đều phải đúng: bắt được câu từ chối
+# thật, và KHÔNG bắt nhầm câu trả lời được một phần.
+
+
+@pytest.mark.asyncio
+async def test_llm_bao_khong_co_trong_tai_lieu_thi_bo_luon_trich_dan(monkeypatch):
+    """Mã quy ước → từ chối chuẩn, `no_context`, và sources rỗng.
+
+    Bỏ sources là nửa quan trọng: hiện khối "Nguồn trích dẫn" ngay dưới câu
+    "tôi không biết" làm câu trả lời trông đáng tin đúng lúc nó rỗng nội dung.
+    """
+    store = _FakeStore([(_doc("Phí dịch vụ 2026...", 1, "Phí dịch vụ VSC"), 0.30)])
+    result = await _run(
+        monkeypatch, store,
+        _FakeLLM(generate_module.NO_ANSWER_SENTINEL),
+        query="Phí bảo trì 2% của căn hộ tôi là bao nhiêu?",
+    )
+
+    assert result["answer_source"] == "no_context"
+    assert result["sources"] == [], "không trả lời được thì không được trích dẫn gì"
+    assert result["answer"] == generate_module.REFUSAL
+    assert generate_module.NO_ANSWER_SENTINEL not in result["answer"], "mã nội bộ không được lộ ra"
+
+
+@pytest.mark.asyncio
+async def test_llm_khong_dung_ma_quy_uoc_van_bi_bat(monkeypatch):
+    """Lưới dự phòng — LLM viết câu từ chối bằng lời lẽ tự do."""
+    store = _FakeStore([(_doc("Nội dung", 1, "Quy chế"), 0.30)])
+    result = await _run(
+        monkeypatch, store,
+        _FakeLLM("Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."),
+    )
+
+    assert result["answer_source"] == "no_context"
+    assert result["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_tra_loi_duoc_mot_phan_thi_khong_bi_coi_la_tu_choi(monkeypatch):
+    """Câu dài có chữ "không đề cập" vẫn là câu trả lời — phải giữ nguyên nguồn.
+
+    Chặn nhầm ở đây tệ hơn để lọt: người dùng mất phần thông tin thật sự có.
+    """
+    store = _FakeStore([(_doc("Nội dung", 1, "Quy chế"), 0.20)])
+    cau_tra_loi = (
+        "Tài liệu không đề cập mức phí cụ thể cho căn 2 phòng ngủ, nhưng có nêu "
+        "cách tính: phí dịch vụ được thu theo diện tích sử dụng căn hộ, đơn giá "
+        "công bố hằng năm và thông báo tới cư dân trước ít nhất 30 ngày. Bạn có "
+        "thể đối chiếu diện tích trên hợp đồng mua bán để ước tính."
+    )
+    result = await _run(monkeypatch, store, _FakeLLM(cau_tra_loi))
+
+    assert result["answer_source"] == "rag"
+    assert result["answer"] == cau_tra_loi
+    assert result["sources"], "trả lời được thì phải kèm nguồn"
+
+
+@pytest.mark.asyncio
+async def test_cau_tra_loi_binh_thuong_chua_chu_khong_van_giu_nguyen(monkeypatch):
+    """"Hồ sơ không cần công chứng" là thông tin, không phải lời từ chối."""
+    store = _FakeStore([(_doc("Nội dung", 1, "Quy chế"), 0.20)])
+    result = await _run(
+        monkeypatch, store, _FakeLLM("Hồ sơ không cần công chứng, chỉ cần bản sao CCCD.")
+    )
+
+    assert result["answer_source"] == "rag"
+    assert result["sources"]

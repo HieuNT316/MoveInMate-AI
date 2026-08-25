@@ -22,23 +22,6 @@ from src.services.llm import get_chat_llm
 
 logger = logging.getLogger("moveinmate")
 
-# Stopwords — từ quá chung không phân biệt được thủ tục. "the" (thẻ),
-# "xe", "ki", "lam" xuất hiện trong hầu hết task names, dùng chúng làm
-# keyword sẽ gây false positive. "dang" (đăng) KHÔNG stopword vì nó phân biệt
-# được "đăng ký" vs "làm" — hai hành động khác nhau trong cùng ngữ cảnh.
-_STOPWORDS = frozenset([
-    "cua", "va", "hoac", "voi", "cho", "nay", "kia", "cac",
-    "la", "co", "khong", "duoc", "de", "ve", "qua", "tai",
-    "tu", "trong", "nhung", "cac", "mot", "h nay", "h kia",
-    "lam", "ki", "the", "xe", "nha", "phong", "be",
-    "thang", "cu", "dan", "tru", "chinh", "giao",
-    # Thêm 25/08 — từ khung câu, không phân biệt thủ tục nào với thủ tục nào.
-    # "can" là từ nguy hiểm nhất trong nhóm: bỏ dấu xong "cần" và "căn" đều
-    # thành "can", nên "tôi CẦN làm thủ tục" khớp `high` vào "Đăng ký chuyển
-    # đồ vào CĂN hộ" — thủ tục duy nhất có chữ đó. Đo được 25/08.
-    "toi", "minh", "can", "muon", "thu", "tuc", "giup", "xin", "moi",
-])
-
 # Động từ hành chính dùng thay cho nhau ("làm thẻ…" / "đăng ký thẻ…" / "xin cấp
 # thẻ…" cùng chỉ một thủ tục) — bỏ đi để chỉ còn phần lõi mang tính phân biệt.
 # Giữ khớp với `_ACTION_PREFIXES` ở `routes.py`, nơi đã dùng cùng cách này cho
@@ -60,6 +43,11 @@ _ACTION_MARKERS = (
 _INFO_TAILS = (
     "can giay to gi", "can gi", "gom nhung gi", "gom gi", "la gi",
     "bao nhieu", "the nao", "ra sao", "mat bao lau", "khi nao", "thu tuc gi",
+    # Bổ sung 25/08 sau khi đo trên cả 37 câu `eval/questions.yaml` — mỗi
+    # chuỗi dưới đây là một câu hỏi thật đã bị nhận nhầm thành ý định làm thủ
+    # tục. Đều là từ để hỏi, nên không nuốt nhầm câu muốn hành động.
+    "nhung gi", "lam sao", "o dau", "nao xu ly", "bao lau",
+    "duoc khong", "co phai", "co duoc", "hay khong", "phai lam gi",
 )
 
 # Chuỗi LLM phải trả về khi không thủ tục nào khớp. Trả nguyên văn chuỗi này
@@ -97,18 +85,6 @@ def _normalize(text: str) -> str:
         c for c in decomposed
         if unicodedata.category(c) != "Mn"
     ).replace("đ", "d")
-
-
-def _extract_keywords(text: str) -> list[str]:
-    """Tach tu khoa 3+ ky tu (sau khi bo dau), loai bo stopwords."""
-    norm = _normalize(text)
-    words = re.findall(r"\b\w{3,}\b", norm)
-    return [w for w in words if len(w) >= 3 and w not in _STOPWORDS]
-
-
-def _task_name_contains(task_name: str, keyword: str) -> bool:
-    """So khớp keyword trong task_name, Unicode-normalized de xu ly tieng Viet."""
-    return keyword in _normalize(task_name)
 
 
 def _strip_action_prefix(text: str) -> str:
@@ -234,19 +210,48 @@ async def detect_procedure_intent(message: str, db: Session) -> ProcedureMatch:
     if is_info_question(message):
         return _NOT_A_PROCEDURE
 
-    keywords = _extract_keywords(message)
-
-    # Lớp 1: Keyword exact — so sánh trong Python de dam bao Unicode normalization
-    # chính xác. SQLite ILIKE khong nhan Unicode decomposition.
-    #
-    # `_has_form` cũng phải lọc trong Python — đọc docstring của nó trước khi
-    # định chuyển bộ lọc này xuống câu query.
+    # `_has_form` phải lọc trong Python — đọc docstring của nó trước khi định
+    # chuyển bộ lọc này xuống câu query.
     all_items = db.query(ChecklistItem).all()
     form_items = [item for item in all_items if _has_form(item)]
-    for kw in keywords:
-        candidates = [item for item in form_items if _task_name_contains(item.task_name, kw)]
-        if len(candidates) == 1:
-            return ProcedureMatch(item=candidates[0], confidence="high")
+
+    # Lớp 0 — khớp KHÍT cả tên thủ tục. Đứng trước mọi lớp khác vì nó không thể
+    # nhầm: trùng nguyên tên thì chỉ có đúng một mục.
+    #
+    # ┌─ Vì sao có lớp này (25/08 — Thu đọc) ──────────────────────────────┐
+    # │ Khi AI hỏi lại "bạn muốn thủ tục nào?", `web/app/chat/page.tsx`     │
+    # │ dựng mỗi lựa chọn thành một nút, bấm nút thì gửi `task_name` làm    │
+    # │ `message` (send(option.task_name)). Không có lớp 0 thì câu đó rơi   │
+    # │ xuống lớp 2 — vốn so PHẦN LÕI, đã bỏ phần trong ngoặc — nên         │
+    # │ "Làm thẻ cư dân (chủ hộ)" lại khớp cả hai nhánh chủ hộ/người thuê   │
+    # │ và AI hỏi lại đúng câu vừa hỏi. **Vòng lặp không lối ra.**          │
+    # │                                                                     │
+    # │ Sửa ở backend nên FE không phải đổi gì: cứ gửi `task_name` như      │
+    # │ đang làm. Hợp đồng `ChatRequest`/`ChatResponse` giữ nguyên.         │
+    # └─────────────────────────────────────────────────────────────────────┘
+    probe = _normalize(message).strip()
+    for item in form_items:
+        if _normalize(item.task_name).strip() == probe:
+            return ProcedureMatch(item=item, confidence="high")
+    # ┌─ Đã BỎ lớp "khớp một từ khoá đơn" — 25/08 ─────────────────────────┐
+    # │ Lớp cũ: tách từ 3+ ký tự khỏi câu, từ nào nằm trong đúng MỘT tên    │
+    # │ thủ tục thì chốt luôn `high confidence`. Đo trên cả 37 câu của       │
+    # │ `eval/questions.yaml`: nó gây 11 trong 15 ca nhận nhầm, khớp toàn    │
+    # │ từ vu vơ — "thue", "nguoi", "may", "hong", "dinh", "vao", "boi".     │
+    # │                                                                     │
+    # │ Nặng nhất: "Cho tôi công thức nấu PHỞ bò" → "pho" nằm lọt trong      │
+    # │ "PHÒNG gym" → mở form đăng ký phòng gym. Đó đúng là câu demo bước 7  │
+    # │ ("hỏi ngoài tài liệu → phải từ chối"), chỗ ăn điểm nhất theo         │
+    # │ ROLES_AND_PLAN mục 8.                                               │
+    # │                                                                     │
+    # │ Nó còn không cứu được ca nào: FG01 "…thẻ XE MÁY…" bị "may" kéo về    │
+    # │ "thẻ thang MÁY" — sai thủ tục. Bỏ lớp này thì lớp 2 khớp đúng.       │
+    # │                                                                     │
+    # │ Recall mất đi do bỏ lớp này (tên thủ tục dài hơn câu người ta gõ,    │
+    # │ vd "Đăng ký internet và truyền hình") đã có lớp 3 LLM gánh — mà lớp  │
+    # │ 3 chỉ chạy khi câu có dấu hiệu hành động, nên câu hỏi thường vẫn     │
+    # │ không tốn lượt gọi nào.                                             │
+    # └─────────────────────────────────────────────────────────────────────┘
 
     # Lớp 2: Fuzzy — so phần lõi, không so nguyên tên. Xem `_core_name`.
     probe_core = _core_name(message)

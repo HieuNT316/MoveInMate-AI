@@ -16,9 +16,19 @@ class ChatState(TypedDict, total=False):
     # (`rewrite_query`) — KHÔNG đưa thẳng vào generate, để generate vẫn chỉ
     # được phép trả lời từ tài liệu truy xuất (giữ nguyên bảo đảm chống bịa).
     chat_history: list[dict[str, str]]
+    # [{"faq_id": int, "question": str, "answer": str}] — FAQ đang bật, route
+    # đọc từ DB trước khi gọi graph, y như `chat_history`.
+    #
+    # Truyền VÀO thay vì để node tự mở session: graph không chạm DB (xem
+    # `suggested_action` ở dưới — cùng lý do). Giữ được thì node test bằng dữ
+    # liệu tiêm vào, không cần DB, và vai AI làm xong trước khi vai BE có
+    # `store.get_active_faqs`.
+    faqs: list[dict[str, Any]]
     # Câu hỏi đã viết lại thành độc lập ngữ cảnh — rag_retrieve dùng field này
     # nếu có, rơi về `query` gốc nếu rewrite_query bỏ qua (không có lịch sử).
     standalone_query: str
+    # faq_id đã khớp — route dùng để đếm lượt xem. None/absent = không khớp FAQ nào.
+    matched_faq_id: int | None
     # [{"content": str, "document_id": int, "title": str, "source_type": str}]
     # — chunk thô lấy từ Chroma, dùng để build prompt cho generate.
     retrieved: list[dict[str, Any]]

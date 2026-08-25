@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.ai.intent import (
-    _extract_keywords,
+    _core_name,
     _normalize,
     detect_procedure_intent,
     wants_to_act,
@@ -106,9 +106,9 @@ def test_normalize():
     assert _normalize("Ô tô") == "o to"
 
 
-def test_extract_keywords():
-    assert "dang" in _extract_keywords("Tôi muốn đăng ký thẻ xe máy")
-    assert len(_extract_keywords("ab")) == 0  # <3 chars
+def test_core_name_bo_dong_tu_dau_va_phan_trong_ngoac():
+    assert _core_name("Làm thẻ cư dân (chủ hộ)") == "the cu dan"
+    assert _core_name("Đăng ký thẻ xe") == "the xe"
 
 
 def test_wants_to_act_phan_biet_hoi_va_lam():
@@ -174,6 +174,25 @@ async def test_go_dung_ten_thu_tuc_thi_nhan_ra_du_co_ngoac(db_session, fake_llm)
     assert match.ambiguous, "hai nhánh chủ hộ/người thuê → phải hỏi lại"
     names = {i.task_name for i in match.disambiguation_options}
     assert names == {"Làm thẻ cư dân (chủ hộ)", "Làm thẻ cư dân (người thuê)"}
+
+
+@pytest.mark.asyncio
+async def test_bam_nut_chon_thu_tuc_thi_thoat_duoc_vong_hoi_lai(db_session, fake_llm):
+    """Gửi KHÍT tên thủ tục phải ra đúng mục đó, không hỏi lại lần nữa.
+
+    `web/app/chat/page.tsx` dựng mỗi lựa chọn thành nút, bấm nút thì gửi
+    `task_name` làm `message`. Thiếu lớp khớp khít, câu đó rơi xuống lớp 2 (so
+    phần lõi, đã bỏ ngoặc) nên lại khớp cả hai nhánh và AI hỏi lại đúng câu vừa
+    hỏi — vòng lặp không lối ra. Test này đỏ nghĩa là vòng lặp quay lại.
+    """
+    hoi_lai = await detect_procedure_intent("thẻ cư dân", db_session)
+    assert hoi_lai.ambiguous, "câu mơ hồ thì vẫn phải hỏi lại"
+
+    for lua_chon in hoi_lai.disambiguation_options:
+        da_chon = await detect_procedure_intent(lua_chon.task_name, db_session)
+        assert not da_chon.ambiguous, f"bấm {lua_chon.task_name!r} mà vẫn bị hỏi lại"
+        assert da_chon.item is not None
+        assert da_chon.item.task_name == lua_chon.task_name
 
 
 @pytest.mark.asyncio

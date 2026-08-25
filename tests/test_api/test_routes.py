@@ -1953,3 +1953,51 @@ async def test_luot_dien_form_van_vao_lich_su_hoi_thoai(
     ).all()
     assert len(rows) == 1
     assert rows[0].question == "Tôi muốn đăng ký thẻ xe"
+
+
+@pytest.fixture
+def hai_nhanh_the_cu_dan(db_session):
+    """Hai nhánh chủ hộ / người thuê, tên chỉ khác phần trong ngoặc."""
+    from src.models.db import ChecklistItem
+
+    schema = {
+        "fields": [{"key": "card_count", "label": "Số lượng thẻ", "type": "number",
+                    "required": True, "question": "Bạn cần làm bao nhiêu thẻ cư dân?"}],
+        "attachments": [],
+    }
+    items = db_session.query(ChecklistItem).filter(
+        ChecklistItem.task_name.like("Làm thẻ cư dân%")
+    ).all()
+    for item in items:
+        item.form_schema = schema
+    db_session.commit()
+    return items
+
+
+@pytest.mark.asyncio
+async def test_bam_nut_chon_thu_tuc_qua_http(client, fake_chat_graph, hai_nhanh_the_cu_dan):
+    """Hỏi mơ hồ → AI liệt kê nút → bấm nút → vào form, không hỏi lại lần nữa.
+
+    FE bấm nút bằng cách gửi `task_name` làm `message` (web/app/chat/page.tsx).
+    """
+    hoi_lai = (await client.post(
+        "/api/v1/chat", json={"message": "thẻ cư dân"}, headers=OWNER
+    )).json()
+
+    assert hoi_lai["intent"] == "disambiguation"
+    assert len(hoi_lai["options"]) >= 2, "phải trả danh sách để FE dựng nút"
+    assert all(o["id"] and o["task_name"] for o in hoi_lai["options"])
+
+    # Bấm nút đầu tiên — đúng cách FE đang làm.
+    da_chon = (await client.post(
+        "/api/v1/chat",
+        json={
+            "message": hoi_lai["options"][0]["task_name"],
+            "conversation_id": hoi_lai["conversation_id"],
+        },
+        headers=OWNER,
+    )).json()
+
+    assert da_chon["intent"] == "form_generation", "bấm nút mà vẫn bị hỏi lại = vòng lặp"
+    assert da_chon["checklist_item_id"] == hoi_lai["options"][0]["id"]
+    assert "bao nhiêu thẻ cư dân" in da_chon["answer"]
