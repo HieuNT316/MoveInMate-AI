@@ -238,6 +238,28 @@ def fake_ingest(monkeypatch, db_session):
 
 
 @pytest.fixture(autouse=True)
+def fake_db_session(monkeypatch, db_session):
+    """Patch SessionLocal in cost_tracking to use in-memory SQLite test DB.
+
+    `cost_tracking.log_usage()` and `get_usage_summary()` each open their own
+    session via `SessionLocal()` (not via FastAPI dependency), so without this
+    patch they would hit the real PostgreSQL database and fail on FK
+    constraints (user_id=1 does not exist in production DB).
+
+    `with SessionLocal() as db: ...; db.close()` — the context manager returns
+    `db_session` directly, so `db.close()` is called on the real session.
+    Patch `.close` to be a no-op to avoid closing the shared test session.
+    """
+    from src.services import cost_tracking
+
+    original_close = db_session.close
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cost_tracking, "SessionLocal", lambda: db_session)
+    yield
+    monkeypatch.setattr(db_session, "close", original_close)
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limits():
     """Bộ đếm rate limit (task 18, `src/services/rate_limit.py`) sống ở biến
     MODULE-LEVEL, ngoài `db_session` — không tự dọn giữa các test.
