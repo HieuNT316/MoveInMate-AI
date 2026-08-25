@@ -114,6 +114,10 @@ class User(Base):
         nullable=False,
     )
 
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("departments.department_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # --- Bốn field dưới đây là đầu vào của rule engine (src/services/checklist.py).
     # Đổi tên/kiểu ở đây là phá vỡ PROFILE_FIELDS bên đó.
     ownership_type: Mapped[str | None] = mapped_column(
@@ -244,6 +248,12 @@ class Application(Base):
     note: Mapped[str | None] = mapped_column(Text)
     bql_note: Mapped[str | None] = mapped_column(Text)
     form_data: Mapped[dict | None] = mapped_column(JSONType, default=None)
+    assigned_to: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    assigned_user: Mapped[User | None] = relationship(foreign_keys=[assigned_to])
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -257,6 +267,37 @@ class Application(Base):
     attachments: Mapped[list[ApplicationAttachment]] = relationship(
         back_populates="application", cascade="all, delete-orphan"
     )
+
+
+class Department(Base):
+    """Bộ phận trong Ban quản lý."""
+
+    __tablename__ = "departments"
+
+    department_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    lead_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    lead: Mapped[User | None] = relationship(foreign_keys=[lead_user_id])
+
+
+class StaffAssignment(Base):
+    """Gán nhân viên vào bộ phận."""
+
+    __tablename__ = "staff_assignments"
+
+    assignment_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    department_id: Mapped[int] = mapped_column(ForeignKey("departments.department_id", ondelete="CASCADE"), index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("user_id", "department_id"),)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    department: Mapped[Department] = relationship(foreign_keys=[department_id])
 
 
 class ApplicationAttachment(Base):
