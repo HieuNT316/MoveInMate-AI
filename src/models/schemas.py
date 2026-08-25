@@ -494,6 +494,10 @@ class ApplicationResponse(BaseModel):
     bql_note: str | None = Field(
         default=None, description="Lời nhắn của BQL, vd. lý do cần bổ sung."
     )
+    form_data: dict[str, str] = Field(
+        default_factory=dict,
+        description="Structured form data from AI-assisted submission.",
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -507,7 +511,7 @@ class AdminApplicationResponse(ApplicationResponse):
 
 
 class ApplicationStatusUpdateRequest(BaseModel):
-    """US-13 / D7 — BQL chuyển trạng thái hồ sơ."""
+    """US-13 / D7 — BQL chuyển trạng thái hồ sơ, có thể sửa form_data."""
 
     status: ApplicationStatus
     bql_note: str | None = Field(
@@ -516,6 +520,13 @@ class ApplicationStatusUpdateRequest(BaseModel):
         description=(
             "Bỏ trống thì GIỮ NGUYÊN ghi chú cũ, không xoá — đổi trạng thái mà "
             "không nói gì không nên làm mất lý do 'cần bổ sung' trước đó."
+        ),
+    )
+    form_data: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Sửa form_data khi cư dân nhập sai. Bỏ trống (None) thì GIỮ "
+            "NGUYÊN form_data cũ. Muốn xoá trắng thì truyền {}."
         ),
     )
 

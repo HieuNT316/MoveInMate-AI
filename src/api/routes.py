@@ -659,7 +659,7 @@ async def chat(
 
     settings = get_settings()
     recent_turns = [
-        {"question": turn["question"], "answer": turn["answer"]}
+        {"question": turn.get("question", ""), "answer": turn.get("answer", "")}
         for turn in history[-settings.rag_history_turns :]
     ]
 
@@ -854,7 +854,7 @@ async def update_application_status(
         )
 
     return store.update_application_status(
-        db, application_id, payload.status, payload.bql_note
+        db, application_id, payload.status, payload.bql_note, payload.form_data
     )
 
 
