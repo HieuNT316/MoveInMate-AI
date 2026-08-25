@@ -18,6 +18,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from src.middleware.audit import log_action
 from src.models.db import (
     CLOSED_STATUSES,
     Application,
@@ -555,6 +556,7 @@ def update_application_status(
         )
         if app is None:
             return None
+        old_status = app.status
         if app.version != expected_version:
             raise VersionConflictError(
                 f"Application {application_id} was modified by another user. Please refresh."
@@ -567,6 +569,15 @@ def update_application_status(
             app.form_data = form_data
         app.version = (app.version or 1) + 1
 
+        log_action(
+            db,
+            user_id=None,
+            action="application.status_changed",
+            resource_type="application",
+            resource_id=application_id,
+            old_value={"status": old_status},
+            new_value={"status": status},
+        )
         db.commit()
         db.refresh(app)
         return _application_dict(app)
@@ -576,6 +587,7 @@ def update_application_status(
     if app is None:
         return None
 
+    old_status = app.status
     app.status = status
     # Chỉ ghi đè khi BQL thực sự gửi ghi chú — đổi trạng thái mà không nói gì
     # thì giữ nguyên lời nhắn cũ, đừng xoá mất lý do "cần bổ sung" trước đó.
@@ -586,6 +598,15 @@ def update_application_status(
         app.form_data = form_data
     app.version = (app.version or 1) + 1
 
+    log_action(
+        db,
+        user_id=None,
+        action="application.status_changed",
+        resource_type="application",
+        resource_id=application_id,
+        old_value={"status": old_status},
+        new_value={"status": status},
+    )
     db.commit()
     db.refresh(app)
     return _application_dict(app)
@@ -674,8 +695,18 @@ def create_ticket(
         RETURNING ticket_id, user_id, subject, status, priority, assigned_to, created_at
     """)
     result = db.execute(stmt, {"user_id": user_id, "subject": subject})
-    db.commit()
     ticket = dict(result.one()._mapping)
+
+    log_action(
+        db,
+        user_id=user_id,
+        action="ticket.created",
+        resource_type="ticket",
+        resource_id=ticket["ticket_id"],
+        new_value={"subject": subject, "status": "open"},
+    )
+
+    db.commit()
 
     if initial_message:
         add_ticket_message(db, ticket["ticket_id"], user_id, "resident", initial_message)
@@ -793,6 +824,14 @@ def resolve_ticket(db: Session, ticket_id: int) -> dict[str, Any] | None:
 
 def update_ticket_status(db: Session, ticket_id: int, status: str) -> dict[str, Any] | None:
     """Update ticket status."""
+    # Get old status for audit log
+    old_stmt = text("SELECT status FROM tickets WHERE ticket_id = :ticket_id")
+    old_result = db.execute(old_stmt, {"ticket_id": ticket_id})
+    old_row = old_result.fetchone()
+    if not old_row:
+        return None
+    old_status = old_row._mapping["status"]
+
     stmt = text("""
         UPDATE tickets
         SET status = :status, updated_at = NOW()
@@ -800,6 +839,16 @@ def update_ticket_status(db: Session, ticket_id: int, status: str) -> dict[str, 
         RETURNING *
     """)
     result = db.execute(stmt, {"ticket_id": ticket_id, "status": status})
+
+    log_action(
+        db,
+        user_id=None,
+        action="ticket.status_changed",
+        resource_type="ticket",
+        resource_id=ticket_id,
+        old_value={"status": old_status},
+        new_value={"status": status},
+    )
     db.commit()
     row = result.fetchone()
     return dict(row._mapping) if row else None
