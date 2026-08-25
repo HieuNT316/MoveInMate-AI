@@ -262,7 +262,7 @@ class Application(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped[User] = relationship()
+    user: Mapped[User] = relationship(foreign_keys="Application.user_id")
     item: Mapped[ChecklistItem] = relationship()
     attachments: Mapped[list[ApplicationAttachment]] = relationship(
         back_populates="application", cascade="all, delete-orphan"

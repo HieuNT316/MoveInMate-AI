@@ -689,3 +689,46 @@ class AdminTicketResponse(TicketResponse):
     """Ticket nhìn từ góc BQL."""
 
     user_name: str | None = None
+
+
+# --- Batch Approval (Task 6, Phase 2) -------------------------------------
+
+
+class BatchApprovalRequest(BaseModel):
+    """Duyệt hoặc từ chối nhiều hồ sơ cùng lúc."""
+
+    application_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        description="Danh sách application_id cần xử lý.",
+    )
+    action: Literal["approve", "reject"] = Field(
+        ...,
+        description="'approve' -> status = 'approved', 'reject' -> status = 'rejected'.",
+    )
+    bql_note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Ghi chú chung cho tất cả hồ sơ được xử lý.",
+    )
+
+
+class BatchApprovalResult(BaseModel):
+    """Một hồ sơ trong kết quả batch."""
+
+    application_id: int
+    status: str | None = None
+    error: str | None = None
+
+
+class BatchApprovalResponse(BaseModel):
+    """Kết quả batch approval."""
+
+    processed: int = Field(
+        ...,
+        description="Số hồ sơ xử lý thành công.",
+    )
+    failed: list[BatchApprovalResult] = Field(
+        default_factory=list,
+        description="Danh sách hồ sơ thất bại kèm lý do.",
+    )

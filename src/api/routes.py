@@ -43,6 +43,9 @@ from src.models.schemas import (
     AttachmentResponse,
     AttachmentTypeUpdateRequest,
     AttachmentUrlResponse,
+    BatchApprovalRequest,
+    BatchApprovalResponse,
+    BatchApprovalResult,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -927,6 +930,79 @@ async def update_application_status(
     )
 
     return result
+
+
+@router.post(
+    "/admin/applications/batch",
+    response_model=BatchApprovalResponse,
+)
+async def batch_approve_applications(
+    payload: BatchApprovalRequest,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> BatchApprovalResponse:
+    """Task 6: Duyệt hoặc từ chối nhiều hồ sơ cùng lúc.
+
+    Với mỗi hồ sơ: nếu không tìm thấy hoặc lỗi thì ghi vào `failed`.
+    Với action='approve': sau khi cập nhật trạng thái thành công,
+    gọi auto_assign để gán cho staff ít việc nhất.
+    """
+    from src.models.schemas import ApplicationStatusUpdateRequest
+
+    processed = 0
+    failed: list[BatchApprovalResult] = []
+
+    for app_id in payload.application_ids:
+        try:
+            app = store.get_application(db, app_id)
+            if app is None:
+                failed.append(BatchApprovalResult(
+                    application_id=app_id,
+                    error="Không tìm thấy hồ sơ này."
+                ))
+                continue
+
+            new_status = "approved" if payload.action == "approve" else "rejected"
+            status_payload = ApplicationStatusUpdateRequest(
+                status=new_status,
+                bql_note=payload.bql_note,
+            )
+
+            result = store.update_application_status(
+                db,
+                app_id,
+                status_payload.status,
+                status_payload.bql_note,
+                status_payload.form_data,
+            )
+
+            if result is None:
+                failed.append(BatchApprovalResult(
+                    application_id=app_id,
+                    error="Cập nhật thất bại."
+                ))
+                continue
+
+            # Auto-assign sau khi duyệt thành công
+            if payload.action == "approve" and new_status == "approved":
+                from src.services import assignment
+                assignment.auto_assign_on_approval(db, app_id)
+
+            processed += 1
+
+        except store.VersionConflictError:
+            failed.append(BatchApprovalResult(
+                application_id=app_id,
+                error="Hồ sơ đã bị sửa bởi người khác. Vui lòng tải lại trang."
+            ))
+        except Exception as e:
+            logger.exception("Batch approval failed for application %d", app_id)
+            failed.append(BatchApprovalResult(
+                application_id=app_id,
+                error=str(e)
+            ))
+
+    return BatchApprovalResponse(processed=processed, failed=failed)
 
 
 # --- Quản lý tài khoản cư dân (18/08) -----------------------------------
