@@ -14,10 +14,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from src.middleware.audit import log_action
 from src.models.db import (
     CLOSED_STATUSES,
     Application,
@@ -168,6 +169,11 @@ def list_checklist_items(db: Session) -> list[dict[str, Any]]:
     return [_item_dict(i) for i in items]
 
 
+def get_checklist_item(db: Session, checklist_item_id: int) -> dict[str, Any] | None:
+    item = db.get(ChecklistItem, checklist_item_id)
+    return _item_dict(item) if item else None
+
+
 def get_completions(db: Session, user_id: int) -> dict[int, datetime]:
     rows = db.scalars(
         select(ChecklistCompletion).where(ChecklistCompletion.user_id == user_id)
@@ -292,6 +298,7 @@ def _application_dict(app: Application) -> dict[str, Any]:
     """
     return {
         "application_id": app.application_id,
+        "user_id": app.user_id,
         "checklist_item_id": app.checklist_item_id,
         "task_name": app.item.task_name,
         "status": app.status,
@@ -523,14 +530,64 @@ def list_all_applications(
     ]
 
 
+class VersionConflictError(Exception):
+    """Hồ sơ đã bị sửa bởi người khác — client phải refresh."""
+
+
 def update_application_status(
-    db: Session, application_id: int,
-    status: str, bql_note: str | None, form_data: dict[str, str] | None
+    db: Session,
+    application_id: int,
+    status: str,
+    bql_note: str | None,
+    form_data: dict[str, str] | None,
+    expected_version: int | None = None,
 ) -> dict[str, Any] | None:
+    """Cập nhật trạng thái hồ sơ với optimistic locking tuỳ chọn.
+
+    Nếu `expected_version` được truyền, hàm sẽ kiểm tra version hiện tại
+    và raise `VersionConflictError` nếu không khớp.
+    """
+    if expected_version is not None:
+        # Optimistic locking: kiểm tra version trước, rồi mới UPDATE.
+        # Tách làm hai query để đảm bảo tương thích SQLite (RETURNING + rowcount
+        # không hoạt động đáng tin cậy trên SQLite).
+        app = db.scalar(
+            select(Application).where(Application.application_id == application_id)
+        )
+        if app is None:
+            return None
+        old_status = app.status
+        if app.version != expected_version:
+            raise VersionConflictError(
+                f"Application {application_id} was modified by another user. Please refresh."
+            )
+
+        app.status = status
+        if bql_note is not None:
+            app.bql_note = bql_note
+        if form_data is not None:
+            app.form_data = form_data
+        app.version = (app.version or 1) + 1
+
+        log_action(
+            db,
+            user_id=None,
+            action="application.status_changed",
+            resource_type="application",
+            resource_id=application_id,
+            old_value={"status": old_status},
+            new_value={"status": status},
+        )
+        db.commit()
+        db.refresh(app)
+        return _application_dict(app)
+
+    # Không có optimistic locking: dùng ORM như trước
     app = db.scalar(select(Application).where(Application.application_id == application_id))
     if app is None:
         return None
 
+    old_status = app.status
     app.status = status
     # Chỉ ghi đè khi BQL thực sự gửi ghi chú — đổi trạng thái mà không nói gì
     # thì giữ nguyên lời nhắn cũ, đừng xoá mất lý do "cần bổ sung" trước đó.
@@ -539,7 +596,17 @@ def update_application_status(
     # Chỉ ghi đè khi BQL thực sự gửi form_data — None = giữ nguyên, {} = xoá.
     if form_data is not None:
         app.form_data = form_data
+    app.version = (app.version or 1) + 1
 
+    log_action(
+        db,
+        user_id=None,
+        action="application.status_changed",
+        resource_type="application",
+        resource_id=application_id,
+        old_value={"status": old_status},
+        new_value={"status": status},
+    )
     db.commit()
     db.refresh(app)
     return _application_dict(app)
@@ -604,3 +671,210 @@ def list_documents(db: Session) -> list[dict[str, Any]]:
         _document_dict(d)
         for d in db.scalars(select(Document).order_by(Document.document_id.desc()))
     ]
+
+
+def get_document(db: Session, document_id: int) -> dict[str, Any] | None:
+    """Get a single document by ID, or None if not found."""
+    doc = db.get(Document, document_id)
+    return _document_dict(doc) if doc else None
+
+
+# --- Hỗ trợ (Tickets) ----------------------------------------------------
+
+
+def create_ticket(
+    db: Session,
+    user_id: int,
+    subject: str,
+    initial_message: str | None = None,
+) -> dict[str, Any]:
+    """Create a new support ticket."""
+    stmt = text("""
+        INSERT INTO tickets (user_id, subject, status, priority)
+        VALUES (:user_id, :subject, 'open', 'normal')
+        RETURNING ticket_id, user_id, subject, status, priority, assigned_to, created_at
+    """)
+    result = db.execute(stmt, {"user_id": user_id, "subject": subject})
+    ticket = dict(result.one()._mapping)
+
+    log_action(
+        db,
+        user_id=user_id,
+        action="ticket.created",
+        resource_type="ticket",
+        resource_id=ticket["ticket_id"],
+        new_value={"subject": subject, "status": "open"},
+    )
+
+    db.commit()
+
+    if initial_message:
+        add_ticket_message(db, ticket["ticket_id"], user_id, "resident", initial_message)
+
+    return ticket
+
+
+def add_ticket_message(
+    db: Session,
+    ticket_id: int,
+    sender_id: int,
+    sender_type: str,
+    message: str,
+) -> dict[str, Any]:
+    """Add message to ticket."""
+    stmt = text("""
+        INSERT INTO ticket_messages (ticket_id, sender_id, sender_type, message)
+        VALUES (:ticket_id, :sender_id, :sender_type, :message)
+        RETURNING message_id, ticket_id, sender_id, sender_type, message, created_at
+    """)
+    result = db.execute(stmt, {
+        "ticket_id": ticket_id,
+        "sender_id": sender_id,
+        "sender_type": sender_type,
+        "message": message,
+    })
+    db.commit()
+    return dict(result.one()._mapping)
+
+
+def get_user_tickets(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """Get all tickets for a user."""
+    stmt = text("""
+        SELECT t.*,
+               (SELECT message FROM ticket_messages tm WHERE tm.ticket_id = t.ticket_id ORDER BY created_at DESC LIMIT 1) as last_message
+        FROM tickets t
+        WHERE t.user_id = :user_id
+        ORDER BY t.created_at DESC
+    """)
+    result = db.execute(stmt, {"user_id": user_id})
+    return [dict(row._mapping) for row in result.fetchall()]
+
+
+def get_ticket_with_messages(db: Session, ticket_id: int, user_id: int) -> dict[str, Any] | None:
+    """Get ticket with all messages (for resident, only own tickets)."""
+    stmt = text("""
+        SELECT t.*, u.full_name as assigned_to_name
+        FROM tickets t
+        LEFT JOIN users u ON t.assigned_to = u.user_id
+        WHERE t.ticket_id = :ticket_id AND t.user_id = :user_id
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "user_id": user_id})
+    row = result.fetchone()
+    if not row:
+        return None
+
+    ticket = dict(row._mapping)
+
+    msg_stmt = text("""
+        SELECT tm.*, u.full_name as sender_name
+        FROM ticket_messages tm
+        JOIN users u ON tm.sender_id = u.user_id
+        WHERE tm.ticket_id = :ticket_id
+        ORDER BY tm.created_at ASC
+    """)
+    msg_result = db.execute(msg_stmt, {"ticket_id": ticket_id})
+    ticket["messages"] = [dict(row._mapping) for row in msg_result.fetchall()]
+
+    return ticket
+
+
+def get_ticket_by_id(db: Session, ticket_id: int) -> dict[str, Any] | None:
+    """Get ticket by ID (admin view, no user filter)."""
+    stmt = text("""
+        SELECT t.*, u.full_name as user_name, a.full_name as assigned_to_name
+        FROM tickets t
+        JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN users a ON t.assigned_to = a.user_id
+        WHERE t.ticket_id = :ticket_id
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id})
+    row = result.fetchone()
+    if not row:
+        return None
+    return dict(row._mapping)
+
+
+def assign_ticket(db: Session, ticket_id: int, assigned_to: int) -> dict[str, Any] | None:
+    """Assign ticket to a user."""
+    stmt = text("""
+        UPDATE tickets
+        SET assigned_to = :assigned_to, status = 'in_progress', updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "assigned_to": assigned_to})
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def resolve_ticket(db: Session, ticket_id: int) -> dict[str, Any] | None:
+    """Mark ticket as resolved."""
+    stmt = text("""
+        UPDATE tickets
+        SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id})
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def update_ticket_status(db: Session, ticket_id: int, status: str) -> dict[str, Any] | None:
+    """Update ticket status."""
+    # Get old status for audit log
+    old_stmt = text("SELECT status FROM tickets WHERE ticket_id = :ticket_id")
+    old_result = db.execute(old_stmt, {"ticket_id": ticket_id})
+    old_row = old_result.fetchone()
+    if not old_row:
+        return None
+    old_status = old_row._mapping["status"]
+
+    stmt = text("""
+        UPDATE tickets
+        SET status = :status, updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "status": status})
+
+    log_action(
+        db,
+        user_id=None,
+        action="ticket.status_changed",
+        resource_type="ticket",
+        resource_id=ticket_id,
+        old_value={"status": old_status},
+        new_value={"status": status},
+    )
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def get_all_tickets(
+    db: Session,
+    status: str | None = None,
+    assigned_to: int | None = None,
+) -> list[dict[str, Any]]:
+    """Get all tickets (for admin)."""
+    query = """
+        SELECT t.*, u.full_name as user_name, a.full_name as assigned_to_name
+        FROM tickets t
+        JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN users a ON t.assigned_to = a.user_id
+        WHERE 1=1
+    """
+    params = {}
+    if status:
+        query += " AND t.status = :status"
+        params["status"] = status
+    if assigned_to:
+        query += " AND t.assigned_to = :assigned_to"
+        params["assigned_to"] = assigned_to
+    query += " ORDER BY t.created_at DESC"
+
+    result = db.execute(text(query), params)
+    return [dict(row._mapping) for row in result.fetchall()]

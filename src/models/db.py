@@ -27,6 +27,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -112,6 +113,10 @@ class User(Base):
         default="active",
         server_default="active",
         nullable=False,
+    )
+
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("departments.department_id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # --- Bốn field dưới đây là đầu vào của rule engine (src/services/checklist.py).
@@ -244,6 +249,12 @@ class Application(Base):
     note: Mapped[str | None] = mapped_column(Text)
     bql_note: Mapped[str | None] = mapped_column(Text)
     form_data: Mapped[dict | None] = mapped_column(JSONType, default=None)
+    assigned_to: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+    assigned_user: Mapped[User | None] = relationship(foreign_keys=[assigned_to])
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -252,11 +263,42 @@ class Application(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped[User] = relationship()
+    user: Mapped[User] = relationship(foreign_keys="Application.user_id")
     item: Mapped[ChecklistItem] = relationship()
     attachments: Mapped[list[ApplicationAttachment]] = relationship(
         back_populates="application", cascade="all, delete-orphan"
     )
+
+
+class Department(Base):
+    """Bộ phận trong Ban quản lý."""
+
+    __tablename__ = "departments"
+
+    department_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    lead_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    lead: Mapped[User | None] = relationship(foreign_keys=[lead_user_id])
+
+
+class StaffAssignment(Base):
+    """Gán nhân viên vào bộ phận."""
+
+    __tablename__ = "staff_assignments"
+
+    assignment_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    department_id: Mapped[int] = mapped_column(ForeignKey("departments.department_id", ondelete="CASCADE"), index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("user_id", "department_id"),)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    department: Mapped[Department] = relationship(foreign_keys=[department_id])
 
 
 class ApplicationAttachment(Base):
@@ -354,3 +396,21 @@ class Faq(Base):
     question: Mapped[str] = mapped_column(Text)
     answer: Mapped[str] = mapped_column(Text)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+
+
+class UsageLog(Base):
+    """Log AI API usage for cost tracking."""
+
+    __tablename__ = "usage_logs"
+
+    log_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    operation: Mapped[str] = mapped_column(String(50), nullable=False)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

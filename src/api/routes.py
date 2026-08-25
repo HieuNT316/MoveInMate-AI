@@ -9,6 +9,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,15 +24,17 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
 from src.ai import form_dialog
 from src.ai.intent import wants_to_act
-from src.api.deps import get_current_user, require_admin, require_resident
+from src.api.deps import get_current_user, require_admin, require_permission, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
 from src.models.db import APPLICATION_STATUSES
+from src.models.rbac import Permission
 from src.models.schemas import (
     AccountStatusUpdateRequest,
     AdminApplicationResponse,
@@ -42,6 +45,9 @@ from src.models.schemas import (
     AttachmentResponse,
     AttachmentTypeUpdateRequest,
     AttachmentUrlResponse,
+    BatchApprovalRequest,
+    BatchApprovalResponse,
+    BatchApprovalResult,
     ChatHistoryEntry,
     ChatRequest,
     ChatResponse,
@@ -53,16 +59,23 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
+    DocumentContentResponse,
     DocumentIngestRequest,
     DocumentResponse,
     FormSchemaPayload,
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    PushSubscriptionRequest,
+    PushUnsubscribeRequest,
     ResidentDetailResponse,
     TemporaryPasswordResponse,
+    TicketAssignRequest,
+    TicketCreateRequest,
+    TicketMessageRequest,
+    TicketStatusUpdateRequest,
 )
-from src.services import rate_limit, storage, store
+from src.services import cost_tracking, push, rate_limit, storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
 from src.services.ingest import KB_DIR, ingest_file
@@ -196,6 +209,36 @@ async def update_profile(
             detail="Cần ít nhất một trường để cập nhật",
         )
     return store.update_profile(db, user["user_id"], changes)
+
+
+# --- Push Subscriptions ---------------------------------------------------
+
+
+@router.post("/push/subscriptions")
+async def subscribe_push(
+    payload: PushSubscriptionRequest,
+    user: dict[str, Any] = Depends(require_resident),
+) -> dict[str, Any]:
+    """Register push notification subscription for a device."""
+    result = await push.subscribe_user(
+        user_id=user["user_id"],
+        endpoint=payload.endpoint,
+        p256dh=payload.keys["p256dh"],
+        auth=payload.keys["auth"],
+        user_agent=payload.user_agent,
+    )
+    return {"subscription_id": result["subscription_id"]}
+
+
+@router.delete("/push/subscriptions")
+async def unsubscribe_push(
+    payload: PushUnsubscribeRequest,
+    user: dict[str, Any] = Depends(require_resident),
+) -> None:
+    """Remove push notification subscription."""
+    deleted = await push.unsubscribe_user(user["user_id"], payload.endpoint)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Subscription not found")
 
 
 def _build_checklist(db: Session, user: dict[str, Any]) -> ChecklistResponse:
@@ -678,6 +721,20 @@ async def chat(
         "conversation_id": conversation_id,
     }
 
+    # Log LLM usage for cost tracking (rewrite_query + generate combined).
+    def _log_chat_usage(usage: dict | None) -> None:
+        if usage and usage.get("input_tokens") and usage.get("output_tokens"):
+            cost_tracking.log_usage(
+                user_id=user["user_id"],
+                provider="openai",
+                model="gpt-4o-mini",
+                operation="chat",
+                input_tokens=usage["input_tokens"],
+                output_tokens=usage["output_tokens"],
+            )
+
+    _log_chat_usage(state.get("usage"))
+
     # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
     #
     # Trước đây khối này chỉ chạy khi LLM chủ động gọi tool. Đo trên bản deploy
@@ -832,6 +889,9 @@ async def update_application_status(
     Không ràng buộc thứ tự chuyển trạng thái: quy trình thật có thể quay lại
     (đã duyệt rồi phát hiện thiếu giấy tờ → cần bổ sung). Ép một máy trạng thái
     cứng sẽ chặn đúng những tình huống mà BQL cần xử lý linh hoạt nhất.
+
+    Sau khi cập nhật, gửi push notification cho cư dân — thất bại notification
+    không ảnh hưởng đến việc cập nhật trạng thái.
     """
     app = store.get_application(db, application_id)
     if app is None:
@@ -853,9 +913,101 @@ async def update_application_status(
             detail="Chưa có ảnh minh chứng nào để ghi nhận hồ sơ tự khai này.",
         )
 
-    return store.update_application_status(
+    # Lấy tên thủ tục trước khi cập nhật để gửi notification.
+    checklist_item = store.get_checklist_item(db, app.checklist_item_id)
+    checklist_name = checklist_item["task_name"] if checklist_item else "thủ tục"
+    resident = store.get_user(db, app.user_id)
+    resident_name = resident["full_name"] if resident else ""
+
+    result = store.update_application_status(
         db, application_id, payload.status, payload.bql_note, payload.form_data
     )
+
+    # Gửi notification sau khi cập nhật thành công.
+    # Notification chạy độc lập: nếu push thất bại, trạng thái vẫn đã được cập nhật.
+    from src.services.notifications import notify_application_status_change
+
+    await notify_application_status_change(
+        application=result,
+        new_status=payload.status,
+        resident_name=resident_name,
+        checklist_item_name=checklist_name,
+    )
+
+    return result
+
+
+@router.post(
+    "/admin/applications/batch",
+    response_model=BatchApprovalResponse,
+)
+async def batch_approve_applications(
+    payload: BatchApprovalRequest,
+    _principal: dict[str, Any] = Depends(require_permission(Permission.BATCH_APPROVE)),
+    db: Session = Depends(get_db),
+) -> BatchApprovalResponse:
+    """Task 6: Duyệt hoặc từ chối nhiều hồ sơ cùng lúc.
+
+    Với mỗi hồ sơ: nếu không tìm thấy hoặc lỗi thì ghi vào `failed`.
+    Với action='approve': sau khi cập nhật trạng thái thành công,
+    gọi auto_assign để gán cho staff ít việc nhất.
+    """
+    from src.models.schemas import ApplicationStatusUpdateRequest
+
+    processed = 0
+    failed: list[BatchApprovalResult] = []
+
+    for app_id in payload.application_ids:
+        try:
+            app = store.get_application(db, app_id)
+            if app is None:
+                failed.append(BatchApprovalResult(
+                    application_id=app_id,
+                    error="Không tìm thấy hồ sơ này."
+                ))
+                continue
+
+            new_status = "approved" if payload.action == "approve" else "rejected"
+            status_payload = ApplicationStatusUpdateRequest(
+                status=new_status,
+                bql_note=payload.bql_note,
+            )
+
+            result = store.update_application_status(
+                db,
+                app_id,
+                status_payload.status,
+                status_payload.bql_note,
+                status_payload.form_data,
+            )
+
+            if result is None:
+                failed.append(BatchApprovalResult(
+                    application_id=app_id,
+                    error="Cập nhật thất bại."
+                ))
+                continue
+
+            # Auto-assign sau khi duyệt thành công
+            if payload.action == "approve" and new_status == "approved":
+                from src.services import assignment
+                assignment.auto_assign_on_approval(db, app_id)
+
+            processed += 1
+
+        except store.VersionConflictError:
+            failed.append(BatchApprovalResult(
+                application_id=app_id,
+                error="Hồ sơ đã bị sửa bởi người khác. Vui lòng tải lại trang."
+            ))
+        except Exception as e:
+            logger.exception("Batch approval failed for application %d", app_id)
+            failed.append(BatchApprovalResult(
+                application_id=app_id,
+                error=str(e)
+            ))
+
+    return BatchApprovalResponse(processed=processed, failed=failed)
 
 
 # --- Quản lý tài khoản cư dân (18/08) -----------------------------------
@@ -1014,3 +1166,178 @@ async def list_documents(
 ) -> Any:
     """US-08 — danh sách tài liệu đã nạp, để BQL theo dõi trạng thái embed."""
     return store.list_documents(db)
+
+
+@router.get("/documents/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    document_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Get document content with signed URL.
+
+    BQL internal documents (stored in data/kb/bql/) require admin/manager role.
+    Other documents are accessible to all authenticated users.
+    """
+    doc = store.get_document(db, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Check permissions for internal documents
+    # BQL internal documents are stored in data/kb/bql/
+    is_internal = doc["file_path"].startswith("data/kb/bql/")
+    if is_internal and user["role"] not in ("admin", "super_admin", "manager"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Generate signed URL (15 min expiry)
+    bucket = get_settings().supabase_storage_bucket
+    signed_url = storage.generate_signed_url(bucket, doc["file_path"], 900)
+
+    return DocumentContentResponse(
+        document_id=doc["document_id"],
+        title=doc["title"],
+        content_type="application/pdf",
+        signed_url=signed_url,
+        expires_at=datetime.now() + timedelta(minutes=15),
+    )
+
+
+# --- Hỗ trợ (Tickets) ---------------------------------------------------
+
+
+@router.post("/tickets", status_code=status.HTTP_201_CREATED)
+async def create_ticket(
+    payload: TicketCreateRequest,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Cư dân tạo ticket hỗ trợ mới."""
+    ticket = store.create_ticket(
+        db,
+        user_id=user["user_id"],
+        subject=payload.subject,
+        initial_message=payload.message,
+    )
+    return ticket
+
+
+@router.get("/tickets")
+async def list_my_tickets(
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Danh sách ticket của cư dân đang đăng nhập."""
+    return store.get_user_tickets(db, user["user_id"])
+
+
+@router.get("/tickets/{ticket_id}")
+async def get_ticket(
+    ticket_id: int,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Lấy chi tiết ticket kèm tin nhắn."""
+    ticket = store.get_ticket_with_messages(db, ticket_id, user["user_id"])
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+@router.post("/tickets/{ticket_id}/messages")
+async def add_ticket_message(
+    ticket_id: int,
+    payload: TicketMessageRequest,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Gửi tin nhắn vào ticket."""
+    # Verify ticket exists and user owns it
+    ticket = store.get_ticket_with_messages(db, ticket_id, user["user_id"])
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    sender_type = "resident" if user["role"] == "resident" else "staff"
+    message = store.add_ticket_message(
+        db, ticket_id, user["user_id"], sender_type, payload.message
+    )
+    return message
+
+
+# --- Admin: Tickets -----------------------------------------------------
+
+
+@router.get("/admin/tickets")
+async def list_all_tickets(
+    status: str | None = Query(default=None),
+    assigned_to: int | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_ALL_TICKETS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Danh sách tất cả ticket (BQL)."""
+    return store.get_all_tickets(db, status, assigned_to)
+
+
+@router.get("/admin/tickets/{ticket_id}")
+async def get_admin_ticket(
+    ticket_id: int,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_ALL_TICKETS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Lấy chi tiết ticket (BQL) — xem được cả ticket chưa gán."""
+    ticket = store.get_ticket_by_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Get messages
+    msg_result = db.execute(text("""
+        SELECT tm.*, u.full_name as sender_name
+        FROM ticket_messages tm
+        JOIN users u ON tm.sender_id = u.user_id
+        WHERE tm.ticket_id = :ticket_id
+        ORDER BY tm.created_at ASC
+    """), {"ticket_id": ticket_id})
+    ticket["messages"] = [dict(row._mapping) for row in msg_result.fetchall()]
+    return ticket
+
+
+@router.patch("/admin/tickets/{ticket_id}/assign")
+async def assign_ticket_to_user(
+    ticket_id: int,
+    payload: TicketAssignRequest,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.ASSIGN_TICKET)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """BQL gán ticket cho nhân viên."""
+    ticket = store.assign_ticket(db, ticket_id, payload.assigned_to)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+@router.patch("/admin/tickets/{ticket_id}/status")
+async def update_ticket_status(
+    ticket_id: int,
+    payload: TicketStatusUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.ASSIGN_TICKET)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """BQL cập nhật trạng thái ticket."""
+    if payload.status == "resolved":
+        return store.resolve_ticket(db, ticket_id)
+    return store.update_ticket_status(db, ticket_id, payload.status)
+
+
+# --- Admin: Cost Tracking ---------------------------------------------
+
+
+@router.get("/admin/usage/summary")
+async def get_usage_summary(
+    user_id: int | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_REPORTS)),
+) -> Any:
+    """Get usage summary for cost tracking."""
+    date_from_dt = datetime.fromisoformat(date_from) if date_from else None
+    date_to_dt = datetime.fromisoformat(date_to) if date_to else None
+    return cost_tracking.get_usage_summary(user_id, date_from_dt, date_to_dt)

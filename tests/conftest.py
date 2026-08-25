@@ -164,6 +164,11 @@ def fake_storage(monkeypatch):
 
     monkeypatch.setattr(storage, "upload", _upload)
     monkeypatch.setattr(storage, "signed_url", lambda path: f"https://fake.test/{path}")
+    monkeypatch.setattr(
+        storage,
+        "generate_signed_url",
+        lambda bucket, path, expires_in=900: f"https://fake.test/{path}",
+    )
     monkeypatch.setattr(storage, "ensure_bucket", lambda: None)
     return uploaded
 
@@ -230,6 +235,28 @@ def fake_ingest(monkeypatch, db_session):
 
     monkeypatch.setattr(routes, "SessionLocal", lambda: _NonClosingSession())
     return called
+
+
+@pytest.fixture(autouse=True)
+def fake_db_session(monkeypatch, db_session):
+    """Patch SessionLocal in cost_tracking to use in-memory SQLite test DB.
+
+    `cost_tracking.log_usage()` and `get_usage_summary()` each open their own
+    session via `SessionLocal()` (not via FastAPI dependency), so without this
+    patch they would hit the real PostgreSQL database and fail on FK
+    constraints (user_id=1 does not exist in production DB).
+
+    `with SessionLocal() as db: ...; db.close()` — the context manager returns
+    `db_session` directly, so `db.close()` is called on the real session.
+    Patch `.close` to be a no-op to avoid closing the shared test session.
+    """
+    from src.services import cost_tracking
+
+    original_close = db_session.close
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cost_tracking, "SessionLocal", lambda: db_session)
+    yield
+    monkeypatch.setattr(db_session, "close", original_close)
 
 
 @pytest.fixture(autouse=True)

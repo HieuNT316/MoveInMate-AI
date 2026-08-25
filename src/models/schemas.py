@@ -5,7 +5,7 @@ theo file này; đổi field ở đây là đổi hợp đồng, phải báo c�
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -593,3 +593,135 @@ class DocumentResponse(BaseModel):
     file_path: str
     embed_status: EmbedStatus
     uploaded_at: datetime
+
+
+class DocumentContentResponse(BaseModel):
+    """Response for document content endpoint with signed URL."""
+    document_id: int
+    title: str
+    content_type: str = "application/pdf"
+    signed_url: str
+    expires_at: datetime
+
+
+# --- Push Subscriptions ---------------------------------------------------
+
+
+class PushSubscriptionRequest(BaseModel):
+    """Register push notification subscription for a device."""
+
+    endpoint: str
+    keys: dict[str, str]  # {p256dh, auth}
+    user_agent: str | None = None
+
+
+class PushUnsubscribeRequest(BaseModel):
+    """Remove push notification subscription."""
+
+    endpoint: str
+
+
+# --- Hỗ trợ (Tickets) ---------------------------------------------------
+
+TicketStatus = Literal["open", "in_progress", "resolved", "closed"]
+TicketPriority = Literal["low", "normal", "high"]
+
+
+class TicketCreateRequest(BaseModel):
+    """Cư dân tạo ticket hỗ trợ."""
+
+    subject: str = Field(..., min_length=1, max_length=255)
+    message: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Tin nhắn ban đầu (tùy chọn).",
+    )
+
+
+class TicketMessageRequest(BaseModel):
+    """Gửi tin nhắn vào ticket."""
+
+    message: str = Field(..., min_length=1, max_length=5000)
+
+
+class TicketAssignRequest(BaseModel):
+    """BQL gán ticket cho nhân viên."""
+
+    assigned_to: int = Field(..., description="User ID của nhân viên được gán.")
+
+
+class TicketStatusUpdateRequest(BaseModel):
+    """BQL cập nhật trạng thái ticket."""
+
+    status: TicketStatus
+
+
+class TicketResponse(BaseModel):
+    """Một ticket hỗ trợ."""
+
+    ticket_id: int
+    user_id: int
+    subject: str
+    status: TicketStatus
+    priority: TicketPriority
+    assigned_to: int | None = None
+    assigned_to_name: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    resolved_at: datetime | None = None
+
+
+class TicketDetailResponse(TicketResponse):
+    """Ticket kèm tin nhắn."""
+
+    last_message: str | None = None
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AdminTicketResponse(TicketResponse):
+    """Ticket nhìn từ góc BQL."""
+
+    user_name: str | None = None
+
+
+# --- Batch Approval (Task 6, Phase 2) -------------------------------------
+
+
+class BatchApprovalRequest(BaseModel):
+    """Duyệt hoặc từ chối nhiều hồ sơ cùng lúc."""
+
+    application_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        description="Danh sách application_id cần xử lý.",
+    )
+    action: Literal["approve", "reject"] = Field(
+        ...,
+        description="'approve' -> status = 'approved', 'reject' -> status = 'rejected'.",
+    )
+    bql_note: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Ghi chú chung cho tất cả hồ sơ được xử lý.",
+    )
+
+
+class BatchApprovalResult(BaseModel):
+    """Một hồ sơ trong kết quả batch."""
+
+    application_id: int
+    status: str | None = None
+    error: str | None = None
+
+
+class BatchApprovalResponse(BaseModel):
+    """Kết quả batch approval."""
+
+    processed: int = Field(
+        ...,
+        description="Số hồ sơ xử lý thành công.",
+    )
+    failed: list[BatchApprovalResult] = Field(
+        default_factory=list,
+        description="Danh sách hồ sơ thất bại kèm lý do.",
+    )

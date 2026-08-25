@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from src.config import get_settings
 from src.database import get_db
+from src.models.rbac import Permission
 from src.services import store
 from src.services.auth import AuthError, bearer_token, verify_token
 
@@ -111,3 +112,31 @@ async def require_resident(
             detail="Chức năng này dành cho cư dân",
         )
     return user
+
+
+def require_permission(permission: Permission):
+    """Dependency yêu cầu quyền cụ thể.
+
+    Dùng với Depends() theo pattern FastAPI:
+        @router.get("/applications")
+        async def list_applications(
+            _: dict[str, Any] = Depends(require_permission(Permission.VIEW_ALL_APPLICATIONS))
+        ):
+            ...
+
+    Args:
+        permission: Quyền cần thiết để truy cập endpoint.
+
+    Returns:
+        Dependency function trả về user đã được xác thực nếu có quyền.
+    """
+    async def checker(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+        from src.middleware.rbac import has_permission
+
+        if not has_permission(user, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {permission.value}",
+            )
+        return user
+    return checker
