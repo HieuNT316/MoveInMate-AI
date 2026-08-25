@@ -23,15 +23,17 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.agents.graph import chat_graph
 from src.ai import form_dialog
 from src.ai.intent import wants_to_act
-from src.api.deps import get_current_user, require_admin, require_resident
+from src.api.deps import get_current_user, require_admin, require_permission, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
 from src.models.db import APPLICATION_STATUSES
+from src.models.rbac import Permission
 from src.models.schemas import (
     AccountStatusUpdateRequest,
     AdminApplicationResponse,
@@ -63,6 +65,10 @@ from src.models.schemas import (
     PushUnsubscribeRequest,
     ResidentDetailResponse,
     TemporaryPasswordResponse,
+    TicketAssignRequest,
+    TicketCreateRequest,
+    TicketMessageRequest,
+    TicketStatusUpdateRequest,
 )
 from src.services import push, rate_limit, storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
@@ -1079,3 +1085,128 @@ async def list_documents(
 ) -> Any:
     """US-08 — danh sách tài liệu đã nạp, để BQL theo dõi trạng thái embed."""
     return store.list_documents(db)
+
+
+# --- Hỗ trợ (Tickets) ---------------------------------------------------
+
+
+@router.post("/tickets", status_code=status.HTTP_201_CREATED)
+async def create_ticket(
+    payload: TicketCreateRequest,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Cư dân tạo ticket hỗ trợ mới."""
+    ticket = store.create_ticket(
+        db,
+        user_id=user["user_id"],
+        subject=payload.subject,
+        initial_message=payload.message,
+    )
+    return ticket
+
+
+@router.get("/tickets")
+async def list_my_tickets(
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Danh sách ticket của cư dân đang đăng nhập."""
+    return store.get_user_tickets(db, user["user_id"])
+
+
+@router.get("/tickets/{ticket_id}")
+async def get_ticket(
+    ticket_id: int,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Lấy chi tiết ticket kèm tin nhắn."""
+    ticket = store.get_ticket_with_messages(db, ticket_id, user["user_id"])
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+@router.post("/tickets/{ticket_id}/messages")
+async def add_ticket_message(
+    ticket_id: int,
+    payload: TicketMessageRequest,
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Gửi tin nhắn vào ticket."""
+    # Verify ticket exists and user owns it
+    ticket = store.get_ticket_with_messages(db, ticket_id, user["user_id"])
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    sender_type = "resident" if user["role"] == "resident" else "staff"
+    message = store.add_ticket_message(
+        db, ticket_id, user["user_id"], sender_type, payload.message
+    )
+    return message
+
+
+# --- Admin: Tickets -----------------------------------------------------
+
+
+@router.get("/admin/tickets")
+async def list_all_tickets(
+    status: str | None = Query(default=None),
+    assigned_to: int | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_ALL_TICKETS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Danh sách tất cả ticket (BQL)."""
+    return store.get_all_tickets(db, status, assigned_to)
+
+
+@router.get("/admin/tickets/{ticket_id}")
+async def get_admin_ticket(
+    ticket_id: int,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_ALL_TICKETS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Lấy chi tiết ticket (BQL) — xem được cả ticket chưa gán."""
+    ticket = store.get_ticket_by_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Get messages
+    msg_result = db.execute(text("""
+        SELECT tm.*, u.full_name as sender_name
+        FROM ticket_messages tm
+        JOIN users u ON tm.sender_id = u.user_id
+        WHERE tm.ticket_id = :ticket_id
+        ORDER BY tm.created_at ASC
+    """), {"ticket_id": ticket_id})
+    ticket["messages"] = [dict(row._mapping) for row in msg_result.fetchall()]
+    return ticket
+
+
+@router.patch("/admin/tickets/{ticket_id}/assign")
+async def assign_ticket_to_user(
+    ticket_id: int,
+    payload: TicketAssignRequest,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.ASSIGN_TICKET)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """BQL gán ticket cho nhân viên."""
+    ticket = store.assign_ticket(db, ticket_id, payload.assigned_to)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+@router.patch("/admin/tickets/{ticket_id}/status")
+async def update_ticket_status(
+    ticket_id: int,
+    payload: TicketStatusUpdateRequest,
+    _admin: dict[str, Any] = Depends(require_permission(Permission.ASSIGN_TICKET)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """BQL cập nhật trạng thái ticket."""
+    if payload.status == "resolved":
+        return store.resolve_ticket(db, ticket_id)
+    return store.update_ticket_status(db, ticket_id, payload.status)

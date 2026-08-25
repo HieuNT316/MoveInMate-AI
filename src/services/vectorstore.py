@@ -6,7 +6,7 @@ sang W4, chưa tạo ở đây.
 
 from functools import lru_cache
 
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import Chroma
 
 from src.config import get_settings
 from src.services.llm import get_embeddings
