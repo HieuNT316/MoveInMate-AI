@@ -9,6 +9,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,7 @@ from src.models.schemas import (
     CreateUserRequest,
     DashboardResponse,
     DemoAccount,
+    DocumentContentResponse,
     DocumentIngestRequest,
     DocumentResponse,
     FormSchemaPayload,
@@ -1161,6 +1163,40 @@ async def list_documents(
 ) -> Any:
     """US-08 — danh sách tài liệu đã nạp, để BQL theo dõi trạng thái embed."""
     return store.list_documents(db)
+
+
+@router.get("/documents/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    document_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Get document content with signed URL.
+
+    BQL internal documents (stored in data/kb/bql/) require admin/manager role.
+    Other documents are accessible to all authenticated users.
+    """
+    doc = store.get_document(db, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Check permissions for internal documents
+    # BQL internal documents are stored in data/kb/bql/
+    is_internal = doc["file_path"].startswith("data/kb/bql/")
+    if is_internal and user["role"] not in ("admin", "super_admin", "manager"):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Generate signed URL (15 min expiry)
+    bucket = get_settings().supabase_storage_bucket
+    signed_url = storage.generate_signed_url(bucket, doc["file_path"], 900)
+
+    return DocumentContentResponse(
+        document_id=doc["document_id"],
+        title=doc["title"],
+        content_type="application/pdf",
+        signed_url=signed_url,
+        expires_at=datetime.now() + timedelta(minutes=15),
+    )
 
 
 # --- Hỗ trợ (Tickets) ---------------------------------------------------

@@ -611,6 +611,15 @@ class DocumentResponse(BaseModel):
     uploaded_at: datetime
 
 
+class DocumentContentResponse(BaseModel):
+    """Response for document content endpoint with signed URL."""
+    document_id: int
+    title: str
+    content_type: str = "application/pdf"
+    signed_url: str
+    expires_at: datetime
+
+
 # --- Push Subscriptions ---------------------------------------------------
 
 
