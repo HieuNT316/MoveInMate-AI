@@ -927,7 +927,7 @@ async def update_application_status(
 )
 async def batch_approve_applications(
     payload: BatchApprovalRequest,
-    _admin: dict[str, Any] = Depends(require_admin),
+    _principal: dict[str, Any] = Depends(require_permission(Permission.BATCH_APPROVE)),
     db: Session = Depends(get_db),
 ) -> BatchApprovalResponse:
     """Task 6: Duyệt hoặc từ chối nhiều hồ sơ cùng lúc.
