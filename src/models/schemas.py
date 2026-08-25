@@ -5,7 +5,7 @@ theo file này; đổi field ở đây là đổi hợp đồng, phải báo c�
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -610,3 +610,66 @@ class PushUnsubscribeRequest(BaseModel):
     """Remove push notification subscription."""
 
     endpoint: str
+
+
+# --- Hỗ trợ (Tickets) ---------------------------------------------------
+
+TicketStatus = Literal["open", "in_progress", "resolved", "closed"]
+TicketPriority = Literal["low", "normal", "high"]
+
+
+class TicketCreateRequest(BaseModel):
+    """Cư dân tạo ticket hỗ trợ."""
+
+    subject: str = Field(..., min_length=1, max_length=255)
+    message: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Tin nhắn ban đầu (tùy chọn).",
+    )
+
+
+class TicketMessageRequest(BaseModel):
+    """Gửi tin nhắn vào ticket."""
+
+    message: str = Field(..., min_length=1, max_length=5000)
+
+
+class TicketAssignRequest(BaseModel):
+    """BQL gán ticket cho nhân viên."""
+
+    assigned_to: int = Field(..., description="User ID của nhân viên được gán.")
+
+
+class TicketStatusUpdateRequest(BaseModel):
+    """BQL cập nhật trạng thái ticket."""
+
+    status: TicketStatus
+
+
+class TicketResponse(BaseModel):
+    """Một ticket hỗ trợ."""
+
+    ticket_id: int
+    user_id: int
+    subject: str
+    status: TicketStatus
+    priority: TicketPriority
+    assigned_to: int | None = None
+    assigned_to_name: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    resolved_at: datetime | None = None
+
+
+class TicketDetailResponse(TicketResponse):
+    """Ticket kèm tin nhắn."""
+
+    last_message: str | None = None
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AdminTicketResponse(TicketResponse):
+    """Ticket nhìn từ góc BQL."""
+
+    user_name: str | None = None

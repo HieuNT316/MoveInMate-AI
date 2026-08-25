@@ -14,8 +14,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
@@ -610,3 +610,176 @@ def list_documents(db: Session) -> list[dict[str, Any]]:
         _document_dict(d)
         for d in db.scalars(select(Document).order_by(Document.document_id.desc()))
     ]
+
+
+# --- Hỗ trợ (Tickets) ----------------------------------------------------
+
+
+def create_ticket(
+    db: Session,
+    user_id: int,
+    subject: str,
+    initial_message: str | None = None,
+) -> dict[str, Any]:
+    """Create a new support ticket."""
+    stmt = text("""
+        INSERT INTO tickets (user_id, subject, status, priority)
+        VALUES (:user_id, :subject, 'open', 'normal')
+        RETURNING ticket_id, user_id, subject, status, priority, assigned_to, created_at
+    """)
+    result = db.execute(stmt, {"user_id": user_id, "subject": subject})
+    db.commit()
+    ticket = dict(result.one()._mapping)
+
+    if initial_message:
+        add_ticket_message(db, ticket["ticket_id"], user_id, "resident", initial_message)
+
+    return ticket
+
+
+def add_ticket_message(
+    db: Session,
+    ticket_id: int,
+    sender_id: int,
+    sender_type: str,
+    message: str,
+) -> dict[str, Any]:
+    """Add message to ticket."""
+    stmt = text("""
+        INSERT INTO ticket_messages (ticket_id, sender_id, sender_type, message)
+        VALUES (:ticket_id, :sender_id, :sender_type, :message)
+        RETURNING message_id, ticket_id, sender_id, sender_type, message, created_at
+    """)
+    result = db.execute(stmt, {
+        "ticket_id": ticket_id,
+        "sender_id": sender_id,
+        "sender_type": sender_type,
+        "message": message,
+    })
+    db.commit()
+    return dict(result.one()._mapping)
+
+
+def get_user_tickets(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """Get all tickets for a user."""
+    stmt = text("""
+        SELECT t.*,
+               (SELECT message FROM ticket_messages tm WHERE tm.ticket_id = t.ticket_id ORDER BY created_at DESC LIMIT 1) as last_message
+        FROM tickets t
+        WHERE t.user_id = :user_id
+        ORDER BY t.created_at DESC
+    """)
+    result = db.execute(stmt, {"user_id": user_id})
+    return [dict(row._mapping) for row in result.fetchall()]
+
+
+def get_ticket_with_messages(db: Session, ticket_id: int, user_id: int) -> dict[str, Any] | None:
+    """Get ticket with all messages (for resident, only own tickets)."""
+    stmt = text("""
+        SELECT t.*, u.full_name as assigned_to_name
+        FROM tickets t
+        LEFT JOIN users u ON t.assigned_to = u.user_id
+        WHERE t.ticket_id = :ticket_id AND t.user_id = :user_id
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "user_id": user_id})
+    row = result.fetchone()
+    if not row:
+        return None
+
+    ticket = dict(row._mapping)
+
+    msg_stmt = text("""
+        SELECT tm.*, u.full_name as sender_name
+        FROM ticket_messages tm
+        JOIN users u ON tm.sender_id = u.user_id
+        WHERE tm.ticket_id = :ticket_id
+        ORDER BY tm.created_at ASC
+    """)
+    msg_result = db.execute(msg_stmt, {"ticket_id": ticket_id})
+    ticket["messages"] = [dict(row._mapping) for row in msg_result.fetchall()]
+
+    return ticket
+
+
+def get_ticket_by_id(db: Session, ticket_id: int) -> dict[str, Any] | None:
+    """Get ticket by ID (admin view, no user filter)."""
+    stmt = text("""
+        SELECT t.*, u.full_name as user_name, a.full_name as assigned_to_name
+        FROM tickets t
+        JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN users a ON t.assigned_to = a.user_id
+        WHERE t.ticket_id = :ticket_id
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id})
+    row = result.fetchone()
+    if not row:
+        return None
+    return dict(row._mapping)
+
+
+def assign_ticket(db: Session, ticket_id: int, assigned_to: int) -> dict[str, Any] | None:
+    """Assign ticket to a user."""
+    stmt = text("""
+        UPDATE tickets
+        SET assigned_to = :assigned_to, status = 'in_progress', updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "assigned_to": assigned_to})
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def resolve_ticket(db: Session, ticket_id: int) -> dict[str, Any] | None:
+    """Mark ticket as resolved."""
+    stmt = text("""
+        UPDATE tickets
+        SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id})
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def update_ticket_status(db: Session, ticket_id: int, status: str) -> dict[str, Any] | None:
+    """Update ticket status."""
+    stmt = text("""
+        UPDATE tickets
+        SET status = :status, updated_at = NOW()
+        WHERE ticket_id = :ticket_id
+        RETURNING *
+    """)
+    result = db.execute(stmt, {"ticket_id": ticket_id, "status": status})
+    db.commit()
+    row = result.fetchone()
+    return dict(row._mapping) if row else None
+
+
+def get_all_tickets(
+    db: Session,
+    status: str | None = None,
+    assigned_to: int | None = None,
+) -> list[dict[str, Any]]:
+    """Get all tickets (for admin)."""
+    query = """
+        SELECT t.*, u.full_name as user_name, a.full_name as assigned_to_name
+        FROM tickets t
+        JOIN users u ON t.user_id = u.user_id
+        LEFT JOIN users a ON t.assigned_to = a.user_id
+        WHERE 1=1
+    """
+    params = {}
+    if status:
+        query += " AND t.status = :status"
+        params["status"] = status
+    if assigned_to:
+        query += " AND t.assigned_to = :assigned_to"
+        params["assigned_to"] = assigned_to
+    query += " ORDER BY t.created_at DESC"
+
+    result = db.execute(text(query), params)
+    return [dict(row._mapping) for row in result.fetchall()]
