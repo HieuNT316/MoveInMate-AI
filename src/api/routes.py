@@ -59,10 +59,12 @@ from src.models.schemas import (
     OnboardingRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    PushSubscriptionRequest,
+    PushUnsubscribeRequest,
     ResidentDetailResponse,
     TemporaryPasswordResponse,
 )
-from src.services import rate_limit, storage, store
+from src.services import push, rate_limit, storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
 from src.services.ingest import KB_DIR, ingest_file
@@ -196,6 +198,36 @@ async def update_profile(
             detail="Cần ít nhất một trường để cập nhật",
         )
     return store.update_profile(db, user["user_id"], changes)
+
+
+# --- Push Subscriptions ---------------------------------------------------
+
+
+@router.post("/push/subscriptions")
+async def subscribe_push(
+    payload: PushSubscriptionRequest,
+    user: dict[str, Any] = Depends(require_resident),
+) -> dict[str, Any]:
+    """Register push notification subscription for a device."""
+    result = await push.subscribe_user(
+        user_id=user["user_id"],
+        endpoint=payload.endpoint,
+        p256dh=payload.keys["p256dh"],
+        auth=payload.keys["auth"],
+        user_agent=payload.user_agent,
+    )
+    return {"subscription_id": result["subscription_id"]}
+
+
+@router.delete("/push/subscriptions")
+async def unsubscribe_push(
+    payload: PushUnsubscribeRequest,
+    user: dict[str, Any] = Depends(require_resident),
+) -> None:
+    """Remove push notification subscription."""
+    deleted = await push.unsubscribe_user(user["user_id"], payload.endpoint)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Subscription not found")
 
 
 def _build_checklist(db: Session, user: dict[str, Any]) -> ChecklistResponse:

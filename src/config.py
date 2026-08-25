@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     attachment_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
     attachment_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1024)
 
+    # Web Push (VAPID)
+    # VAPID_PUBLIC_KEY và VAPID_PRIVATE_KEY đặt trong .env, KHÔNG commit.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = ""
+
     # Vector Store / RAG
     chroma_persist_dir: str = "./data/chroma"
     rag_top_k: int = Field(default=4, ge=1, le=20)
@@ -138,6 +144,10 @@ class Settings(BaseSettings):
     langchain_api_key: str = ""
     langchain_project: str = "moveinmate"
     langchain_endpoint: str = "https://api.smith.langchain.com"
+
+    @property
+    def has_vapid_keys(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key)
 
 
 @lru_cache
