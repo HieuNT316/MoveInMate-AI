@@ -22,17 +22,11 @@ from src.services.llm import get_chat_llm
 
 logger = logging.getLogger("moveinmate")
 
-# Stopwords — từ quá chung không phân biệt được thủ tục. "the" (thẻ),
-# "xe", "ki", "lam" xuất hiện trong hầu hết task names, dùng chúng làm
-# keyword sẽ gây false positive. "dang" (đăng) KHÔNG stopword vì nó phân biệt
-# được "đăng ký" vs "làm" — hai hành động khác nhau trong cùng ngữ cảnh.
-_STOPWORDS = frozenset([
-    "cua", "va", "hoac", "voi", "cho", "nay", "kia", "cac",
-    "la", "co", "khong", "duoc", "de", "ve", "qua", "tai",
-    "tu", "trong", "nhung", "cac", "mot", "h nay", "h kia",
-    "lam", "ki", "the", "xe", "nha", "phong", "be",
-    "thang", "cu", "dan", "tru", "chinh", "giao",
-])
+# Động từ hành chính dùng thay cho nhau ("làm thẻ…" / "đăng ký thẻ…" / "xin cấp
+# thẻ…" cùng chỉ một thủ tục) — bỏ đi để chỉ còn phần lõi mang tính phân biệt.
+# Giữ khớp với `_ACTION_PREFIXES` ở `routes.py`, nơi đã dùng cùng cách này cho
+# nút điều hướng từ 12/08.
+_ACTION_PREFIXES = ("dang ky lam ", "dang ky ", "xin cap ", "xin ", "kich hoat ", "lam ")
 
 
 # Ranh giới ý định — bản gốc nằm ở `src/api/routes.py` để gắn nút điều hướng,
@@ -49,6 +43,11 @@ _ACTION_MARKERS = (
 _INFO_TAILS = (
     "can giay to gi", "can gi", "gom nhung gi", "gom gi", "la gi",
     "bao nhieu", "the nao", "ra sao", "mat bao lau", "khi nao", "thu tuc gi",
+    # Bổ sung 25/08 sau khi đo trên cả 37 câu `eval/questions.yaml` — mỗi
+    # chuỗi dưới đây là một câu hỏi thật đã bị nhận nhầm thành ý định làm thủ
+    # tục. Đều là từ để hỏi, nên không nuốt nhầm câu muốn hành động.
+    "nhung gi", "lam sao", "o dau", "nao xu ly", "bao lau",
+    "duoc khong", "co phai", "co duoc", "hay khong", "phai lam gi",
 )
 
 # Chuỗi LLM phải trả về khi không thủ tục nào khớp. Trả nguyên văn chuỗi này
@@ -88,24 +87,48 @@ def _normalize(text: str) -> str:
     ).replace("đ", "d")
 
 
-def _extract_keywords(text: str) -> list[str]:
-    """Tach tu khoa 3+ ky tu (sau khi bo dau), loai bo stopwords."""
-    norm = _normalize(text)
-    words = re.findall(r"\b\w{3,}\b", norm)
-    return [w for w in words if len(w) >= 3 and w not in _STOPWORDS]
+def _strip_action_prefix(text: str) -> str:
+    for prefix in _ACTION_PREFIXES:
+        if text.startswith(prefix):
+            return text[len(prefix) :]
+    return text
 
 
-def _task_name_contains(task_name: str, keyword: str) -> bool:
-    """So khớp keyword trong task_name, Unicode-normalized de xu ly tieng Viet."""
-    return keyword in _normalize(task_name)
+def _core_name(text: str) -> str:
+    """Phần lõi của tên thủ tục: bỏ dấu, bỏ động từ đầu, bỏ phần trong ngoặc.
+
+    `"Làm thẻ cư dân (chủ hộ)"` → `"the cu dan"`.
+
+    Không có bước bỏ ngoặc thì lớp 2 so nguyên chuỗi và **"làm thẻ cư dân"
+    không khớp được mục nào** — người dùng gõ đúng tên thủ tục mà hệ thống vẫn
+    không nhận ra (đo được 25/08). `routes.py::_core_name` đã xử lý đúng như
+    vậy cho nút điều hướng từ 12/08; đây là cùng một bài toán.
+    """
+    stripped = _strip_action_prefix(_normalize(text))
+    return re.sub(r"\s*\([^)]*\)", "", stripped).strip()
 
 
 def _has_form(item: ChecklistItem) -> bool:
-    """True khi item co form_schema (khong None).
+    """True khi item có `form_schema` thật.
 
-    Luc nay dien ra trong Python sau ORM hydration, dam bao hoat dong
-    nhat ky tren moi dialect (vi du SQLite luu None cua JSON thanh chuoi
-    'null' trong cot, khong phai SQL NULL).
+    **Phải lọc trong Python, sau khi ORM đã dựng đối tượng — đừng chuyển xuống
+    SQL.** `JSONType` lưu `None` của Python thành chuỗi JSON `'null'`, không
+    phải SQL NULL, nên `form_schema.isnot(None)` **đúng với mọi hàng** và
+    không lọc được gì:
+
+        SELECT task_name, form_schema, form_schema IS NULL
+        → ('Ký nội quy', 'null', 0)          ← chuỗi 'null', IS NULL = false
+
+    Đúng với cả SQLite lẫn Postgres: đây là cách `sqlalchemy.JSON` xử lý None
+    (`none_as_null` mặc định False), không phải quirk của một dialect. Muốn lọc
+    ở tầng DB thì phải khai `none_as_null=True` cho cột trước — là migration.
+
+    Đã chuyển xuống SQL một lần ngày 24/08 (commit 8045c58, "M1") và hỏng:
+    thủ tục không có form lọt vào vòng so khớp rồi tranh chỗ với thủ tục có
+    form — "Cho tôi xem thời tiết Hà Nội" khớp `high` vào "Ký **nội** quy toà
+    nhà". `test_loc_form_schema_phai_chay_trong_python` khoá lại chuyện này.
+
+    Bảng chỉ khoảng chục hàng; lọc trong Python không phải nút thắt gì.
     """
     return item.form_schema is not None
 
@@ -187,25 +210,55 @@ async def detect_procedure_intent(message: str, db: Session) -> ProcedureMatch:
     if is_info_question(message):
         return _NOT_A_PROCEDURE
 
-    norm = _normalize(message)
-    keywords = _extract_keywords(message)
+    # `_has_form` phải lọc trong Python — đọc docstring của nó trước khi định
+    # chuyển bộ lọc này xuống câu query.
+    all_items = db.query(ChecklistItem).all()
+    form_items = [item for item in all_items if _has_form(item)]
 
-    # Lớp 1: Keyword exact — so sánh trong Python de dam bao Unicode normalization
-    # chính xác. SQLite ILIKE khong nhan Unicode decomposition.
-    # Filter tai DB level thay vi load het roi filter: tranh bottleneck khi so
-    # procedures tang, giam database load.
-    form_items = db.query(ChecklistItem).filter(
-        ChecklistItem.form_schema.isnot(None)
-    ).all()
-    for kw in keywords:
-        candidates = [item for item in form_items if _task_name_contains(item.task_name, kw)]
-        if len(candidates) == 1:
-            return ProcedureMatch(item=candidates[0], confidence="high")
+    # Lớp 0 — khớp KHÍT cả tên thủ tục. Đứng trước mọi lớp khác vì nó không thể
+    # nhầm: trùng nguyên tên thì chỉ có đúng một mục.
+    #
+    # ┌─ Vì sao có lớp này (25/08 — Thu đọc) ──────────────────────────────┐
+    # │ Khi AI hỏi lại "bạn muốn thủ tục nào?", `web/app/chat/page.tsx`     │
+    # │ dựng mỗi lựa chọn thành một nút, bấm nút thì gửi `task_name` làm    │
+    # │ `message` (send(option.task_name)). Không có lớp 0 thì câu đó rơi   │
+    # │ xuống lớp 2 — vốn so PHẦN LÕI, đã bỏ phần trong ngoặc — nên         │
+    # │ "Làm thẻ cư dân (chủ hộ)" lại khớp cả hai nhánh chủ hộ/người thuê   │
+    # │ và AI hỏi lại đúng câu vừa hỏi. **Vòng lặp không lối ra.**          │
+    # │                                                                     │
+    # │ Sửa ở backend nên FE không phải đổi gì: cứ gửi `task_name` như      │
+    # │ đang làm. Hợp đồng `ChatRequest`/`ChatResponse` giữ nguyên.         │
+    # └─────────────────────────────────────────────────────────────────────┘
+    probe = _normalize(message).strip()
+    for item in form_items:
+        if _normalize(item.task_name).strip() == probe:
+            return ProcedureMatch(item=item, confidence="high")
+    # ┌─ Đã BỎ lớp "khớp một từ khoá đơn" — 25/08 ─────────────────────────┐
+    # │ Lớp cũ: tách từ 3+ ký tự khỏi câu, từ nào nằm trong đúng MỘT tên    │
+    # │ thủ tục thì chốt luôn `high confidence`. Đo trên cả 37 câu của       │
+    # │ `eval/questions.yaml`: nó gây 11 trong 15 ca nhận nhầm, khớp toàn    │
+    # │ từ vu vơ — "thue", "nguoi", "may", "hong", "dinh", "vao", "boi".     │
+    # │                                                                     │
+    # │ Nặng nhất: "Cho tôi công thức nấu PHỞ bò" → "pho" nằm lọt trong      │
+    # │ "PHÒNG gym" → mở form đăng ký phòng gym. Đó đúng là câu demo bước 7  │
+    # │ ("hỏi ngoài tài liệu → phải từ chối"), chỗ ăn điểm nhất theo         │
+    # │ ROLES_AND_PLAN mục 8.                                               │
+    # │                                                                     │
+    # │ Nó còn không cứu được ca nào: FG01 "…thẻ XE MÁY…" bị "may" kéo về    │
+    # │ "thẻ thang MÁY" — sai thủ tục. Bỏ lớp này thì lớp 2 khớp đúng.       │
+    # │                                                                     │
+    # │ Recall mất đi do bỏ lớp này (tên thủ tục dài hơn câu người ta gõ,    │
+    # │ vd "Đăng ký internet và truyền hình") đã có lớp 3 LLM gánh — mà lớp  │
+    # │ 3 chỉ chạy khi câu có dấu hiệu hành động, nên câu hỏi thường vẫn     │
+    # │ không tốn lượt gọi nào.                                             │
+    # └─────────────────────────────────────────────────────────────────────┘
 
-    # Lớp 2: Fuzzy
+    # Lớp 2: Fuzzy — so phần lõi, không so nguyên tên. Xem `_core_name`.
+    probe_core = _core_name(message)
     candidates = [
         item for item in form_items
-        if _normalize(item.task_name) in norm
+        if (core := _core_name(item.task_name))
+        and (core == probe_core or core in probe_core)
     ]
     if len(candidates) == 1:
         return ProcedureMatch(item=candidates[0], confidence="medium")
