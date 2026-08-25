@@ -118,3 +118,36 @@ def display_name(filename: str | None) -> str:
     if not filename:
         return "tệp đính kèm"
     return PurePosixPath(filename.replace("\\", "/")).name[:255] or "tệp đính kèm"
+
+
+def generate_signed_url(bucket: str, path: str, expires_in: int = 900) -> str:
+    """Generate a signed URL for private storage access.
+
+    Args:
+        bucket: Storage bucket name
+        path: File path within bucket
+        expires_in: URL expiration in seconds (default 15 minutes)
+
+    Returns:
+        Signed URL that allows temporary access
+
+    Raises:
+        StorageError: If Supabase Storage is unreachable or rejects the request
+    """
+    base, headers, _ = _config()
+    try:
+        response = httpx.post(
+            f"{base}/object/sign/{bucket}/{path}",
+            headers=headers,
+            json={"expiresIn": expires_in},
+            timeout=30,
+        )
+    except httpx.HTTPError as exc:
+        raise StorageError(f"Không gọi được Supabase Storage: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise StorageError(f"Không tạo được signed URL: {response.text[:200]}")
+
+    # Supabase returns a relative path like "/object/sign/<bucket>/..."
+    relative = response.json()["signedURL"]
+    return f"{base}{relative}" if relative.startswith("/") else relative

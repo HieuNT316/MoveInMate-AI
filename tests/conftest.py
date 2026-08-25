@@ -164,6 +164,11 @@ def fake_storage(monkeypatch):
 
     monkeypatch.setattr(storage, "upload", _upload)
     monkeypatch.setattr(storage, "signed_url", lambda path: f"https://fake.test/{path}")
+    monkeypatch.setattr(
+        storage,
+        "generate_signed_url",
+        lambda bucket, path, expires_in=900: f"https://fake.test/{path}",
+    )
     monkeypatch.setattr(storage, "ensure_bucket", lambda: None)
     return uploaded
 

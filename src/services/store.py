@@ -652,6 +652,12 @@ def list_documents(db: Session) -> list[dict[str, Any]]:
     ]
 
 
+def get_document(db: Session, document_id: int) -> dict[str, Any] | None:
+    """Get a single document by ID, or None if not found."""
+    doc = db.get(Document, document_id)
+    return _document_dict(doc) if doc else None
+
+
 # --- Hỗ trợ (Tickets) ----------------------------------------------------
 
 
