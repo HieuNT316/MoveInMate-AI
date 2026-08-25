@@ -168,6 +168,11 @@ def list_checklist_items(db: Session) -> list[dict[str, Any]]:
     return [_item_dict(i) for i in items]
 
 
+def get_checklist_item(db: Session, checklist_item_id: int) -> dict[str, Any] | None:
+    item = db.get(ChecklistItem, checklist_item_id)
+    return _item_dict(item) if item else None
+
+
 def get_completions(db: Session, user_id: int) -> dict[int, datetime]:
     rows = db.scalars(
         select(ChecklistCompletion).where(ChecklistCompletion.user_id == user_id)
@@ -292,6 +297,7 @@ def _application_dict(app: Application) -> dict[str, Any]:
     """
     return {
         "application_id": app.application_id,
+        "user_id": app.user_id,
         "checklist_item_id": app.checklist_item_id,
         "task_name": app.item.task_name,
         "status": app.status,
