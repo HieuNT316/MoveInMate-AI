@@ -149,11 +149,19 @@ async def generate_node(state: ChatState) -> dict[str, Any]:
 
     try:
         response = await llm.ainvoke(messages)
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "prompt_tokens", None) if usage else None
+        output_tokens = getattr(usage, "completion_tokens", None) if usage else None
     except Exception:
         # Lỗi một phần: đã truy xuất được context (sources đã có trong state
         # từ rag_retrieve) nhưng LLM lỗi/timeout — trả kèm sources thay vì
         # thất bại toàn bộ request (docs mục 5).
-        return {"answer": GENERATION_FAILED_NOTE, "answer_source": "rag"}
+        return {"answer": GENERATION_FAILED_NOTE, "answer_source": "rag",
+                "usage": None}
+
+    if not response.tool_calls:
+        return {"answer": response.content, "answer_source": "rag",
+                "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens}}
 
     if not response.tool_calls:
         # Tầng 2 của guard: có tài liệu, nhưng tài liệu không chứa câu trả lời.
@@ -168,11 +176,15 @@ async def generate_node(state: ChatState) -> dict[str, Any]:
     messages += [response, ToolMessage(content=str(suggested_action), tool_call_id=tool_call["id"])]
     try:
         final = await llm.ainvoke(messages)
+        final_usage = getattr(final, "usage", None)
+        final_input = getattr(final_usage, "prompt_tokens", None) if final_usage else None
+        final_output = getattr(final_usage, "completion_tokens", None) if final_usage else None
     except Exception:
         return {
             "answer": NAVIGATION_FOLLOWUP_FAILED_NOTE,
             "answer_source": "rag",
             "suggested_action": suggested_action,
+            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
         }
 
     # Cố ý KHÔNG kiểm từ chối ở nhánh này: LLM đã gọi tool điều hướng nghĩa là
@@ -180,4 +192,11 @@ async def generate_node(state: ChatState) -> dict[str, Any]:
     # phải câu trả lời tra cứu. `_refuse()` sẽ xoá mất `suggested_action` —
     # đánh đổi sai chỗ, vì lớp điều hướng tất định đã phải trả giá mới có
     # (đo 0/5 khi còn phụ thuộc LLM gọi tool, xem routes.py).
-    return {"answer": final.content, "answer_source": "rag", "suggested_action": suggested_action}
+    # Merge: first call + second call token counts
+    merged_input = (input_tokens or 0) + (final_input or 0)
+    merged_output = (output_tokens or 0) + (final_output or 0)
+    return {
+        "answer": final.content, "answer_source": "rag",
+        "suggested_action": suggested_action,
+        "usage": {"input_tokens": merged_input, "output_tokens": merged_output},
+    }

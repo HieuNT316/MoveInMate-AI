@@ -67,11 +67,17 @@ async def rewrite_query_node(state: ChatState) -> dict[str, Any]:
 
     try:
         response = await get_chat_llm().ainvoke(messages)
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "prompt_tokens", None) if usage else None
+        output_tokens = getattr(usage, "completion_tokens", None) if usage else None
     except Exception:
         # Lỗi viết lại không được chặn cả pipeline — dùng tạm câu hỏi gốc.
         # Retrieval có thể kém chính xác hơn với câu mơ hồ, nhưng vẫn chạy
         # được thay vì hỏng toàn bộ request vì một bước phụ trợ.
-        return {"standalone_query": state["query"]}
+        return {"standalone_query": state["query"], "usage": None}
 
     rewritten = (response.content or "").strip()
-    return {"standalone_query": rewritten or state["query"]}
+    return {
+        "standalone_query": rewritten or state["query"],
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }

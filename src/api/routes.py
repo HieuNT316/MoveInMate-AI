@@ -75,7 +75,7 @@ from src.models.schemas import (
     TicketMessageRequest,
     TicketStatusUpdateRequest,
 )
-from src.services import push, rate_limit, storage, store
+from src.services import cost_tracking, push, rate_limit, storage, store
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
 from src.services.ingest import KB_DIR, ingest_file
@@ -721,6 +721,20 @@ async def chat(
         "conversation_id": conversation_id,
     }
 
+    # Log LLM usage for cost tracking (rewrite_query + generate combined).
+    def _log_chat_usage(usage: dict | None) -> None:
+        if usage and usage.get("input_tokens") and usage.get("output_tokens"):
+            cost_tracking.log_usage(
+                user_id=user["user_id"],
+                provider="openai",
+                model="gpt-4o-mini",
+                operation="chat",
+                input_tokens=usage["input_tokens"],
+                output_tokens=usage["output_tokens"],
+            )
+
+    _log_chat_usage(state.get("usage"))
+
     # Đối chiếu TẤT ĐỊNH, không phụ thuộc LLM có gọi tool hay không.
     #
     # Trước đây khối này chỉ chạy khi LLM chủ động gọi tool. Đo trên bản deploy
@@ -1311,3 +1325,19 @@ async def update_ticket_status(
     if payload.status == "resolved":
         return store.resolve_ticket(db, ticket_id)
     return store.update_ticket_status(db, ticket_id, payload.status)
+
+
+# --- Admin: Cost Tracking ---------------------------------------------
+
+
+@router.get("/admin/usage/summary")
+async def get_usage_summary(
+    user_id: int | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_REPORTS)),
+) -> Any:
+    """Get usage summary for cost tracking."""
+    date_from_dt = datetime.fromisoformat(date_from) if date_from else None
+    date_to_dt = datetime.fromisoformat(date_to) if date_to else None
+    return cost_tracking.get_usage_summary(user_id, date_from_dt, date_to_dt)
