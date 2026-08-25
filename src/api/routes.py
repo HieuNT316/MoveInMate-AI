@@ -864,6 +864,9 @@ async def update_application_status(
     Không ràng buộc thứ tự chuyển trạng thái: quy trình thật có thể quay lại
     (đã duyệt rồi phát hiện thiếu giấy tờ → cần bổ sung). Ép một máy trạng thái
     cứng sẽ chặn đúng những tình huống mà BQL cần xử lý linh hoạt nhất.
+
+    Sau khi cập nhật, gửi push notification cho cư dân — thất bại notification
+    không ảnh hưởng đến việc cập nhật trạng thái.
     """
     app = store.get_application(db, application_id)
     if app is None:
@@ -885,9 +888,28 @@ async def update_application_status(
             detail="Chưa có ảnh minh chứng nào để ghi nhận hồ sơ tự khai này.",
         )
 
-    return store.update_application_status(
+    # Lấy tên thủ tục trước khi cập nhật để gửi notification.
+    checklist_item = store.get_checklist_item(db, app.checklist_item_id)
+    checklist_name = checklist_item["task_name"] if checklist_item else "thủ tục"
+    resident = store.get_user(db, app.user_id)
+    resident_name = resident["full_name"] if resident else ""
+
+    result = store.update_application_status(
         db, application_id, payload.status, payload.bql_note, payload.form_data
     )
+
+    # Gửi notification sau khi cập nhật thành công.
+    # Notification chạy độc lập: nếu push thất bại, trạng thái vẫn đã được cập nhật.
+    from src.services.notifications import notify_application_status_change
+
+    await notify_application_status_change(
+        application=result,
+        new_status=payload.status,
+        resident_name=resident_name,
+        checklist_item_name=checklist_name,
+    )
+
+    return result
 
 
 # --- Quản lý tài khoản cư dân (18/08) -----------------------------------
