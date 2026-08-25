@@ -15,6 +15,7 @@ from src.database import get_db
 from src.observability import configure_logging, logger, request_id_var
 from src.services import vectorstore
 from src.services.chroma_seed import ensure_seeded
+from src.services.tracing import configure_tracing
 
 # Thông điệp cố định cho MỌI lỗi 500 — không bao giờ lộ nội dung exception ra
 # response (chuỗi kết nối DB Supabase có mật khẩu nằm trong message của
@@ -34,6 +35,9 @@ async def lifespan(app: FastAPI):
 
 settings = get_settings()
 configure_logging(settings.log_level)
+# Trước khi FastAPI dựng app: LangChain đọc cấu hình tracing lúc gọi LLM, nên
+# chỉ cần environ đã đúng trước request đầu tiên (V1, deliverable #4 của BTC).
+configure_tracing(settings)
 
 app = FastAPI(
     title="AI20K Agent",
