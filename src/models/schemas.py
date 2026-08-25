@@ -609,3 +609,20 @@ class DocumentResponse(BaseModel):
     file_path: str
     embed_status: EmbedStatus
     uploaded_at: datetime
+
+
+# --- Push Subscriptions ---------------------------------------------------
+
+
+class PushSubscriptionRequest(BaseModel):
+    """Register push notification subscription for a device."""
+
+    endpoint: str
+    keys: dict[str, str]  # {p256dh, auth}
+    user_agent: str | None = None
+
+
+class PushUnsubscribeRequest(BaseModel):
+    """Remove push notification subscription."""
+
+    endpoint: str
