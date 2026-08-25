@@ -32,7 +32,18 @@ _STOPWORDS = frozenset([
     "tu", "trong", "nhung", "cac", "mot", "h nay", "h kia",
     "lam", "ki", "the", "xe", "nha", "phong", "be",
     "thang", "cu", "dan", "tru", "chinh", "giao",
+    # Thêm 25/08 — từ khung câu, không phân biệt thủ tục nào với thủ tục nào.
+    # "can" là từ nguy hiểm nhất trong nhóm: bỏ dấu xong "cần" và "căn" đều
+    # thành "can", nên "tôi CẦN làm thủ tục" khớp `high` vào "Đăng ký chuyển
+    # đồ vào CĂN hộ" — thủ tục duy nhất có chữ đó. Đo được 25/08.
+    "toi", "minh", "can", "muon", "thu", "tuc", "giup", "xin", "moi",
 ])
+
+# Động từ hành chính dùng thay cho nhau ("làm thẻ…" / "đăng ký thẻ…" / "xin cấp
+# thẻ…" cùng chỉ một thủ tục) — bỏ đi để chỉ còn phần lõi mang tính phân biệt.
+# Giữ khớp với `_ACTION_PREFIXES` ở `routes.py`, nơi đã dùng cùng cách này cho
+# nút điều hướng từ 12/08.
+_ACTION_PREFIXES = ("dang ky lam ", "dang ky ", "xin cap ", "xin ", "kich hoat ", "lam ")
 
 
 # Ranh giới ý định — bản gốc nằm ở `src/api/routes.py` để gắn nút điều hướng,
@@ -100,12 +111,48 @@ def _task_name_contains(task_name: str, keyword: str) -> bool:
     return keyword in _normalize(task_name)
 
 
-def _has_form(item: ChecklistItem) -> bool:
-    """True khi item co form_schema (khong None).
+def _strip_action_prefix(text: str) -> str:
+    for prefix in _ACTION_PREFIXES:
+        if text.startswith(prefix):
+            return text[len(prefix) :]
+    return text
 
-    Luc nay dien ra trong Python sau ORM hydration, dam bao hoat dong
-    nhat ky tren moi dialect (vi du SQLite luu None cua JSON thanh chuoi
-    'null' trong cot, khong phai SQL NULL).
+
+def _core_name(text: str) -> str:
+    """Phần lõi của tên thủ tục: bỏ dấu, bỏ động từ đầu, bỏ phần trong ngoặc.
+
+    `"Làm thẻ cư dân (chủ hộ)"` → `"the cu dan"`.
+
+    Không có bước bỏ ngoặc thì lớp 2 so nguyên chuỗi và **"làm thẻ cư dân"
+    không khớp được mục nào** — người dùng gõ đúng tên thủ tục mà hệ thống vẫn
+    không nhận ra (đo được 25/08). `routes.py::_core_name` đã xử lý đúng như
+    vậy cho nút điều hướng từ 12/08; đây là cùng một bài toán.
+    """
+    stripped = _strip_action_prefix(_normalize(text))
+    return re.sub(r"\s*\([^)]*\)", "", stripped).strip()
+
+
+def _has_form(item: ChecklistItem) -> bool:
+    """True khi item có `form_schema` thật.
+
+    **Phải lọc trong Python, sau khi ORM đã dựng đối tượng — đừng chuyển xuống
+    SQL.** `JSONType` lưu `None` của Python thành chuỗi JSON `'null'`, không
+    phải SQL NULL, nên `form_schema.isnot(None)` **đúng với mọi hàng** và
+    không lọc được gì:
+
+        SELECT task_name, form_schema, form_schema IS NULL
+        → ('Ký nội quy', 'null', 0)          ← chuỗi 'null', IS NULL = false
+
+    Đúng với cả SQLite lẫn Postgres: đây là cách `sqlalchemy.JSON` xử lý None
+    (`none_as_null` mặc định False), không phải quirk của một dialect. Muốn lọc
+    ở tầng DB thì phải khai `none_as_null=True` cho cột trước — là migration.
+
+    Đã chuyển xuống SQL một lần ngày 24/08 (commit 8045c58, "M1") và hỏng:
+    thủ tục không có form lọt vào vòng so khớp rồi tranh chỗ với thủ tục có
+    form — "Cho tôi xem thời tiết Hà Nội" khớp `high` vào "Ký **nội** quy toà
+    nhà". `test_loc_form_schema_phai_chay_trong_python` khoá lại chuyện này.
+
+    Bảng chỉ khoảng chục hàng; lọc trong Python không phải nút thắt gì.
     """
     return item.form_schema is not None
 
@@ -187,25 +234,26 @@ async def detect_procedure_intent(message: str, db: Session) -> ProcedureMatch:
     if is_info_question(message):
         return _NOT_A_PROCEDURE
 
-    norm = _normalize(message)
     keywords = _extract_keywords(message)
 
     # Lớp 1: Keyword exact — so sánh trong Python de dam bao Unicode normalization
     # chính xác. SQLite ILIKE khong nhan Unicode decomposition.
-    # Filter tai DB level thay vi load het roi filter: tranh bottleneck khi so
-    # procedures tang, giam database load.
-    form_items = db.query(ChecklistItem).filter(
-        ChecklistItem.form_schema.isnot(None)
-    ).all()
+    #
+    # `_has_form` cũng phải lọc trong Python — đọc docstring của nó trước khi
+    # định chuyển bộ lọc này xuống câu query.
+    all_items = db.query(ChecklistItem).all()
+    form_items = [item for item in all_items if _has_form(item)]
     for kw in keywords:
         candidates = [item for item in form_items if _task_name_contains(item.task_name, kw)]
         if len(candidates) == 1:
             return ProcedureMatch(item=candidates[0], confidence="high")
 
-    # Lớp 2: Fuzzy
+    # Lớp 2: Fuzzy — so phần lõi, không so nguyên tên. Xem `_core_name`.
+    probe_core = _core_name(message)
     candidates = [
         item for item in form_items
-        if _normalize(item.task_name) in norm
+        if (core := _core_name(item.task_name))
+        and (core == probe_core or core in probe_core)
     ]
     if len(candidates) == 1:
         return ProcedureMatch(item=candidates[0], confidence="medium")

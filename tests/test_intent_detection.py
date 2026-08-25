@@ -79,6 +79,19 @@ def db_session():
         item_type="bql_actionable",
         form_schema=None,
     ))
+    # Hai nhánh loại trừ nhau, tên chỉ khác phần trong ngoặc.
+    for nhanh in ("chủ hộ", "người thuê"):
+        session.add(ChecklistItem(
+            task_name=f"Làm thẻ cư dân ({nhanh})",
+            item_type="bql_actionable",
+            form_schema={"fields": [], "attachments": []},
+        ))
+    # Tên có chữ "căn" — bẫy bỏ dấu trùng với "cần".
+    session.add(ChecklistItem(
+        task_name="Đăng ký chuyển đồ vào căn hộ",
+        item_type="bql_actionable",
+        form_schema={"fields": [], "attachments": []},
+    ))
     session.commit()
     yield session
     session.close()
@@ -115,10 +128,62 @@ async def test_khop_dung_mot_thu_tuc_thi_vao_luong_form(db_session, fake_llm):
     assert fake_llm.calls == 0, "khớp tất định rồi thì không được tốn lượt gọi LLM"
 
 
+def test_loc_form_schema_phai_chay_trong_python(db_session):
+    """Khoá lại cái bẫy đã làm hỏng ngày 24/08 (commit 8045c58, "M1").
+
+    `JSONType` lưu `None` của Python thành chuỗi JSON `'null'`, không phải SQL
+    NULL — nên lọc bằng `form_schema.isnot(None)` **không loại được gì**. Test
+    này đỏ nghĩa là ai đó vừa chuyển bộ lọc xuống tầng SQL.
+    """
+    from sqlalchemy import text
+
+    from src.ai.intent import _has_form
+
+    raw = db_session.execute(
+        text("SELECT form_schema FROM checklist_items WHERE task_name = 'Ký nội quy toà nhà'")
+    ).scalar()
+    assert raw == "null", "cột lưu chuỗi 'null', không phải SQL NULL"
+
+    tat_ca = db_session.query(ChecklistItem).all()
+    loc_bang_sql = db_session.query(ChecklistItem).filter(
+        ChecklistItem.form_schema.isnot(None)
+    ).all()
+    assert len(loc_bang_sql) == len(tat_ca), "lọc ở SQL không loại được gì"
+
+    loc_bang_python = [i for i in tat_ca if _has_form(i)]
+    assert "Ký nội quy toà nhà" not in {i.task_name for i in loc_bang_python}
+    assert len(loc_bang_python) == len(tat_ca) - 1
+
+
 @pytest.mark.asyncio
 async def test_thu_tuc_khong_co_form_thi_khong_mo_luong_form(db_session, fake_llm):
     """"Ký nội quy toà nhà" không có `form_schema` — phải để RAG trả lời."""
     match = await detect_procedure_intent("Tôi muốn làm thủ tục ký nội quy", db_session)
+    assert match.item is None
+    assert not match.ambiguous
+
+
+@pytest.mark.asyncio
+async def test_go_dung_ten_thu_tuc_thi_nhan_ra_du_co_ngoac(db_session, fake_llm):
+    """"làm thẻ cư dân" phải khớp "Làm thẻ cư dân (chủ hộ)/(người thuê)".
+
+    Trước 25/08 lớp 2 so nguyên chuỗi nên phần trong ngoặc làm trượt hoàn toàn:
+    người dùng gõ đúng tên thủ tục mà hệ thống không nhận ra gì.
+    """
+    match = await detect_procedure_intent("làm thẻ cư dân", db_session)
+    assert match.ambiguous, "hai nhánh chủ hộ/người thuê → phải hỏi lại"
+    names = {i.task_name for i in match.disambiguation_options}
+    assert names == {"Làm thẻ cư dân (chủ hộ)", "Làm thẻ cư dân (người thuê)"}
+
+
+@pytest.mark.asyncio
+async def test_cau_chung_chung_khong_bi_khop_bua_vao_mot_thu_tuc(db_session, fake_llm):
+    """"tôi CẦN làm thủ tục" từng khớp `high` vào "…vào CĂN hộ".
+
+    Bỏ dấu xong "cần" và "căn" đều thành "can". Câu hỏi chung chung phải nhường
+    cho RAG, đừng kéo người ta vào một cái form họ không hỏi.
+    """
+    match = await detect_procedure_intent("tôi cần làm thủ tục", db_session)
     assert match.item is None
     assert not match.ambiguous
 
