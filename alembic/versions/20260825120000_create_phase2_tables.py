@@ -187,33 +187,55 @@ def upgrade() -> None:
     # Note: 'role' column already exists in users from bc8e9803f056_create_core_tables
     op.add_column('users', sa.Column('department_id', sa.Integer(), nullable=True))
 
-    # Add version column to applications for optimistic locking
-    op.add_column('applications', sa.Column('version', sa.Integer(), server_default='1', nullable=True))
-    op.add_column('applications', sa.Column('assigned_to', sa.Integer(), nullable=True))
-    op.create_index('idx_applications_assigned', 'applications', ['assigned_to'])
+    # Add version and assigned_to columns to applications for optimistic locking
+    # Check if applications table exists (may not exist if branched migration downgraded it)
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'applications')"
+    ))
+    applications_exists = result.scalar()
+
+    if applications_exists:
+        op.add_column('applications', sa.Column('version', sa.Integer(), server_default='1', nullable=True))
+        op.add_column('applications', sa.Column('assigned_to', sa.Integer(), nullable=True))
+        op.create_index('idx_applications_assigned', 'applications', ['assigned_to'])
 
 
 def downgrade() -> None:
     # Reverse all changes
-    op.drop_index('idx_applications_assigned', 'applications')
-    op.drop_column('applications', 'assigned_to')
-    op.drop_column('applications', 'version')
-    op.drop_table('usage_logs')
-    op.drop_table('user_badges')
-    op.drop_table('audit_log')
-    op.drop_index('idx_notifications_user', 'notifications')
-    op.drop_table('notifications')
-    op.drop_index('idx_messages_ticket', 'ticket_messages')
-    op.drop_table('ticket_messages')
-    op.drop_index('idx_tickets_assigned', 'tickets')
-    op.drop_index('idx_tickets_status', 'tickets')
-    op.drop_index('idx_tickets_user', 'tickets')
-    op.drop_table('tickets')
-    op.drop_table('staff_assignments')
-    op.drop_table('departments')
-    op.drop_table('role_permissions')
-    op.drop_table('permissions')
-    op.drop_table('roles')
-    op.drop_index('idx_push_subscriptions_user', 'push_subscriptions')
-    op.drop_table('push_subscriptions')
-    op.drop_column('users', 'department_id')
+    # Use if_exists=True because other migrations in branched chains may have
+    # already modified or dropped these objects
+
+    # Check if applications table exists before dropping columns
+    # (it may have been dropped by a branched migration's downgrade)
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'applications')"
+    ))
+    applications_exists = result.scalar()
+
+    if applications_exists:
+        op.drop_index('idx_applications_assigned', 'applications', if_exists=True)
+        op.drop_column('applications', 'assigned_to', if_exists=True)
+        op.drop_column('applications', 'version', if_exists=True)
+
+    op.drop_table('usage_logs', if_exists=True)
+    op.drop_table('user_badges', if_exists=True)
+    op.drop_table('audit_log', if_exists=True)
+    op.drop_index('idx_notifications_user', 'notifications', if_exists=True)
+    op.drop_table('notifications', if_exists=True)
+    op.drop_index('idx_messages_ticket', 'ticket_messages', if_exists=True)
+    op.drop_table('ticket_messages', if_exists=True)
+    op.drop_index('idx_tickets_assigned', 'tickets', if_exists=True)
+    op.drop_index('idx_tickets_status', 'tickets', if_exists=True)
+    op.drop_index('idx_tickets_user', 'tickets', if_exists=True)
+    op.drop_table('tickets', if_exists=True)
+    # Drop staff_assignments BEFORE departments (FK dependency)
+    op.drop_table('staff_assignments', if_exists=True)
+    op.drop_table('departments', if_exists=True)
+    op.drop_table('role_permissions', if_exists=True)
+    op.drop_table('permissions', if_exists=True)
+    op.drop_table('roles', if_exists=True)
+    op.drop_index('idx_push_subscriptions_user', 'push_subscriptions', if_exists=True)
+    op.drop_table('push_subscriptions', if_exists=True)
+    op.drop_column('users', 'department_id', if_exists=True)
