@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select, text
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from src.models.db import (
@@ -529,10 +529,49 @@ def list_all_applications(
     ]
 
 
+class VersionConflictError(Exception):
+    """Hồ sơ đã bị sửa bởi người khác — client phải refresh."""
+
+
 def update_application_status(
-    db: Session, application_id: int,
-    status: str, bql_note: str | None, form_data: dict[str, str] | None
+    db: Session,
+    application_id: int,
+    status: str,
+    bql_note: str | None,
+    form_data: dict[str, str] | None,
+    expected_version: int | None = None,
 ) -> dict[str, Any] | None:
+    """Cập nhật trạng thái hồ sơ với optimistic locking tuỳ chọn.
+
+    Nếu `expected_version` được truyền, hàm sẽ kiểm tra version hiện tại
+    và raise `VersionConflictError` nếu không khớp.
+    """
+    if expected_version is not None:
+        # Optimistic locking: kiểm tra version trước, rồi mới UPDATE.
+        # Tách làm hai query để đảm bảo tương thích SQLite (RETURNING + rowcount
+        # không hoạt động đáng tin cậy trên SQLite).
+        app = db.scalar(
+            select(Application).where(Application.application_id == application_id)
+        )
+        if app is None:
+            return None
+        if app.version != expected_version:
+            raise VersionConflictError(
+                f"Application {application_id} was modified by another user. Please refresh."
+            )
+
+        app.status = status
+        if bql_note is not None:
+            app.bql_note = bql_note
+        if form_data is not None:
+            app.form_data = form_data
+        app.version = (app.version or 1) + 1
+
+        db.commit()
+        db.refresh(app)
+        return _application_dict(app)
+
+    # Không có optimistic locking: dùng ORM như trước
     app = db.scalar(select(Application).where(Application.application_id == application_id))
     if app is None:
         return None
@@ -545,6 +584,7 @@ def update_application_status(
     # Chỉ ghi đè khi BQL thực sự gửi form_data — None = giữ nguyên, {} = xoá.
     if form_data is not None:
         app.form_data = form_data
+    app.version = (app.version or 1) + 1
 
     db.commit()
     db.refresh(app)
