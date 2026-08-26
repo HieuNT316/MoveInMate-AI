@@ -931,7 +931,8 @@ async def update_application_status(
     resident_name = resident["full_name"] if resident else ""
 
     result = store.update_application_status(
-        db, application_id, payload.status, payload.bql_note, payload.form_data
+        db, application_id, payload.status, payload.bql_note, payload.form_data,
+        performed_by=_admin["user_id"],
     )
 
     # Gửi notification sau khi cập nhật thành công.
