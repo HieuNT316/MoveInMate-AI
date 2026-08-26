@@ -6,7 +6,13 @@ sang W4, chưa tạo ở đây.
 
 from functools import lru_cache
 
-from langchain_community.vectorstores import Chroma
+# `langchain_chroma`, KHÔNG phải `langchain_community.vectorstores` — bản trong
+# `langchain_community` là wrapper cũ đã deprecated, và quan trọng hơn:
+# `langchain-community` KHÔNG có trong `requirements.txt` (chỉ có
+# `langchain-chroma==1.1.0`). Đổi sang nó ngày 25/08 (commit e1716c0) làm
+# `import src.main` chết ở mọi máy cài theo requirements — app không khởi động
+# được và toàn bộ test không chạy nổi.
+from langchain_chroma import Chroma
 
 from src.config import get_settings
 from src.services.llm import get_embeddings
