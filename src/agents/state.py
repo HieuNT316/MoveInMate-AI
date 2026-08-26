@@ -41,3 +41,7 @@ class ChatState(TypedDict, total=False):
     # phát ra khi LLM gọi tool `request_submission_navigation`. Chưa có
     # checklist_item_id ở đây vì graph không chạm DB; route resolve tiếp.
     suggested_action: dict[str, str] | None
+    # US-11 — câu hỏi ĐÚNG LĨNH VỰC mà KB không có dữ liệu, đáng mời cư dân
+    # gửi cho BQL. Chỉ là tín hiệu: graph không tạo ticket (không chạm DB), và
+    # tạo ngầm mỗi lần AI bí sẽ đẩy rác vào hàng đợi BQL. Xem `generate._refuse`.
+    ticket_suggested: bool
