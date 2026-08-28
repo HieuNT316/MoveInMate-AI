@@ -28,6 +28,7 @@ def get_least_worked_staff(db: Session, department_id: int) -> int | None:
         LEFT JOIN applications a ON a.assigned_to = u.user_id
             AND a.status NOT IN ('delivered', 'rejected')
         WHERE sa.department_id = :dept_id
+            AND u.role IN ('admin', 'staff')
         GROUP BY u.user_id
         ORDER BY COUNT(a.application_id) ASC
         LIMIT 1

@@ -202,6 +202,7 @@ export default function SubmitApplicationDialog({
               attachments={uploaded}
               requiredDocuments={requiredDocuments}
               onUploaded={(attachment) => setUploaded((prev) => [...prev, attachment])}
+              onDeleted={(attachment) => setUploaded((prev) => prev.filter((item) => item.attachment_id !== attachment.attachment_id))}
             />
           </div>
 

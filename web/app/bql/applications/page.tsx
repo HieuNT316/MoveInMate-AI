@@ -28,6 +28,7 @@ import Pagination from "../../components/Pagination";
 import EmptyState from "../../components/EmptyState";
 import ErrorState from "../../components/ErrorState";
 import AttachmentPreviewModal from "../../components/AttachmentPreviewModal";
+import QuickReviewPanel from "../../components/QuickReviewPanel";
 
 const PAGE_SIZE = 10;
 
@@ -72,6 +73,8 @@ function BQLApplicationsContent() {
   const [viewing, setViewing] = useState<AdminApplication | null>(null);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [queue, setQueue] = useState<"pending" | "action" | "all">("pending");
+  const [sort, setSort] = useState<"oldest" | "newest">("oldest");
 
   const residentId = searchParams.get("resident");
   const residentName = searchParams.get("name");
@@ -106,18 +109,23 @@ function BQLApplicationsContent() {
     const id = residentId ? Number(residentId) : null;
     return applications.filter((app) => {
       if (id !== null && app.user_id !== id) return false;
+      if (queue === "pending" && !["received", "processing"].includes(app.status)) return false;
+      if (queue === "action" && !["needs_info", "rejected"].includes(app.status)) return false;
       if (!normalizedQuery) return true;
       return [app.full_name, app.apartment, app.task_name, app.handling_department ?? ""]
         .some((value) => value.toLocaleLowerCase("vi").includes(normalizedQuery));
+    }).sort((a, b) => {
+      const delta = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return sort === "oldest" ? delta : -delta;
     });
-  }, [applications, query, residentId]);
+  }, [applications, query, queue, residentId, sort]);
 
   const clearResidentFilter = () => router.push("/bql/applications");
 
   // Đổi bộ lọc mà không về trang 1 thì dễ đứng ở trang trống.
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, department, residentId, query]);
+  }, [statusFilter, department, queue, residentId, query, sort]);
 
   const pageCount = Math.max(1, Math.ceil((visibleApplications?.length ?? 0) / PAGE_SIZE));
   const paginatedApplications = (visibleApplications ?? []).slice(
@@ -148,6 +156,9 @@ function BQLApplicationsContent() {
           <p className="text-sm font-semibold text-[#1E293B]">{visibleApplications?.length ?? 0} hồ sơ</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Chọn hàng đợi">
+            {([['pending', 'Chờ duyệt'], ['action', 'Cần theo dõi'], ['all', 'Tất cả']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setQueue(value)} className={`rounded-md px-3 py-2 text-xs font-medium transition ${queue === value ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>{label}</button>)}
+          </div>
           {residentId && (
             <button
               onClick={clearResidentFilter}
@@ -167,6 +178,10 @@ function BQLApplicationsContent() {
               {opt.label}
             </option>
           ))}
+        </select>
+        <select value={sort} onChange={(event) => setSort(event.target.value as "oldest" | "newest")} aria-label="Sắp xếp hồ sơ" className="rounded-lg border border-[#B6C4D6] bg-white px-3.5 py-2.5 text-sm text-[#1E293B] focus:border-[#2563EB] focus:outline-none">
+          <option value="oldest">Cũ nhất trước</option>
+          <option value="newest">Mới nhất trước</option>
         </select>
 
         <select
@@ -265,13 +280,15 @@ function BQLApplicationsContent() {
       )}
 
       {viewing && (
-        <ApplicationDetailDialog
+        <QuickReviewPanel
           userId={userId}
           application={viewing}
           onClose={() => setViewing(null)}
-          onEdit={() => {
-            setEditing(viewing);
-            setViewing(null);
+          onReviewed={() => {
+            const currentIndex = visibleApplications?.findIndex((item) => item.application_id === viewing.application_id) ?? -1;
+            const next = visibleApplications?.[currentIndex + 1] ?? visibleApplications?.[currentIndex - 1] ?? null;
+            setViewing(next);
+            void load();
           }}
         />
       )}
@@ -279,7 +296,7 @@ function BQLApplicationsContent() {
   );
 }
 
-function ApplicationDetailDialog({
+export function ApplicationDetailDialog({
   userId,
   application,
   onClose,

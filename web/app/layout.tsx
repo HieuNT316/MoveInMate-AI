@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import RegisterServiceWorker from "./register-service-worker";
 import { ToastProvider } from "./components/Toast";
+import NetworkStatus from "./components/NetworkStatus";
 
 // Chỉ dùng một font (Inter, có subset "vietnamese" cho dấu tiếng Việt).
 // Trước đây có thêm Playfair Display (serif) cho heading/số liệu, nhưng
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body>
         <ToastProvider>
           {children}
+          <NetworkStatus />
           <RegisterServiceWorker />
         </ToastProvider>
       </body>

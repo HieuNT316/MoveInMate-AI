@@ -307,6 +307,7 @@ function ChecklistContent() {
                                   : [SELF_DECLARED_DOCUMENT]
                               }
                               onUploaded={load}
+                              onDeleted={load}
                             />
                           </div>
                         ) : (

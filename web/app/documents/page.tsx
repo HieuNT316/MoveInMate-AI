@@ -7,7 +7,7 @@ import Layout from "../components/Layout";
 import AttachmentUploader from "../components/AttachmentUploader";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
-import { api, describeError, type Application } from "../../lib/api";
+import { api, describeError, type Application, type ApplicationStatus } from "../../lib/api";
 import { useDemoUser } from "../../lib/useDemoUser";
 import { applicationStatusLabel, applicationStatusTone } from "../../lib/applicationStatus";
 
@@ -15,11 +15,26 @@ export default function DocumentsPage() {
   const { userId, ready } = useDemoUser();
   const [applications, setApplications] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "processing" | "action" | "completed">("all");
   const load = useCallback(async () => {
     try { setApplications(await api.getApplications(userId)); setError(null); }
     catch (err) { setError(describeError(err)); }
   }, [userId]);
   useEffect(() => { if (ready) void load(); }, [ready, load]);
+
+  const groups: Record<typeof filter, ApplicationStatus[]> = {
+    all: [],
+    processing: ["received", "processing"],
+    action: ["needs_info", "rejected"],
+    completed: ["approved", "delivered"],
+  };
+  const filtered = applications?.filter((application) => filter === "all" || groups[filter].includes(application.status));
+  const filters = [
+    ["all", "Tất cả"],
+    ["processing", "Đang xử lý"],
+    ["action", "Cần bổ sung"],
+    ["completed", "Hoàn tất"],
+  ] as const;
 
   return <Layout>
     <div className="mx-auto max-w-4xl">
@@ -34,7 +49,15 @@ export default function DocumentsPage() {
         {error && <ErrorState message={error} onRetry={load} />}
         {!error && !applications && <div className="flex items-center gap-2 py-10 text-sm text-muted"><span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />Đang tải hồ sơ...</div>}
         {applications?.length === 0 && <EmptyState icon={FileCheck2} title="Bạn chưa nộp hồ sơ nào" description="Vào Việc cần làm, chọn thủ tục phù hợp rồi tải giấy tờ để gửi Ban quản lý." />}
-        {applications && applications.length > 0 && <div className="space-y-4">{applications.map((application) => <ApplicationCard key={application.application_id} userId={userId} application={application} onChanged={load} />)}</div>}
+        {applications && applications.length > 0 && <>
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Lọc hồ sơ">
+            {filters.map(([value, label]) => {
+              const count = value === "all" ? applications.length : applications.filter((app) => groups[value].includes(app.status)).length;
+              return <button key={value} type="button" onClick={() => setFilter(value)} className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-xs font-medium transition ${filter === value ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"}`}>{label} <span className={filter === value ? "text-blue-100" : "text-slate-400"}>{count}</span></button>;
+            })}
+          </div>
+          {filtered?.length ? <div className="space-y-4">{filtered.map((application) => <ApplicationCard key={application.application_id} userId={userId} application={application} onChanged={load} />)}</div> : <EmptyState icon={FileCheck2} title="Không có hồ sơ phù hợp" description="Hãy chọn một bộ lọc khác để xem hồ sơ." />}
+        </>}
       </div>
     </div>
   </Layout>;
@@ -53,7 +76,7 @@ function ApplicationCard({ userId, application, onChanged }: { userId: number; a
     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
       <div className="flex items-center justify-between"><p className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Paperclip className="h-4 w-4 text-blue-600" />Giấy tờ đã tải</p><span className="text-xs text-slate-500">{application.attachments.length} tệp</span></div>
       {application.attachments.length === 0 && <p className="mt-3 flex items-center gap-2 text-sm text-amber-800"><Upload className="h-4 w-4" />Chưa có giấy tờ. Hãy tải tệp để hoàn tất hồ sơ.</p>}
-      <AttachmentUploader userId={userId} applicationId={application.application_id} attachments={application.attachments} required={application.kind === "self_declared"} onUploaded={onChanged} />
+      <AttachmentUploader userId={userId} applicationId={application.application_id} attachments={application.attachments} required={application.kind === "self_declared"} onUploaded={onChanged} onDeleted={onChanged} />
     </div>
     {application.note && <p className="mt-3 text-xs leading-5 text-muted"><span className="font-medium text-ink">Ghi chú khi nộp:</span> {application.note}</p>}
   </article>;

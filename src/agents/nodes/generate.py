@@ -113,13 +113,7 @@ def _is_refusal(answer: str) -> bool:
     return len(answer) <= _REFUSAL_MAX_LEN and any(p in folded for p in _REFUSAL_PHRASES)
 
 
-REFUSAL_WITH_TICKET = (
-    "Xin lỗi, tôi chưa tìm thấy thông tin này trong tài liệu hiện có. "
-    "Bạn có muốn gửi câu hỏi này cho Ban quản lý để được trả lời không?"
-)
-
-
-def _refuse(ticket_worthy: bool = False) -> dict[str, Any]:
+def _refuse() -> dict[str, Any]:
     """Câu từ chối chuẩn — và **bỏ `sources`**.
 
     Bỏ nguồn là nửa quan trọng hơn: hiện khối "Nguồn trích dẫn" ngay dưới một
@@ -127,37 +121,11 @@ def _refuse(ticket_worthy: bool = False) -> dict[str, Any]:
     câu trả lời trông đáng tin đúng lúc nó rỗng nội dung.
 
     `sources` do `rag_retrieve` đặt vào state; trả `[]` ở đây để ghi đè.
-
-    `ticket_worthy` — có nên mời cư dân gửi câu hỏi cho BQL không (US-11).
-    **Không phải lúc nào từ chối cũng đáng mở ticket**, và ranh giới đã có sẵn
-    trong chính cấu trúc hai tầng của guard:
-
-    | Tầng | Nghĩa | Ví dụ trong bộ eval | Ticket? |
-    |---|---|---|---|
-    | 1 · `retrieved` rỗng | Không đoạn nào đủ gần ngưỡng → câu ngoài lĩnh vực | giá vàng, thời tiết, nấu phở (4/4 chặn ở đây) | **Không** |
-    | 2 · có tài liệu, LLM nói không có | Đúng lĩnh vực nhưng KB thiếu dữ liệu | Q33-35 "phí bảo trì 2%…" | **Có** |
-
-    Mời mở ticket cho câu "cho tôi công thức nấu phở bò" thì vừa vô duyên vừa
-    làm ngập hộp thư BQL bằng những câu họ không có trách nhiệm trả lời. Còn
-    tầng 2 lại đúng là những câu BQL trả lời được và nên biết là cư dân đang
-    hỏi — mỗi ticket ở đó là một chỗ trống trong KB tự báo cáo về.
     """
-    if ticket_worthy:
-        # Không tự tạo ticket ở đây: graph không chạm DB (xem state.py), và
-        # quan trọng hơn — tạo ngầm mỗi lần AI bí là đẩy rác vào hàng đợi của
-        # BQL. Chỉ phát tín hiệu; cư dân bấm đồng ý thì FE gọi POST /tickets.
-        return {
-            "answer": REFUSAL_WITH_TICKET,
-            "answer_source": "no_context",
-            "sources": [],
-            "ticket_suggested": True,
-        }
-    return {
-        "answer": REFUSAL,
-        "answer_source": "no_context",
-        "sources": [],
-        "ticket_suggested": False,
-    }
+    # Móc cho Phase 2 Task 4 (gợi ý tạo ticket) cắm vào: đây chính là chỗ hệ
+    # thống biết mình không trả lời được. Chưa cắm vì `store.create_ticket`
+    # chưa tồn tại — xem handover 25/08.
+    return {"answer": REFUSAL, "answer_source": "no_context", "sources": []}
 
 
 async def generate_node(state: ChatState) -> dict[str, Any]:
@@ -192,16 +160,14 @@ async def generate_node(state: ChatState) -> dict[str, Any]:
                 "usage": None}
 
     if not response.tool_calls:
-        # `usage` đi kèm cả nhánh từ chối: lượt gọi LLM đã xảy ra và đã tốn
-        # token thật, cost tracking phải đếm nó. Không đếm thì hoá đơn thiếu
-        # đúng những lượt tệ nhất — hỏi mà không trả lời được.
-        usage = {"input_tokens": input_tokens, "output_tokens": output_tokens}
+        return {"answer": response.content, "answer_source": "rag",
+                "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens}}
 
+    if not response.tool_calls:
         # Tầng 2 của guard: có tài liệu, nhưng tài liệu không chứa câu trả lời.
-        # Đúng lĩnh vực mà KB thiếu dữ liệu — chỗ duy nhất đáng mời mở ticket.
         if _is_refusal(str(response.content)):
-            return {**_refuse(ticket_worthy=True), "usage": usage}
-        return {"answer": response.content, "answer_source": "rag", "usage": usage}
+            return _refuse()
+        return {"answer": response.content, "answer_source": "rag"}
 
     # Tool thuần, không tác dụng phụ — chạy trực tiếp, không cần sandbox.
     tool_call = response.tool_calls[0]

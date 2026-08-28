@@ -9,7 +9,7 @@
  * khi `APP_ENV=production`.
  */
 
-import { currentAccessToken } from "./supabase";
+import { currentAccessToken, supabase } from "./supabase";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -372,6 +372,19 @@ export function clearUserId(): void {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
+/**
+ * Phiên Supabase có thể đã hết hạn trong khi `user_id` demo vẫn còn ở
+ * localStorage (đặc biệt sau khi mở lại tab trên điện thoại). Khi backend trả
+ * 401, xoá cả hai phần trạng thái và về trang đăng nhập thay vì để người dùng
+ * mắc kẹt ở một trang lỗi không có nút đăng xuất.
+ */
+function recoverFromUnauthorized(): void {
+  if (typeof window === "undefined") return;
+  clearUserId();
+  void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  if (window.location.pathname !== "/login") window.location.replace("/login");
+}
+
 export function writeUserId(id: number): void {
   window.localStorage.setItem(STORAGE_KEY, String(id));
 }
@@ -407,7 +420,10 @@ export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     return `Backend trả lỗi ${err.status}: ${err.message || "không rõ chi tiết"}`;
   }
-  return "Không kết nối được backend. Kiểm tra đã chạy `uvicorn src.main:app --reload` chưa.";
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return "Thiết bị đang ngoại tuyến. Kiểm tra mạng rồi thử lại.";
+  }
+  return "Không thể kết nối hệ thống lúc này. Vui lòng thử lại sau.";
 }
 
 /**
@@ -442,8 +458,10 @@ async function request<T>(
 
   if (!response.ok) {
     const detail = await response.text();
+    if (response.status === 401) recoverFromUnauthorized();
     throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -466,6 +484,7 @@ async function requestMultipart<T>(
 
   if (!response.ok) {
     const detail = await response.text();
+    if (response.status === 401) recoverFromUnauthorized();
     throw new ApiError(response.status, parseErrorDetail(detail, response.statusText));
   }
   return response.json() as Promise<T>;
@@ -633,6 +652,11 @@ export const api = {
       `/applications/${applicationId}/attachments/${attachmentId}/url`,
       userId,
     ),
+
+  deleteAttachment: (userId: number, applicationId: number, attachmentId: number) =>
+    request<void>(`/applications/${applicationId}/attachments/${attachmentId}`, userId, {
+      method: "DELETE",
+    }),
 
   /** BQL xem hồ sơ của mọi cư dân. `status`/`department` là bộ lọc tuỳ chọn
    * — bỏ trống để lấy tất cả. Yêu cầu role admin, backend tự chặn 403. */

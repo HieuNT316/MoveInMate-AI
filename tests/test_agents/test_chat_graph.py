@@ -302,7 +302,7 @@ async def test_llm_bao_khong_co_trong_tai_lieu_thi_bo_luon_trich_dan(monkeypatch
 
     assert result["answer_source"] == "no_context"
     assert result["sources"] == [], "không trả lời được thì không được trích dẫn gì"
-    assert result["answer"] == generate_module.REFUSAL_WITH_TICKET
+    assert result["answer"] == generate_module.REFUSAL
     assert generate_module.NO_ANSWER_SENTINEL not in result["answer"], "mã nội bộ không được lộ ra"
 
 
@@ -349,49 +349,3 @@ async def test_cau_tra_loi_binh_thuong_chua_chu_khong_van_giu_nguyen(monkeypatch
 
     assert result["answer_source"] == "rag"
     assert result["sources"]
-
-
-# --- US-11: mời mở ticket, nhưng chỉ đúng chỗ ----------------------------
-
-
-@pytest.mark.asyncio
-async def test_dung_linh_vuc_ma_kb_thieu_thi_moi_gui_cho_bql(monkeypatch):
-    """Đây là loại câu BQL trả lời được và NÊN biết là cư dân đang hỏi.
-
-    Mỗi ticket ở đây là một chỗ trống trong KB tự báo cáo về.
-    """
-    store = _FakeStore([(_doc("Phí dịch vụ 2026...", 1, "Phí dịch vụ VSC"), 0.30)])
-    result = await _run(
-        monkeypatch, store,
-        _FakeLLM(generate_module.NO_ANSWER_SENTINEL),
-        query="Phí bảo trì 2% của căn hộ tôi là bao nhiêu?",
-    )
-
-    assert result["ticket_suggested"] is True
-    assert result["answer_source"] == "no_context"
-    assert result["sources"] == []
-
-
-@pytest.mark.asyncio
-async def test_cau_ngoai_linh_vuc_thi_tu_choi_nhung_khong_moi_mo_ticket(monkeypatch):
-    """"Cho tôi công thức nấu phở bò" — từ chối, nhưng đừng mời gửi cho BQL.
-
-    Không đoạn nào qua được ngưỡng khoảng cách nghĩa là câu nằm ngoài lĩnh
-    vực. Mời mở ticket ở đây vừa vô duyên vừa làm ngập hộp thư BQL bằng những
-    câu họ không có trách nhiệm trả lời.
-    """
-    result = await _run(
-        monkeypatch, _FakeStore([]), _FakeLLM(),
-        query="Cho tôi công thức nấu phở bò.",
-    )
-
-    assert result["answer_source"] == "no_context"
-    assert result["ticket_suggested"] is False
-    assert result["answer"] == generate_module.REFUSAL, "câu từ chối gọn, không mời gì"
-
-
-@pytest.mark.asyncio
-async def test_tra_loi_duoc_thi_khong_moi_mo_ticket(monkeypatch):
-    store = _FakeStore([(_doc("Nội dung A", 1, "Tài liệu A"), 0.1)])
-    result = await _run(monkeypatch, store, _FakeLLM("Đây là câu trả lời."))
-    assert result.get("ticket_suggested", False) is False
