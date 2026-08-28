@@ -9,6 +9,7 @@ Thresholds từ docs/OPERATIONS.md mục 4:
 
 from collections import deque
 from dataclasses import dataclass, field
+from threading import Lock
 
 import requests
 
@@ -59,6 +60,7 @@ class AlertService:
         self._cooldown_seconds = 300.0  # 5 phút giữa các alert
 
         self._health_checks = MetricWindow()  # (timestamp, is_healthy: 0/1)
+        self._lock = Lock()  # Bảo vệ compound operations khỏi race condition
 
     def record_request(self, status_code: int) -> None:
         """Ghi nhận một request hoàn tất."""
@@ -91,62 +93,66 @@ class AlertService:
     def check_and_alert(self) -> bool:
         """Kiểm tra tất cả threshold, gửi Slack nếu cần.
 
+        Thread-safe: dùng lock để đảm bảo cooldown check + alert send là atomic,
+        tránh duplicate alerts khi nhiều request đến đồng thời.
+
         Returns:
             True nếu đã gửi alert, False nếu không có alert nào được kích hoạt.
         """
         import time
 
-        now = time.time()
+        with self._lock:
+            now = time.time()
 
-        # Cooldown: không alert quá thường xuyên
-        if now - self._last_alert_time < self._cooldown_seconds:
+            # Cooldown: không alert quá thường xuyên
+            if now - self._last_alert_time < self._cooldown_seconds:
+                return False
+
+            alerts: list[str] = []
+
+            # 1. Error rate > 1% trong 5 phút
+            statuses = self._requests.values(now)
+            if len(statuses) >= 10:
+                errors = sum(1 for s in statuses if s >= 500)
+                error_rate = errors / len(statuses)
+                if error_rate > self.ERROR_RATE_THRESHOLD:
+                    alerts.append(
+                        f"Error rate {error_rate * 100:.1f}% "
+                        f"({errors}/{len(statuses)} requests) > 1% threshold"
+                    )
+
+            # 2. p95 latency > 8s
+            latencies = self._latencies.values(now)
+            if len(latencies) >= 10:
+                sorted_latencies = sorted(latencies)
+                p95_idx = int(len(sorted_latencies) * 0.95)
+                p95 = sorted_latencies[p95_idx]
+                if p95 > self.LATENCY_P95_THRESHOLD_MS:
+                    alerts.append(
+                        f"p95 latency {p95 / 1000:.1f}s > 8s threshold"
+                    )
+
+            # 3. Cost/day vượt ngưỡng
+            settings = get_settings()
+            day_costs = self._costs.values(now)
+            day_cost = sum(day_costs)
+            if day_cost > settings.alert_cost_daily_threshold:
+                alerts.append(
+                    f"Cost today ${day_cost:.2f} > "
+                    f"${settings.alert_cost_daily_threshold} threshold"
+                )
+
+            # 4. Health check fail liên tục (3 lần liên tiếp)
+            health_values = self._health_checks.values(now)
+            if len(health_values) >= 3 and sum(health_values[-3:]) == 0:
+                alerts.append("Health check failed 3 times in a row")
+
+            if alerts:
+                self._send_slack(alerts)
+                self._last_alert_time = now
+                return True
+
             return False
-
-        alerts: list[str] = []
-
-        # 1. Error rate > 1% trong 5 phút
-        statuses = self._requests.values(now)
-        if len(statuses) >= 10:
-            errors = sum(1 for s in statuses if s >= 500)
-            error_rate = errors / len(statuses)
-            if error_rate > self.ERROR_RATE_THRESHOLD:
-                alerts.append(
-                    f"Error rate {error_rate * 100:.1f}% "
-                    f"({errors}/{len(statuses)} requests) > 1% threshold"
-                )
-
-        # 2. p95 latency > 8s
-        latencies = self._latencies.values(now)
-        if len(latencies) >= 10:
-            sorted_latencies = sorted(latencies)
-            p95_idx = int(len(sorted_latencies) * 0.95)
-            p95 = sorted_latencies[p95_idx]
-            if p95 > self.LATENCY_P95_THRESHOLD_MS:
-                alerts.append(
-                    f"p95 latency {p95 / 1000:.1f}s > 8s threshold"
-                )
-
-        # 3. Cost/day vượt ngưỡng
-        settings = get_settings()
-        day_costs = self._costs.values(now)
-        day_cost = sum(day_costs)
-        if day_cost > settings.alert_cost_daily_threshold:
-            alerts.append(
-                f"Cost today ${day_cost:.2f} > "
-                f"${settings.alert_cost_daily_threshold} threshold"
-            )
-
-        # 4. Health check fail liên tục (3 lần liên tiếp)
-        health_values = self._health_checks.values(now)
-        if len(health_values) >= 3 and sum(health_values[-3:]) == 0:
-            alerts.append("Health check failed 3 times in a row")
-
-        if alerts:
-            self._send_slack(alerts)
-            self._last_alert_time = now
-            return True
-
-        return False
 
     def _send_slack(self, alerts: list[str]) -> None:
         """Gửi thông báo tới Slack webhook."""
