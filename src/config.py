@@ -133,6 +133,10 @@ class Settings(BaseSettings):
     # Có FAQ thật rồi thì đo lại bằng `scripts/run_eval` trước khi hạ xuống.
     faq_min_similarity: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    # Alerts & Observability
+    slack_webhook_url: str = ""
+    alert_cost_daily_threshold: float = 10.0
+
     # LangSmith tracing (V1/E3/B8) — deliverable #4 của BTC.
     #
     # Ba biến này đã có trong `.env.example` từ lâu nhưng chưa từng có tác

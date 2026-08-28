@@ -14,6 +14,7 @@ from src.config import get_settings
 from src.database import get_db
 from src.observability import configure_logging, logger, request_id_var
 from src.services import vectorstore
+from src.services.alerts import get_alert_service
 from src.services.chroma_seed import ensure_seeded
 from src.services.tracing import configure_tracing
 
@@ -85,6 +86,11 @@ async def request_context_middleware(request: Request, call_next):
                 "duration_ms": round(duration_ms, 2),
             },
         )
+        # Record metrics for alerting & Prometheus
+        alerts = get_alert_service()
+        alerts.record_request(status_code)
+        alerts.record_latency(duration_ms)
+        alerts.check_and_alert()
         request_id_var.reset(token)
 
 
@@ -139,5 +145,8 @@ async def health_deep(db: Session = Depends(get_db)) -> JSONResponse:
     except Exception as exc:  # noqa: BLE001
         report["chroma"] = {"status": f"error: {type(exc).__name__}"}
         healthy = False
+
+    # Record health for alerting
+    get_alert_service().record_health_check(healthy)
 
     return JSONResponse(report, status_code=200 if healthy else 503)

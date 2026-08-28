@@ -21,6 +21,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Response,
     UploadFile,
     status,
 )
@@ -76,6 +77,7 @@ from src.models.schemas import (
     TicketStatusUpdateRequest,
 )
 from src.services import cost_tracking, push, rate_limit, storage, store
+from src.services.alerts import get_alert_service
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
 from src.services.ingest import KB_DIR, ingest_file
@@ -91,6 +93,64 @@ from src.services.vectorstore import RetrievalError
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# --- Prometheus Metrics --------------------------------------------------
+
+
+@router.get("/metrics", include_in_schema=False)
+async def metrics() -> Response:
+    """Prometheus scrape endpoint.
+
+    Exposes application metrics in Prometheus text format for scraping by
+    Prometheus server / Grafana Agent.
+    """
+    alerts = get_alert_service()
+
+    lines: list[str] = [
+        "# HELP moveinmate_requests_total Total HTTP requests",
+        "# TYPE moveinmate_requests_total counter",
+        f"moveinmate_requests_total {alerts.request_count()}",
+        "",
+        "# HELP moveinmate_error_rate Error rate (5xx) in last 5 minutes",
+        "# TYPE moveinmate_error_rate gauge",
+        f"moveinmate_error_rate {alerts.error_rate():.4f}",
+        "",
+        "# HELP moveinmate_latency_p95_ms p95 latency in milliseconds",
+        "# TYPE moveinmate_latency_p95_ms gauge",
+        f"moveinmate_latency_p95_ms {alerts.p95_latency_ms():.2f}",
+        "",
+        "# HELP moveinmate_cost_today_usd Cost today in USD",
+        "# TYPE moveinmate_cost_today_usd gauge",
+        f"moveinmate_cost_today_usd {alerts.total_cost_today():.4f}",
+        "",
+        "# HELP moveinmate_no_context_ratio Ratio of no_context answers",
+        "# TYPE moveinmate_no_context_ratio gauge",
+        # Tinh tu DB
+        "moveinmate_no_context_ratio 0.0",
+    ]
+
+    # Lay no_context ratio tu DB (last 24h)
+    try:
+        db = SessionLocal()
+        try:
+            result = db.execute(text("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN answer_source = 'no_context' THEN 1 ELSE 0 END) as no_context
+                FROM chat_history
+                WHERE created_at >= datetime('now', '-1 day')
+            """))
+            row = result.fetchone()
+            if row and row.total > 0:
+                ratio = row.no_context / row.total
+                lines[-1] = f"moveinmate_no_context_ratio {ratio:.4f}"
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+    return Response(content="\n".join(lines), media_type="text/plain; charset=utf-8")
 
 
 # Câu chữ của luồng điền hồ sơ nằm ở `src/ai/form_dialog.py` (vai AI giữ phần
@@ -746,6 +806,11 @@ async def chat(
                 input_tokens=usage["input_tokens"],
                 output_tokens=usage["output_tokens"],
             )
+            # Also record for alert service
+            from src.services.cost_tracking import calculate_chat_cost
+
+            cost = calculate_chat_cost(usage["input_tokens"], usage["output_tokens"])
+            get_alert_service().record_cost(float(cost))
 
     _log_chat_usage(state.get("usage"))
 

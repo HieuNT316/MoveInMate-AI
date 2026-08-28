@@ -217,3 +217,65 @@ Bấm thẳng vào tài khoản mẫu ở trang đăng nhập là tự điền e
 `safe_database_url()` (`src/config.py`) và bộ lọc log JSON (`src/observability.py`) đều dùng chung một regex để che phần mật khẩu trong `DATABASE_URL` trước khi in ra: `(://[^:\s]+:)[^@\s]+(@)`. Class ký tự `[^@\s]+` dừng lại ở ký tự `@` ĐẦU TIÊN nó gặp — nếu mật khẩu tự nó chứa `@`, regex chỉ che được phần mật khẩu TRƯỚC ký tự `@` đó, phần còn lại lọt ra log nguyên văn.
 
 Mật khẩu Supabase hiện tại không chứa `@` nên chưa lộ gì. Nhưng ai đổi mật khẩu DB (xoay vòng credential) cần tránh chọn mật khẩu có `@`, hoặc phải vá regex trước — redaction hỏng ÂM THẦM, không có cảnh báo nào khi điều đó xảy ra.
+
+---
+
+## H. Prometheus & Grafana
+
+### Metrics Endpoint
+
+Backend expose metrics ở `GET /api/v1/metrics` ở định dạng Prometheus text:
+
+| Metric | Type | Mo ta |
+|---|---|---|
+| `moveinmate_requests_total` | counter | Tong so request (5 phut cua so) |
+| `moveinmate_error_rate` | gauge | Ty le loi 5xx (0.0-1.0) |
+| `moveinmate_latency_p95_ms` | gauge | p95 do tre (ms) |
+| `moveinmate_cost_today_usd` | gauge | Tong chi phi hom nay ($) |
+| `moveinmate_no_context_ratio` | gauge | Ty le tra loi khong co nguon (0.0-1.0) |
+
+### Thresholds Alert
+
+| Nguong | Dieu kien kich hoat |
+|---|---|
+| Error rate > 1% | Alert Slack trong 5 phut |
+| p95 latency > 8s | Alert Slack |
+| Cost/day > $10 | Alert Slack |
+| Health check fail 3 lan lien tiep | Alert Slack |
+
+Cooldown 5 phut giua cac alert de khong spam.
+
+### Thiet lap
+
+**1. Prometheus scrape backend:**
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'moveinmate'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['moveinmate-api-production.up.railway.app']
+    metrics_path: '/api/v1/metrics'
+```
+
+**2. Import Grafana dashboard:**
+
+Dashboard JSON nam tai `grafana/dashboards/moveinmate-overview.json`. Import vao Grafana qua UI (Dashboards → Import) hoac API.
+
+**3. Thiet lap Slack webhook (optional):**
+
+```bash
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzz
+ALERT_COST_DAILY_THRESHOLD=10.0
+```
+
+Neu khong co webhook, alert van kiem tra nhung chi log warning, khong gui Slack.
+
+**4. Variables can thiet:**
+
+| Variable | Gia tri |
+|---|---|
+| `DS_PROMETHEUS` | Data source Prometheus da cau hinh |
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
+| `ALERT_COST_DAILY_THRESHOLD` | Ngưỡng chi phí alert (mặc định $10/ngày) |
