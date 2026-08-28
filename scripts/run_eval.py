@@ -17,9 +17,17 @@ Hai chỉ số (LLM judge):
   - **correctness**: LLM đánh giá câu trả lời có đúng sự thật không.
   - **citation**: LLM đánh giá nguồn trích dẫn có phù hợp không.
 
-LƯU Ý CHI PHÍ: mỗi câu tốn một lần embed + một lần gọi LLM. Chạy cả bộ 35 câu
-là 35 request embedding — đáng kể với hạn mức free tier của Google.
-LLM judge thêm 35 request nữa (~$0.14 cho gpt-4o-mini).
+Câu FG01/FG02 (`expect: form_generation|disambiguation`) đi qua luồng AI dẫn
+dắt điền hồ sơ, không qua RAG — chấm bằng `intent` + `expected_fields` thay vì
+answer_source/sources, và KHÔNG tốn lượt LLM judge (không có nghĩa để đánh giá
+"đúng sự thật" cho một câu hỏi làm rõ).
+
+**Latency**: đo round-trip HTTP thật của mỗi câu (không tính `--delay` nghỉ
+giữa các câu), báo p50/p95/trung bình, so với mục tiêu <3s.
+
+LƯU Ý CHI PHÍ: mỗi câu tốn một lần embed + một lần gọi LLM. Chạy cả bộ (hiện
+37 câu, 35 qua RAG) là ~35 request embedding — đáng kể với hạn mức free tier
+của Google. LLM judge thêm ~35 request nữa (~$0.14 cho gpt-4o-mini).
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import time
 import unicodedata
 from datetime import UTC, datetime
@@ -40,6 +49,27 @@ from src.config import get_settings
 
 QUESTIONS = Path("eval/questions.yaml")
 OUT_DIR = Path("eval/results")
+
+# Mục tiêu report.md đã khai từ 12/08 và luôn ghi "chưa đo" — dùng để in
+# PASS/FAIL cạnh con số đo được, không chỉ trưng con số trần trụi.
+LATENCY_TARGET_MS = 3000
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float | None:
+    """Percentile kiểu nội suy tuyến tính (giống numpy mặc định).
+
+    Tự viết thay vì kéo thêm numpy chỉ để tính một con số — script này vốn đã
+    tối giản dependency (chỉ httpx + yaml + langchain-core).
+    """
+    if not sorted_values:
+        return None
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    rank = (len(sorted_values) - 1) * pct
+    lo, hi = int(rank), min(int(rank) + 1, len(sorted_values) - 1)
+    if lo == hi:
+        return sorted_values[lo]
+    return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (rank - lo)
 
 
 def _norm(text: str) -> str:
@@ -151,34 +181,59 @@ def _grade_llm(
     }
 
 
+# Hai câu FG01/FG02 (thêm 20/08) khai `expect: form_generation|disambiguation`
+# — không đi qua RAG nên "đúng loại" không thể xét bằng answer_source/sources
+# như 35 câu còn lại. Thiếu nhánh riêng thì `_grade` áp nhầm luật của RAG lên
+# hai câu này và LUÔN chấm sai, bất kể luồng điền hồ sơ có chạy đúng hay không
+# — đúng dạng hỏng thầm lặng: script vẫn chạy, in ra FAIL, nhưng vì lý do sai.
+_FORM_INTENTS = {"form_generation", "disambiguation"}
+
+
 def _grade(question: dict, payload: dict) -> dict:
-    answer_source = payload.get("answer_source", "")
+    expect = question["expect"]
     answer = payload.get("answer", "")
+    answer_source = payload.get("answer_source", "")
     sources = payload.get("sources") or []
+    intent = payload.get("intent", "qa")
 
-    refused = answer_source == "no_context"
-    want_refuse = question["expect"] == "refuse"
-
-    right_kind = refused if want_refuse else not refused
-    missing = [
-        kw for kw in question.get("must_mention", []) if _norm(kw) not in _norm(answer)
-    ]
-    # Câu từ chối thì KHÔNG được kèm nguồn — hiện trích dẫn dưới một câu
-    # "tôi không biết" là kiểu hiển thị gây hiểu nhầm nhất.
-    cited_ok = (not sources) if want_refuse else bool(sources)
+    if expect in _FORM_INTENTS:
+        # Luồng AI dẫn dắt điền hồ sơ trả `answer_source="no_context"` cho MỌI
+        # lượt (không có nghĩa "từ chối" — chỉ là không truy xuất tài liệu, xem
+        # src/api/routes.py). Đúng/sai ở đây chỉ tuỳ `intent`, không tuỳ
+        # answer_source; và không có tài liệu để trích nên không xét `sources`.
+        right_kind = intent == expect
+        cited_ok = True  # không áp dụng cho luồng form
+        missing = [
+            f"{key}={value!r} (thực tế: {(payload.get('form_data') or {}).get(key)!r})"
+            for key, value in question.get("expected_fields", {}).items()
+            if (payload.get("form_data") or {}).get(key) != value
+        ]
+    else:
+        refused = answer_source == "no_context"
+        want_refuse = expect == "refuse"
+        right_kind = refused if want_refuse else not refused
+        missing = [
+            kw for kw in question.get("must_mention", []) if _norm(kw) not in _norm(answer)
+        ]
+        # Câu từ chối thì KHÔNG được kèm nguồn — hiện trích dẫn dưới một câu
+        # "tôi không biết" là kiểu hiển thị gây hiểu nhầm nhất.
+        cited_ok = (not sources) if want_refuse else bool(sources)
 
     return {
         "id": question["id"],
         "procedure": question["procedure"],
-        "expect": question["expect"],
+        "expect": expect,
         "answer_source": answer_source,
+        "intent": intent,
         "right_kind": right_kind,
         "missing_terms": missing,
         "cited_ok": cited_ok,
         "passed": right_kind and not missing and cited_ok,
         "sources": [s.get("title", "")[:60] for s in sources],
         "answer": answer[:300],
-        # LLM judge fields — populated by _grade_llm() in main
+        # LLM judge fields — populated by _grade_llm() in main; luồng form
+        # không nhận judge (xem vòng lặp trong main()), ở đây giữ None làm mặc
+        # định cho nhất quán schema.
         "llm_correct": None,
         "llm_citation": None,
         "llm_judge_error": None,
@@ -203,6 +258,10 @@ def main() -> None:
 
     # ── Gọi API để lấy câu trả lời ────────────────────────────────────────
     for i, question in enumerate(questions):
+        # Đo đúng round-trip HTTP thật, không tính thời gian sleep giữa các
+        # câu — đó là độ trễ cư dân thật sự chờ, thứ report.md khai "chưa đo"
+        # từ 12/08 dù script đã gọi HTTP thật ngay từ đầu.
+        started = time.perf_counter()
         try:
             response = httpx.post(
                 f"{args.api}/chat",
@@ -215,14 +274,19 @@ def main() -> None:
                 payload = {"answer": f"HTTP {response.status_code}", "answer_source": "error"}
         except httpx.HTTPError as exc:
             payload = {"answer": f"loi mang: {exc}", "answer_source": "error"}
+        latency_ms = (time.perf_counter() - started) * 1000
 
         row = _grade(question, payload)
+        row["latency_ms"] = round(latency_ms, 1)
         results.append(row)
         payloads.append(payload)
         mark = "PASS" if row["passed"] else "FAIL"
-        print(f"  {mark}  {row['id']}  [{row['answer_source']:10}] {question['question'][:52]}")
+        print(
+            f"  {mark}  {row['id']}  [{row['answer_source']:10}] "
+            f"{latency_ms:6.0f}ms  {question['question'][:44]}"
+        )
         if not row["passed"] and row["missing_terms"]:
-            print(f"          thieu tu khoa: {row['missing_terms']}")
+            print(f"          thieu: {row['missing_terms']}")
         if i > 0:
             time.sleep(args.delay)
 
@@ -230,6 +294,13 @@ def main() -> None:
     print(f"\n{'='*54}")
     print("Danh gia LLM judge...")
     for question, row, payload in zip(questions, results, payloads):
+        if question["expect"] in _FORM_INTENTS:
+            # "Câu trả lời có đúng sự thật không" không có nghĩa cho một câu
+            # hỏi làm rõ ("Bạn muốn thẻ cư dân chủ hộ hay người thuê?") — bỏ
+            # qua để không tốn lượt gọi LLM vô nghĩa. `judged`/`cited_judged`
+            # ở dưới đã tự loại các dòng `llm_correct is None`.
+            print(f"  SKIP  {row['id']}  (luong form, khong can LLM judge)")
+            continue
         judge = _grade_llm(question, row, payload)
 
         row.update(judge)
@@ -261,6 +332,13 @@ def main() -> None:
 
     judge_errors = sum(1 for r in results if r.get("llm_judge_error"))
 
+    # Latency — round-trip HTTP thật đã đo trong vòng lặp ở trên, không tính
+    # thời gian `time.sleep(args.delay)` giữa các câu.
+    latencies = sorted(r["latency_ms"] for r in results if r.get("latency_ms") is not None)
+    p50 = _percentile(latencies, 0.50)
+    p95 = _percentile(latencies, 0.95)
+    avg_latency = statistics.mean(latencies) if latencies else None
+
     print(f"\n{'='*54}")
     print(f"Tong the         : {passed}/{total} ({passed/total*100:.0f}%)")
     print(f"Dung loai        : {kind_ok}/{total} ({kind_ok/total*100:.0f}%)")
@@ -269,6 +347,13 @@ def main() -> None:
     print(f"\nLLM judge (n={len(judged)}, loi={judge_errors}):")
     print(f"  correctness     : {llm_correct_count}/{len(judged)} ({llm_correct_rate:.0f}%)")
     print(f"  citation        : {llm_cite_count}/{len(cited_judged)} ({llm_cite_rate:.0f}%)")
+    if latencies:
+        target_mark = "OK" if p95 is not None and p95 < LATENCY_TARGET_MS else "CHUA DAT"
+        print(f"\nLatency (n={len(latencies)}, muc tieu <{LATENCY_TARGET_MS/1000:.0f}s):")
+        print(f"  p50             : {p50:.0f}ms")
+        print(f"  p95             : {p95:.0f}ms  [{target_mark}]")
+        print(f"  trung binh      : {avg_latency:.0f}ms")
+        print(f"  min / max       : {latencies[0]:.0f}ms / {latencies[-1]:.0f}ms")
 
     # ── Regression check ───────────────────────────────────────────────────────
     _regression_check(llm_correct_rate, passed / total * 100)
@@ -290,6 +375,15 @@ def main() -> None:
                 "llm_cite_count": llm_cite_count,
                 "llm_cite_rate": round(llm_cite_rate, 1),
                 "llm_judge_errors": judge_errors,
+                "latency_ms": {
+                    "p50": round(p50, 1) if p50 is not None else None,
+                    "p95": round(p95, 1) if p95 is not None else None,
+                    "avg": round(avg_latency, 1) if avg_latency is not None else None,
+                    "min": latencies[0] if latencies else None,
+                    "max": latencies[-1] if latencies else None,
+                    "target_ms": LATENCY_TARGET_MS,
+                    "meets_target": (p95 < LATENCY_TARGET_MS) if p95 is not None else None,
+                },
                 "results": results,
             },
             ensure_ascii=False,
@@ -318,6 +412,13 @@ def main() -> None:
                     "cite_rate": round(llm_cite_rate, 1),
                     "judge_errors": judge_errors,
                     "judged_total": len(judged),
+                },
+                "latency_ms": {
+                    "p50": round(p50, 1) if p50 is not None else None,
+                    "p95": round(p95, 1) if p95 is not None else None,
+                    "avg": round(avg_latency, 1) if avg_latency is not None else None,
+                    "target_ms": LATENCY_TARGET_MS,
+                    "meets_target": (p95 < LATENCY_TARGET_MS) if p95 is not None else None,
                 },
             },
             ensure_ascii=False,
