@@ -541,6 +541,7 @@ def update_application_status(
     bql_note: str | None,
     form_data: dict[str, str] | None,
     expected_version: int | None = None,
+    performed_by: int | None = None,
 ) -> dict[str, Any] | None:
     """Cập nhật trạng thái hồ sơ với optimistic locking tuỳ chọn.
 
@@ -571,7 +572,7 @@ def update_application_status(
 
         log_action(
             db,
-            user_id=None,
+            user_id=performed_by,
             action="application.status_changed",
             resource_type="application",
             resource_id=application_id,
@@ -600,7 +601,7 @@ def update_application_status(
 
     log_action(
         db,
-        user_id=None,
+        user_id=performed_by,
         action="application.status_changed",
         resource_type="application",
         resource_id=application_id,

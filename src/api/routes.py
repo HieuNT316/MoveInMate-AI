@@ -730,6 +730,9 @@ async def chat(
         "sources": state.get("sources", []),
         "answer_source": state["answer_source"],
         "conversation_id": conversation_id,
+        # US-11 — chỉ là tín hiệu để FE hiện nút; ticket do cư dân bấm tạo qua
+        # POST /tickets. Xem `generate._refuse` để biết vì sao không tự tạo.
+        "ticket_suggested": state.get("ticket_suggested", False),
     }
 
     # Log LLM usage for cost tracking (rewrite_query + generate combined).
@@ -931,7 +934,8 @@ async def update_application_status(
     resident_name = resident["full_name"] if resident else ""
 
     result = store.update_application_status(
-        db, application_id, payload.status, payload.bql_note, payload.form_data
+        db, application_id, payload.status, payload.bql_note, payload.form_data,
+        performed_by=_admin["user_id"],
     )
 
     # Gửi notification sau khi cập nhật thành công.

@@ -333,6 +333,26 @@ class ChatResponse(BaseModel):
         description="Các thủ tục có thể chọn khi intent là disambiguation.",
     )
 
+    # US-11 — thêm 26/08. Cộng thêm, có mặc định: FE chưa đọc thì chạy y như cũ.
+    #
+    # ┌─ Thu đọc mục này ──────────────────────────────────────────────────┐
+    # │ `true` → hiện nút "Gửi câu hỏi cho Ban quản lý" dưới câu trả lời.  │
+    # │ Bấm nút thì gọi `POST /tickets` (đã có sẵn) với `subject` = chính  │
+    # │ câu người dùng vừa hỏi. Backend KHÔNG tự tạo ticket — tạo ngầm mỗi │
+    # │ lần AI bí là đẩy rác vào hàng đợi BQL.                             │
+    # │                                                                    │
+    # │ Chỉ bật cho câu ĐÚNG LĨNH VỰC mà tài liệu thiếu dữ liệu. Câu ngoài │
+    # │ lĩnh vực ("công thức nấu phở") vẫn từ chối nhưng `false` — đừng    │
+    # │ mời cư dân gửi câu đó cho BQL.                                     │
+    # └────────────────────────────────────────────────────────────────────┘
+    ticket_suggested: bool = Field(
+        default=False,
+        description=(
+            "Câu hỏi đúng lĩnh vực nhưng tài liệu chưa có đáp án — nên mời cư "
+            "dân gửi cho BQL qua `POST /tickets`."
+        ),
+    )
+
 
 class ChatHistoryEntry(BaseModel):
     """Một lượt hỏi đáp đã lưu, thuộc về đúng một hội thoại."""
