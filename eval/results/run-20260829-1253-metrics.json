@@ -1,0 +1,26 @@
+{
+  "ran_at": "2026-08-29T12:53:04+00:00",
+  "api": "http://localhost:8000/api/v1",
+  "judge_model": "anthropic/claude-sonnet-5",
+  "keyword": {
+    "total": 37,
+    "passed": 35,
+    "pass_rate": 94.6,
+    "right_kind": 35
+  },
+  "llm_judge": {
+    "correct_count": 17,
+    "correct_rate": 48.6,
+    "cite_count": 10,
+    "cite_rate": 35.7,
+    "judge_errors": 0,
+    "judged_total": 35
+  },
+  "latency_ms": {
+    "p50": 4477.8,
+    "p95": 5308.8,
+    "avg": 4478.1,
+    "target_ms": 3000,
+    "meets_target": false
+  }
+}
