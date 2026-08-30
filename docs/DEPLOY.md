@@ -38,6 +38,30 @@ Hệ quả: **Railway và Vercel đều KHÔNG nhìn thấy repo** khi kết n�
 
 **`railway up` đóng gói THƯ MỤC HIỆN TẠI, không phải commit.** Chạy `git status` trước mỗi lần deploy, nếu không rất dễ đẩy code nháp lên production.
 
+**Có migration mới thì DEPLOY TRƯỚC, migrate DB SAU.** Đây là thứ tự bắt buộc,
+không phải khuyến nghị — làm ngược lại thì production **chết hoàn toàn**:
+
+`docker-entrypoint.sh` chạy `alembic upgrade head` trước khi khởi động uvicorn.
+Nếu DB đã ở một revision mà image đang chạy không có file migration tương ứng,
+Alembic báo `Can't locate revision identified by '<rev>'`, container thoát,
+Railway khởi động lại, lặp vô hạn. **API cũ cũng chết theo**, không chỉ tính
+năng mới.
+
+Đã xảy ra ngày 30/08: chạy `alembic upgrade head` từ máy cá nhân lên Supabase
+dùng chung trước khi deploy → toàn bộ production 502 cho tới khi `railway up`.
+
+Thứ tự đúng:
+
+```powershell
+git status                    # phải sạch
+railway up                    # deploy code CÓ file migration trước
+# entrypoint tự chạy alembic upgrade head trong container — không cần chạy tay
+```
+
+**Nút "Redeploy" trên dashboard KHÔNG cứu được tình huống này.** Nó chạy lại
+image đã build, không build lại từ mã nguồn — image cũ vẫn thiếu file migration.
+Phải `railway up` để buộc build image mới.
+
 ### A.2 Cập nhật code đã deploy
 
 ```powershell

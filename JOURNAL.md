@@ -193,6 +193,7 @@ mình) sang Claude Sonnet 5.
 | Grafana hiện "No data" dù Prometheus có số | Dashboard trỏ datasource bằng `uid`, mà `uid` để Grafana tự sinh thì **mỗi máy một khác** — teammate dựng stack mới cũng sẽ trắng | Đặt `uid: moveinmate-prometheus` cố định trong provisioning |
 | 4 test `test_alerts.py` đỏ | Tính tay lại: cả 4 sai ở **test**, không phải ở code. VD test nói "dưới 10 request" nhưng vòng lặp tạo đúng 10; test p95 dùng 1 mẫu chậm trên 51 mẫu, p95 rơi vào vị trí 48 nên vẫn là 1s | 534/534 xanh. Đã thử phá ngưỡng để chắc test bắt được lỗi thật |
 | Model tự chấm bài mình (self-judge bias) | Hải tách giám khảo sang Claude Sonnet 5 | Xem mục Bài học |
+| **Production chết hoàn toàn (502)** sau khi chạy migration lên Supabase dùng chung trước khi deploy code | `railway up` để build image mới có file migration. Nút "Redeploy" không cứu được — nó chạy lại image cũ, không build lại | Khôi phục sau ~20 phút; Chroma vẫn đủ 412 chunk, không mất dữ liệu |
 
 ### Bài học
 - **Chỉ số tự chấm là chỉ số vô nghĩa.** Khi gpt-4o-mini vừa sinh câu trả lời
@@ -207,6 +208,14 @@ mình) sang Claude Sonnet 5.
 - **Migration gộp có thể xoá dữ liệu.** `alembic merge` sinh sẵn không đọc nội
   dung `downgrade()`; nhánh Phase 2 có `drop_table('applications')` mà bảng đó
   nằm ngoài phạm vi gộp. Phải đọc từng nhánh trước khi gộp trên DB dùng chung.
+- **Có migration mới thì deploy code TRƯỚC, migrate DB SAU.** Ngày 30/08 làm
+  ngược lại: chạy `alembic upgrade head` từ máy cá nhân lên Supabase dùng chung
+  trong khi image trên Railway chưa có file migration đó. `docker-entrypoint.sh`
+  chạy `alembic upgrade head` lúc khởi động, không tra được revision, container
+  thoát, Railway restart — lặp vô hạn và **API cũ cũng chết theo**, không chỉ
+  tính năng mới. Trước khi chạy, tôi đã kiểm migration an toàn với *dữ liệu*
+  nhưng bỏ sót câu hỏi *"code đang chạy có file này chưa"*. Kiểm đúng một nửa
+  vẫn là chưa kiểm.
 
 ### Kế hoạch còn lại trước Demo Day
 - **Chốt cách trình bày số liệu eval** — dùng 48,6% (trung thực, kèm giải
