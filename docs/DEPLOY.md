@@ -313,6 +313,47 @@ Scrape bản deploy trên Railway thì đổi thành:
       - targets: ['moveinmate-api-production.up.railway.app']
 ```
 
-Lưu ý `/api/v1/metrics` hiện **không đòi xác thực** — bất kỳ ai biết địa chỉ
-đều đọc được số liệu vận hành. Trước khi mở ra internet thì phải đặt sau một
-lớp chặn (Cloudflare Access, hoặc thêm kiểm tra quyền trong route).
+### Bảo vệ `/api/v1/metrics`
+
+Endpoint này phơi lưu lượng, tỉ lệ lỗi và chi phí LLM mỗi ngày. Chặn bằng bearer
+token dùng chung với Prometheus (thêm 30/08).
+
+**1. Sinh khoá:**
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+**2. Đặt vào `.env` của backend:**
+
+```bash
+METRICS_TOKEN=<khoá vừa sinh>
+```
+
+**3. Khai cùng giá trị trong `prometheus.yml`** (bỏ chú thích khối có sẵn):
+
+```yaml
+    authorization:
+      type: Bearer
+      credentials: '<đúng giá trị METRICS_TOKEN>'
+```
+
+**Hành vi:**
+
+| `METRICS_TOKEN` | Header | Kết quả |
+|---|---|---|
+| Rỗng | bất kỳ | 200 — không kiểm |
+| Có đặt | `Bearer <đúng>` | 200 |
+| Có đặt | sai hoặc thiếu | **404** |
+
+Trả 404 chứ không 401: 401 xác nhận endpoint có tồn tại, cho người dò biết họ
+tìm đúng chỗ và chỉ còn thiếu khoá.
+
+**Rỗng nghĩa là mở.** Mặc định như vậy để `docker compose up` chạy được ngay,
+không ai phải đi tìm biến môi trường. Đánh đổi là có thể quên đặt trên
+production — backend ghi cảnh báo `metrics_endpoint_unprotected` lúc khởi động
+khi `APP_ENV=production` mà biến này rỗng.
+
+Đây là chặn người ngoài dò trúng địa chỉ, **không phải bảo mật đầy đủ**: khoá
+nằm trong biến môi trường, không xoay vòng. Chạy thật lâu dài thì nên đặt thêm
+sau Cloudflare Access.

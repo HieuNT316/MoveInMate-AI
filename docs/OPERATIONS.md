@@ -34,10 +34,10 @@ Tài liệu này chỉ trả lời một câu hỏi: **nếu sản phẩm chạy
 | **Cảnh báo** | ✅ | `src/services/alerts.py` — webhook Slack, ngưỡng theo mục 4 dưới đây |
 | **Vòng phản hồi người dùng** | ❌ | Vẫn chưa có nút 👍/👎 mỗi câu trả lời |
 | **Chống prompt injection** | ❌ | Chưa lọc; rủi ro tăng khi agent có hành động ghi |
-| **Bảo vệ endpoint `/metrics`** | ❌ | Không đòi xác thực — ai biết địa chỉ đều đọc được số liệu vận hành |
+| **Bảo vệ endpoint `/metrics`** | ✅ | Bearer token (`METRICS_TOKEN`), sai/thiếu trả 404. Rỗng = mở, có cảnh báo lúc khởi động nếu `APP_ENV=production` |
 
 **Rà lại 30/08.** Phần lớn khoảng trống nêu ngày 11/08 đã được lấp trong tuần
-25-30/08. Ba mục còn ❌ ở trên là những gì thực sự chưa làm.
+25-30/08. Hai mục còn ❌ ở trên là những gì thực sự chưa làm.
 
 ---
 
@@ -55,13 +55,17 @@ Tài liệu này chỉ trả lời một câu hỏi: **nếu sản phẩm chạy
 
 | Thành phần | Vì sao cần | Trạng thái |
 |---|---|---|
-| **Bảo vệ `/api/v1/metrics`** | Endpoint đang mở hoàn toàn (đã kiểm `routes.py:101`, không có `Depends` nào). Ai biết địa chỉ đều đọc được lưu lượng, tỉ lệ lỗi, chi phí ngày | **Cần làm trước khi mở ra internet** |
 | **Vòng phản hồi** (👍/👎 mỗi câu trả lời) | Nguồn dữ liệu duy nhất cho biết chất lượng thật ngoài 37 câu tự soạn. Cũng là đầu vào để mở rộng bộ eval | Chưa làm |
 | **Chống prompt injection** | Rủi ro thấp khi sản phẩm chỉ đọc, tăng lên khi agent có hành động ghi | Chưa làm |
 | **Đưa `alerts` vào cùng nguồn với `usage_logs`** | `AlertService` đếm chi phí trong bộ nhớ tiến trình, khởi động lại là mất; `usage_logs` mới là bản ghi bền | Cân nhắc Phase 3 |
 
-**Ba mục đầu bảng cũ** (log có cấu trúc, theo dõi chi phí, bắt lỗi tập trung,
-che PII) đã làm xong trong tuần 25-30/08 — xem bảng hiện trạng mục 1.
+**Các mục của bảng cũ** (log có cấu trúc, theo dõi chi phí, bắt lỗi tập trung,
+che PII, bảo vệ `/metrics`) đã làm xong trong tuần 25-30/08 — xem bảng hiện
+trạng mục 1.
+
+Riêng `METRICS_TOKEN` **chưa đặt trên Railway** — cơ chế đã có, còn thiếu bước
+cấu hình. Backend sẽ ghi cảnh báo `metrics_endpoint_unprotected` mỗi lần khởi
+động cho tới khi đặt.
 
 ---
 

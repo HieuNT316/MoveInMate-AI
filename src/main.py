@@ -29,6 +29,18 @@ UNHANDLED_ERROR_MESSAGE = "Đã có lỗi xảy ra, vui lòng thử lại sau."
 async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"Starting {settings.app_name} in {settings.app_env} mode")
+
+    # `metrics_token` mặc định rỗng để máy dev chạy được ngay (xem config.py).
+    # Đánh đổi là có thể quên đặt khi lên production — la lên ở đây để nó không
+    # quên được trong im lặng. Chỉ cảnh báo, KHÔNG chặn khởi động: /metrics mở
+    # là rò rỉ số liệu vận hành, còn service không lên là hỏng cả sản phẩm.
+    if settings.app_env == "production" and not settings.metrics_token:
+        logger.warning(
+            "metrics_endpoint_unprotected",
+            extra={"hint": "APP_ENV=production nhưng METRICS_TOKEN rỗng — "
+                           "/api/v1/metrics đang mở cho mọi người"},
+        )
+
     ensure_seeded(get_settings().chroma_persist_dir, "./data/chroma_seed")
     yield
     print("Shutting down...")

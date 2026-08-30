@@ -137,6 +137,19 @@ class Settings(BaseSettings):
     slack_webhook_url: str = ""
     alert_cost_daily_threshold: float = 10.0
 
+    # Khoá bảo vệ `GET /api/v1/metrics`. Prometheus gửi qua header
+    # `Authorization: Bearer <token>`.
+    #
+    # RỖNG = không kiểm, ai gọi cũng được. Chọn mặc định mở có chủ đích: đóng
+    # sẵn thì `docker compose up` của người khác trong nhóm hỏng ngay và họ phải
+    # đi tìm biến môi trường mới chạy được. Đánh đổi là có thể quên bật khi lên
+    # production — `src/main.py` cảnh báo lúc khởi động nếu APP_ENV=production
+    # mà biến này rỗng, để nó không quên được trong im lặng.
+    #
+    # Không dùng `require_admin` cho endpoint này: Prometheus là máy, không có
+    # JWT Supabase để gửi.
+    metrics_token: str = ""
+
     # LangSmith tracing (V1/E3/B8) — deliverable #4 của BTC.
     #
     # Ba biến này đã có trong `.env.example` từ lâu nhưng chưa từng có tác

@@ -7,6 +7,7 @@ mục 3.2.
 
 import logging
 import re
+import secrets
 import unicodedata
 import uuid
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ from fastapi import (
     Depends,
     File,
     Form,
+    Header,
     HTTPException,
     Query,
     Response,
@@ -109,7 +111,41 @@ router = APIRouter()
 # --- Prometheus Metrics --------------------------------------------------
 
 
-@router.get("/metrics", include_in_schema=False)
+def _require_metrics_token(authorization: str | None = Header(default=None)) -> None:
+    """Chặn `/metrics` bằng bearer token dùng chung với Prometheus.
+
+    KHÔNG dùng `require_admin`: Prometheus là máy, không có JWT Supabase.
+
+    `metrics_token` rỗng thì bỏ qua kiểm tra — xem chú thích ở `src/config.py`
+    để biết vì sao mặc định là mở.
+
+    Trả **404 chứ không 401**: 401 xác nhận endpoint có tồn tại, giúp người dò
+    biết mình tìm đúng chỗ và chỉ còn thiếu khoá. Endpoint này chỉ máy gọi nên
+    không ai cần thông báo lỗi cho ra lẽ.
+
+    So sánh bằng `secrets.compare_digest` để thời gian so không phụ thuộc số ký
+    tự khớp — so bằng `==` sẽ thoát ngay ở ký tự đầu tiên lệch, và chênh lệch
+    thời gian đó đủ để dò dần từng ký tự.
+    """
+    expected = get_settings().metrics_token
+    if not expected:
+        return
+
+    prefix = "Bearer "
+    supplied = (
+        authorization[len(prefix) :]
+        if authorization and authorization.startswith(prefix)
+        else ""
+    )
+    if not secrets.compare_digest(supplied, expected):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+
+
+@router.get(
+    "/metrics",
+    include_in_schema=False,
+    dependencies=[Depends(_require_metrics_token)],
+)
 async def metrics() -> Response:
     """Prometheus scrape endpoint.
 

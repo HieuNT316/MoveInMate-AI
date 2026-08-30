@@ -12,3 +12,8 @@ scrape_configs:
     static_configs:
       - targets: ['backend:8000']
     scrape_interval: 15s
+    # Bỏ chú thích khi đặt METRICS_TOKEN trong .env của backend. Để trống thì
+    # endpoint không kiểm khoá và khai báo này thừa — xem docs/DEPLOY.md mục H.
+    # authorization:
+    #   type: Bearer
+    #   credentials: '<đúng giá trị METRICS_TOKEN>'
