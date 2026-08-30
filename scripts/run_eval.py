@@ -13,7 +13,7 @@ Ba chỉ số (keyword):
   - **Đủ ý**: câu trả lời chứa từ khoá bắt buộc (`must_mention`).
   - **Có nguồn**: câu trả lời được kèm ít nhất một trích dẫn.
 
-Hai chỉ số (LLM judge):
+Hai chỉ số (LLM judge, model KHÁC model sinh câu trả lời — xem `JUDGE_MODEL`):
   - **correctness**: LLM đánh giá câu trả lời có đúng sự thật không.
   - **citation**: LLM đánh giá nguồn trích dẫn có phù hợp không.
 
@@ -92,11 +92,32 @@ def _access_token() -> str:
     return response.json()["access_token"]
 
 
-def _get_judge_llm() -> BaseChatModel:
-    """Trả về ChatOpenLM mà app đang dùng (đọc từ get_settings())."""
-    from src.services.llm import get_chat_llm  # noqa: F401
+# Model GIÁM KHẢO — cố ý KHÁC model sinh câu trả lời (gpt-4o-mini). Bản trước
+# dùng chung `get_chat_llm()` cho cả hai việc: model tự chấm bài của chính nó
+# (self-judge) thiên vị đúng lỗi của mình — một câu trả lời sai nhưng "nghe
+# giống văn phong đúng" của gpt-4o-mini dễ được chính gpt-4o-mini cho điểm cao
+# hơn một giám khảo độc lập sẽ cho. Đi qua OpenRouter với model khác hẳn nhà
+# cung cấp, không phụ thuộc CHAT_PROVIDER của app — sinh câu trả lời và chấm
+# bài giờ là hai đường hoàn toàn tách biệt.
+JUDGE_MODEL = "anthropic/claude-sonnet-5"
 
-    return get_chat_llm()
+
+def _get_judge_llm() -> BaseChatModel:
+    """Giám khảo độc lập qua OpenRouter — xem `JUDGE_MODEL` ở trên."""
+    from langchain_openai import ChatOpenAI
+
+    settings = get_settings()
+    if not settings.open_router_api_key:
+        raise RuntimeError(
+            "Cần OPEN_ROUTER_API_KEY trong .env để chạy model giám khảo qua OpenRouter."
+        )
+    return ChatOpenAI(
+        model=JUDGE_MODEL,
+        api_key=settings.open_router_api_key,
+        base_url=settings.openrouter_base_url,
+        temperature=0,
+        timeout=30,
+    )
 
 
 def _grade_llm(
@@ -116,8 +137,16 @@ def _grade_llm(
     sources: list[dict] = payload.get("sources") or []
 
     if sources:
+        # Trước đây chỉ đưa TIÊU ĐỀ tài liệu (`s["title"]`) cho giám khảo, bỏ
+        # qua `snippet` — đoạn trích thật đã có sẵn trong response. Giám khảo
+        # chưa từng thấy nội dung được trích thì không thể chấm "trích dẫn có
+        # đúng không" một cách nghiêm túc, chỉ đoán theo tên tài liệu nghe có
+        # hợp lý hay không. Lộ rõ khi đổi sang giám khảo cẩn trọng hơn: nó từ
+        # chối trả lời ĐÚNG/SAI và tự thêm nhãn "KHÔNG CHẮC CHẮN" cho citation
+        # dù prompt không cho lựa chọn đó — đúng phản ứng hợp lý khi thiếu dữ
+        # liệu để xác minh.
         sources_str = "\n".join(
-            f"- {s.get('title', s.get('content', ''))[:120]}"
+            f"- {s.get('title', '(không tên)')}: {s.get('snippet', '')[:200]}"
             for s in sources
         )
     else:
@@ -145,32 +174,49 @@ def _grade_llm(
     citation: str | None = None
 
     for line in raw_text.splitlines():
-        line = line.strip().strip("`\"'")
+        # Giám khảo qua OpenRouter (Claude Sonnet 5) hay bọc markdown quanh
+        # dòng nhãn, kiểu "**1. correct: KHÔNG CHẮC CHẮN**" — khác hẳn phong
+        # cách trả lời trần của gpt-4o-mini lúc còn tự chấm. `.strip("`\"'")`
+        # cũ không đụng tới `*`/`_`/`#`, nên regex neo đầu dòng trượt luôn.
+        line = line.strip()
+        line = re.sub(r"^[#*_\s]+|[#*_\s]+$", "", line).strip("`\"'")
         low = line.lower()
 
-        # 1. correct
-        m = re.search(r"(?:^|\n)\s*1[.\):]*\s*correct[^:]*:\s*(\S+)", low)
+        # 1. correct — bắt (.+) chứ không phải (\S+): "KHÔNG CHẮC CHẮN" là
+        # nhãn BA từ, \S+ trước đây chỉ chụp được "không" rồi không khớp
+        # `elif "không chắc" in val` — âm thầm luôn ra None cho đúng cái nhãn
+        # dùng khi model không chắc, mù thông tin đúng lúc cần biết nhất.
+        m = re.search(r"(?:^|\n)\s*1[.\):]*\s*correct[^:]*:\s*(.+)", low)
         if not m:
-            m = re.search(r"correct[^:]*:\s*(\S+)", low)
+            m = re.search(r"correct[^:]*:\s*(.+)", low)
         if m:
             val = m.group(1).strip()
             if "đúng" in val:
                 correctness = "ĐÚNG"
-            elif "sai" in val:
-                correctness = "SAI"
             elif "không chắc" in val:
                 correctness = "KHÔNG CHẮC CHẮN"
+            elif "sai" in val:
+                correctness = "SAI"
 
-        # 2. citation
-        m = re.search(r"(?:^|\n)\s*2[.\):]*\s*citation[^:]*:\s*(\S+)", low)
+        # 2. citation — cùng lý do, bắt trọn phần còn lại của dòng.
+        #
+        # Prompt chỉ cho 3 lựa chọn (ĐÚNG/SAI/KHÔNG ÁP DỤNG) nhưng giám khảo
+        # cẩn trọng (đo được với Claude Sonnet 5 qua OpenRouter) tự thêm
+        # "KHÔNG CHẮC CHẮN" khi không đủ căn cứ xác minh — chấp nhận thay vì
+        # coi là lỗi parse, đó là phản hồi trung thực chứ không phải sai định
+        # dạng. Không tính vào `llm_cite_count` (chỉ ĐÚNG/KHÔNG ÁP DỤNG được
+        # tính đạt) — cùng logic thận trọng như "SAI".
+        m = re.search(r"(?:^|\n)\s*2[.\):]*\s*citation[^:]*:\s*(.+)", low)
         if not m:
-            m = re.search(r"citation[^:]*:\s*(\S+)", low)
+            m = re.search(r"citation[^:]*:\s*(.+)", low)
         if m:
             val = m.group(1).strip()
             if "đúng" in val:
                 citation = "ĐÚNG"
             elif "không áp dụng" in val:
                 citation = "KHÔNG ÁP DỤNG"
+            elif "không chắc" in val:
+                citation = "KHÔNG CHẮC CHẮN"
             elif "sai" in val:
                 citation = "SAI"
 
@@ -367,6 +413,7 @@ def main() -> None:
             {
                 "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "api": args.api,
+                "judge_model": JUDGE_MODEL,
                 "total": total,
                 "passed": passed,
                 "right_kind": kind_ok,
@@ -399,6 +446,7 @@ def main() -> None:
             {
                 "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "api": args.api,
+                "judge_model": JUDGE_MODEL,
                 "keyword": {
                     "total": total,
                     "passed": passed,
