@@ -13,20 +13,22 @@ class TestMetricWindow:
     """Test MetricWindow helper class."""
 
     def test_add_and_evict(self):
-        """Gia tri cu duoc giu, gia tri cu hon 5 phut bi loai bo."""
+        """Gia tri cu hon 5 phut bi loai bo, gia tri trong cua so duoc giu.
+
+        Ghi theo dung thu tu thoi gian (cu truoc, moi sau) vi `_evict_old`
+        chi `popleft` tu dau deque — no dua tren gia dinh thoi gian luon
+        tang dan, dung voi moi call site that (`add` luon dung `time.time()`
+        hien tai). Nhet mot ban ghi CU vao CUOI deque la tinh huong khong
+        the xay ra trong san pham.
+        """
         mw = MetricWindow(seconds=300.0)
-
         now = time.time()
-        # Gia tri moi
-        mw.add(now, 1)
-        assert len(mw) == 1
 
-        # Gia tri cu hon 5 phut
-        old = now - 400
-        mw.timestamps.append((old, 2))  # thu cong them de test
-        mw._evict_old(now)
+        mw.add(now - 400, 2)  # ngoai cua so
+        mw.add(now, 1)        # trong cua so
+
         assert len(mw) == 1
-        assert 2 not in [v for _, v in mw.timestamps]
+        assert [v for _, v in mw.timestamps] == [1]
 
     def test_values_returns_all_trong_cua_so(self):
         """values() tra danh sach gia tri trong cua so."""
@@ -40,10 +42,9 @@ class TestMetricWindow:
         """values() goi _evict_old ben trong."""
         mw = MetricWindow(seconds=300.0)
         now = time.time()
+        mw.add(now - 400, 999)  # ngoai cua so, ghi truoc theo dung thu tu
         mw.add(now, 100)
-        # Them gia tri cu thu cong
-        mw.timestamps.append((now - 400, 999))
-        assert 999 not in mw.values(now)
+        assert mw.values(now) == [100]
 
 
 class TestAlertServiceInit:
@@ -126,10 +127,16 @@ class TestErrorRateThreshold:
         assert svc.check_and_alert() is True
 
     def test_it_du_lieu_khong_alert(self):
-        """Duoi 10 request khong alert (khong du du lieu)."""
+        """Duoi 10 request khong alert du ty le loi cao.
+
+        Nguong toi thieu la 10 mau (`len(statuses) >= 10`), nen 9 request
+        voi 4 loi (44%) van phai im lang — mot vai loi luc khoi dong khong
+        phai bang chung he thong dang hong.
+        """
         svc = AlertService()
         for _ in range(5):
             svc.record_request(200)
+        for _ in range(4):
             svc.record_request(500)
         assert svc.check_and_alert() is False
 
@@ -145,11 +152,18 @@ class TestLatencyThreshold:
         assert svc.check_and_alert() is False
 
     def test_latency_tren_8s_alert(self):
-        """p95 > 8s trigger alert."""
+        """p95 > 8s trigger alert.
+
+        Can it nhat 3 mau cham tren nen 50 mau nhanh: p95 lay phan tu thu
+        `int(n * 0.95)`, voi n=53 la vi tri 50 — chi 1-2 mau cham thi vi tri
+        do van roi vao vung 1s va nguong khong kich hoat. Dung nhu thiet ke:
+        mot request cham don le khong phai su co.
+        """
         svc = AlertService()
         for _ in range(50):
             svc.record_latency(1000.0)  # 1s
-        svc.record_latency(9000.0)  # 9s - p95 se vuot 8000ms
+        for _ in range(3):
+            svc.record_latency(9000.0)  # 9s
         assert svc.check_and_alert() is True
 
 
