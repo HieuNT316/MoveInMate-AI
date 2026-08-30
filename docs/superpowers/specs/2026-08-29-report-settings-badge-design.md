@@ -228,7 +228,6 @@ interface DepartmentsReport {
   period: { dateFrom: string; dateTo: string };
   departments: {
     handlingDepartment: string;          // tên từ checklist_items
-    departmentId: number | null;         // khớp departments.name nếu có
     total: number;
     open: number;
     unassigned: number;
@@ -244,8 +243,17 @@ interface DepartmentsReport {
 }
 ```
 
-`departmentId` là `null` khi tên trong `checklist_items` không khớp `departments.name` —
-FE hiện tên, không cần link. **Không** tự tạo department mới từ chuỗi.
+**Không có `departmentId`** (bỏ ngày 30/08). Bảng `departments` chứa tên tiếng Anh
+(`Reception`, `Documents`, `Cards`, `Utilities` — `scripts/seed_phase2.py`), còn
+`handling_department` dùng tiếng Việt (`Lễ tân & CSKH`, `An ninh`, …) — đã kiểm trên DB
+thật, không cặp nào khớp nên trường đó luôn `null`.
+
+Giữ một trường luôn rỗng để dành cho trang quản lý bộ phận **chưa tồn tại** là đoán trước
+nhu cầu. Khi nào có trang đó thì nối lại, kèm việc thống nhất tên giữa hai nguồn — lưu ý
+`departments` không có UNIQUE trên `name`, sửa seed rồi chạy lại sẽ **thêm dòng mới** chứ
+không cập nhật dòng cũ.
+
+FE nhóm theo `handlingDepartment` (chuỗi). **Không** tự tạo department mới từ chuỗi.
 
 ### 3.4 `GET /api/v1/admin/staff/report`
 
@@ -514,4 +522,39 @@ dịch vụ ngoài** (bẫy #5 trong CLAUDE.md).
 
 ---
 
-**Trạng thái:** Draft rev 2 — chờ review
+## 10. Khác biệt phát sinh lúc triển khai (30/08)
+
+Bốn chỗ code làm khác spec. Ghi lại ở đây vì đều là quyết định, không phải chi tiết vặt:
+
+**1. `MANAGE_SETTINGS` được thêm vào role `admin`.**
+Quyền này trước chỉ thuộc `super_admin`, nhưng `ROLES` trong
+[db.py:48](../../../src/models/db.py) chỉ có `("resident", "admin")` — không tài khoản nào
+mang được vai `super_admin`, nên GET/PATCH `/admin/settings` **không ai gọi nổi**.
+Hai test trong `tests/test_rbac.py` chốt cứng chủ ý cũ nên đã sửa theo.
+`MANAGE_USERS`, `MANAGE_DEPARTMENTS`, `AUDIT_LOG` vẫn nằm ngoài tầm `admin`.
+
+**2. Danh sách quá hạn KHÔNG lọc theo kỳ báo cáo.**
+Spec mục 3.2 ngầm hiểu mọi số liệu đều trong kỳ. Sai với `overdue`: "quá hạn" là tình
+trạng **hiện tại**, không phải sự kiện trong kỳ. Hồ sơ nộp ba tháng trước mà vẫn treo là
+thứ BQL cần thấy nhất, mà lọc theo kỳ 30 ngày sẽ giấu đúng nó — càng tồn đọng lâu càng
+chắc chắn bị giấu. `_load_open_applications()` quét mọi hồ sơ chưa đóng.
+
+**3. `date_from=` rỗng được hiểu là "không chọn", không phải lỗi.**
+Giao diện gửi chuỗi rỗng khi người dùng xoá ô lọc. Trả 422 vào mặt họ vì đúng thao tác đó
+là vô lý. Chuỗi **có nội dung** mà sai định dạng vẫn nổ như cũ.
+
+**4. `trends[]` chỉ có dòng cho ngày CÓ dữ liệu.**
+Kỳ 365 ngày sẽ sinh 365 dòng mà phần lớn là số 0. Biểu đồ phía FE tự điền khoảng trống.
+
+**Thêm hai ORM model ngoài kế hoạch:** `AuditLog` và `UserBadge`. Cả hai bảng đã có
+trong migration Phase 2 nhưng không có model, nên `Base.metadata.create_all` trong test
+không dựng chúng — `log_action` nuốt lỗi "no such table" và test report không có gì để đọc.
+
+**Chưa verify được trên Postgres:** hai migration Phase 2 có sẵn
+(`0fa843848af8`, `20260825120000`) dùng `information_schema` nên `alembic upgrade head`
+không chạy hết trên SQLite. Migration mới đã test riêng (up + down) trên schema dựng từ
+ORM; **cần chạy thật trên Supabase trước khi deploy**.
+
+---
+
+**Trạng thái:** rev 2 — đã triển khai, chờ review

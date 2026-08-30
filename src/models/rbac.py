@@ -50,6 +50,10 @@ ROLE_PERMISSIONS: dict[str, list[Permission]] = {
         Permission.VIEW_REPORTS,
         Permission.EXPORT_REPORTS,
         Permission.MANAGE_FAQ,
+        # `super_admin` có quyền này từ đầu nhưng KHÔNG nằm trong `ROLES` của
+        # src/models/db.py — không tài khoản nào mang được vai đó, nên trước
+        # 30/08 quyền này thực tế không thuộc về ai. Tài khoản BQL là `admin`.
+        Permission.MANAGE_SETTINGS,
     ],
     "manager": [
         Permission.VIEW_DEPARTMENT_APPLICATIONS,

@@ -40,8 +40,16 @@ class TestHasPermission:
         user = {"role": "admin"}
         assert not has_permission(user, Permission.MANAGE_USERS)
         assert not has_permission(user, Permission.MANAGE_DEPARTMENTS)
-        assert not has_permission(user, Permission.MANAGE_SETTINGS)
         assert not has_permission(user, Permission.AUDIT_LOG)
+
+    def test_admin_can_manage_settings(self):
+        """Admin phải sửa được cấu hình hệ thống (đổi 30/08).
+
+        Trước đó `MANAGE_SETTINGS` chỉ thuộc `super_admin`, mà `ROLES` trong
+        src/models/db.py chỉ có ("resident", "admin") — không tài khoản nào
+        mang được vai đó, nên GET/PATCH /admin/settings không ai gọi nổi.
+        """
+        assert has_permission({"role": "admin"}, Permission.MANAGE_SETTINGS)
 
     def test_manager_has_department_application_permissions(self):
         """Manager should have department-scoped application permissions."""
@@ -197,8 +205,9 @@ class TestRolePermissionsMapping:
         """Admin should have exactly specified number of permissions."""
         from src.models.rbac import ROLE_PERMISSIONS
         # VIEW_ALL, PROCESS, APPROVE, BATCH, VIEW_ALL_TICKETS, ASSIGN_TICKET,
-        # REPLY_TICKET, VIEW_REPORTS, EXPORT_REPORTS, MANAGE_FAQ = 10
-        assert len(ROLE_PERMISSIONS["admin"]) == 10
+        # REPLY_TICKET, VIEW_REPORTS, EXPORT_REPORTS, MANAGE_FAQ,
+        # MANAGE_SETTINGS (thêm 30/08) = 11
+        assert len(ROLE_PERMISSIONS["admin"]) == 11
 
     def test_manager_permission_count(self):
         """Manager should have exactly specified number of permissions."""

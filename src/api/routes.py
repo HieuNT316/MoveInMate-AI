@@ -34,6 +34,7 @@ from src.ai.intent import wants_to_act
 from src.api.deps import get_current_user, require_admin, require_permission, require_resident
 from src.config import get_settings
 from src.database import SessionLocal, get_db
+from src.middleware.audit import log_action
 from src.models.db import APPLICATION_STATUSES
 from src.models.rbac import Permission
 from src.models.schemas import (
@@ -75,8 +76,18 @@ from src.models.schemas import (
     TicketCreateRequest,
     TicketMessageRequest,
     TicketStatusUpdateRequest,
+    UserBadgesResponse,
 )
-from src.services import cost_tracking, push, rate_limit, storage, store
+from src.services import (
+    badges,
+    cost_tracking,
+    push,
+    rate_limit,
+    reports,
+    settings_store,
+    storage,
+    store,
+)
 from src.services.alerts import get_alert_service
 from src.services.checklist import generate_checklist, only_bql_scope, summarize_progress
 from src.services.documents import DOCUMENT_LABELS
@@ -332,6 +343,25 @@ async def get_checklist(
     return _build_checklist(db, user)
 
 
+@router.get("/user/badges", response_model=UserBadgesResponse)
+async def get_user_badges(
+    user: dict[str, Any] = Depends(require_resident),
+    db: Session = Depends(get_db),
+) -> UserBadgesResponse:
+    """Huy hiệu của cư dân đang đăng nhập, kể cả những cái chưa đạt.
+
+    CHỈ ĐỌC — không tính hay trao badge ở đây. Badge được trao ở đường ghi
+    (tick checklist, duyệt hồ sơ); tính thêm lần nữa lúc đọc sẽ tạo ra hai
+    nguồn sự thật cho cùng một điều kiện.
+    """
+    items = badges.list_user_badges(db, user["user_id"])
+    return UserBadgesResponse(
+        badges=items,
+        earnedCount=sum(1 for b in items if b["isEarned"]),
+        totalCount=len(items),
+    )
+
+
 @router.get("/notifications", response_model=list[NotificationResponse])
 async def get_notifications(
     user: dict[str, Any] = Depends(require_resident),
@@ -397,7 +427,17 @@ async def set_checklist_item(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mục này"
         )
     store.set_completion(db, user["user_id"], item_id, payload.completed)
-    return _build_checklist(db, user)
+
+    # Huy hiệu tiến độ. Chỉ xét khi ĐÁNH DẤU XONG — bỏ tick không thu hồi badge
+    # (spec mục 4.5), nên chạy lại lúc đó chỉ tốn truy vấn mà không đổi gì.
+    newly_earned: list[str] = []
+    if payload.completed:
+        newly_earned = badges.safe_check_progress(db, user["user_id"])
+        db.commit()
+
+    response = _build_checklist(db, user)
+    response.newly_earned_badges = newly_earned
+    return response
 
 
 @router.get("/checklist/{item_id}/form-schema", response_model=FormSchemaPayload)
@@ -1003,6 +1043,13 @@ async def update_application_status(
         performed_by=_admin["user_id"],
     )
 
+    # Huy hiệu thẻ cư dân / thẻ xe. Chỉ xét khi hồ sơ đã được duyệt — trạng thái
+    # trung gian chưa phải là "có thẻ". Lỗi ở đây không được kéo theo việc đổi
+    # trạng thái đã thành công, nên đi qua `safe_`.
+    if payload.status in ("approved", "delivered"):
+        badges.safe_check_card(db, app.user_id, app.checklist_item_id)
+        db.commit()
+
     # Gửi notification sau khi cập nhật thành công.
     # Notification chạy độc lập: nếu push thất bại, trạng thái vẫn đã được cập nhật.
     from src.services.notifications import notify_application_status_change
@@ -1421,3 +1468,121 @@ async def get_usage_summary(
     date_from_dt = datetime.fromisoformat(date_from) if date_from else None
     date_to_dt = datetime.fromisoformat(date_to) if date_to else None
     return cost_tracking.get_usage_summary(user_id, date_from_dt, date_to_dt)
+
+
+# --- Admin: Báo cáo vận hành -------------------------------------------
+#
+# Ba endpoint dưới đây trả JSON, KHÔNG sinh file. Xuất Excel/PDF do frontend
+# render từ chính JSON này (spec mục 3.5) — backend không thêm openpyxl hay
+# reportlab. Vì vậy `Permission.EXPORT_REPORTS` tồn tại nhưng không endpoint
+# nào dùng; đó là chủ ý, không phải sót.
+
+
+def _period(
+    db: Session, date_from: str | None, date_to: str | None
+) -> tuple[datetime, datetime]:
+    """Chuẩn hoá kỳ báo cáo, đổi lỗi định dạng thành 422.
+
+    Ném thẳng `ValueError` ra ngoài sẽ thành 500 — lỗi của người gọi bị báo
+    thành lỗi máy chủ.
+    """
+    try:
+        return reports.resolve_period(db, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+
+@router.get("/admin/applications/report")
+async def get_applications_report(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    overdue_limit: int = Query(default=50, ge=1, le=500),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_REPORTS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Báo cáo vận hành: khối lượng, thời gian xử lý, đúng hạn, hồ sơ trễ.
+
+    `coverage` trong kết quả nói rõ bao nhiêu hồ sơ KHÔNG đo được và vì sao —
+    giao diện phải hiện con số đó, nếu không BQL sẽ đọc một tỉ lệ đúng hạn tính
+    trên mẫu nhỏ hơn họ tưởng.
+    """
+    start, end = _period(db, date_from, date_to)
+    return reports.applications_report(db, start, end, overdue_limit=overdue_limit)
+
+
+@router.get("/admin/departments/report")
+async def get_departments_report(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    department: str | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_REPORTS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Báo cáo theo bộ phận xử lý.
+
+    Lọc bằng TÊN bộ phận, không phải id: `applications` cố ý không có khoá
+    ngoại tới `departments`, định tuyến tra thẳng từ `checklist_items`.
+    """
+    start, end = _period(db, date_from, date_to)
+    return reports.departments_report(db, start, end, department=department)
+
+
+@router.get("/admin/staff/report")
+async def get_staff_report(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    staff_id: int | None = Query(default=None),
+    _admin: dict[str, Any] = Depends(require_permission(Permission.VIEW_REPORTS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Báo cáo theo nhân viên được gán hồ sơ.
+
+    Kết quả mang `basis: "assigned_to"` — số liệu tính theo hồ sơ được GÁN cho
+    ai, không phải ai thao tác. Giao diện phải nói rõ điều này thay vì để người
+    đọc tự suy ra "năng suất nhân viên".
+    """
+    start, end = _period(db, date_from, date_to)
+    return reports.staff_report(db, start, end, staff_id=staff_id)
+
+
+# --- Admin: Cấu hình hệ thống ------------------------------------------
+
+
+@router.get("/admin/settings")
+async def get_system_settings(
+    _admin: dict[str, Any] = Depends(require_permission(Permission.MANAGE_SETTINGS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Cấu hình hiện hành. DB rỗng vẫn trả đủ khoá (mặc định nằm trong code)."""
+    return settings_store.get_settings(db)
+
+
+@router.patch("/admin/settings")
+async def update_system_settings(
+    payload: dict[str, Any],
+    _admin: dict[str, Any] = Depends(require_permission(Permission.MANAGE_SETTINGS)),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Sửa một phần cấu hình. Khoá lạ bị từ chối 422, không bỏ qua im lặng.
+
+    Bỏ qua im lặng thì BQL gõ sai tên khoá, thấy 200 OK, và tin rằng cài đặt đã
+    có hiệu lực trong khi không có gì đọc khoá đó.
+    """
+    try:
+        result = settings_store.update_settings(db, payload, user_id=_admin["user_id"])
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    log_action(
+        db,
+        user_id=_admin["user_id"],
+        action="settings.updated",
+        resource_type="settings",
+        new_value=payload,
+    )
+    db.commit()
+    return result

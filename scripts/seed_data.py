@@ -105,6 +105,51 @@ def validate_documents(item: dict[str, Any]) -> None:
         )
 
 
+def validate_sla(item: dict[str, Any]) -> None:
+    """Thủ tục ngoài phạm vi BQL thì KHÔNG được khai thời hạn xử lý.
+
+    Cùng lý do với `validate_routing`: khai một con số SLA cho thủ tục do công an
+    phường xử lý là mạo nhận cam kết của cơ quan khác, và report sẽ đếm hồ sơ đó
+    vào tỉ lệ đúng hạn của BQL — sai cả hai đầu.
+
+    `bql_actionable` được phép để None: có thủ tục BQL nhận nhưng thời hạn nằm
+    ngoài tầm kiểm soát (lịch nhà mạng). Không ép có số ở đây, vì ép thì người
+    thêm mục mới sẽ bịa một con số cho qua.
+    """
+    sla = item.get("sla_business_days")
+
+    if item["item_type"] == "third_party_info" and sla is not None:
+        raise ValueError(
+            f"{item['task_name']!r} ngoài phạm vi BQL nhưng lại khai "
+            f"sla_business_days={sla}"
+        )
+
+    if sla is not None and sla < 1:
+        raise ValueError(f"{item['task_name']!r} có sla_business_days={sla}, phải >= 1")
+
+
+# Category mà `src/services/badges.py` dựa vào để biết hồ sơ nào trao huy hiệu
+# thẻ cư dân / thẻ xe. Dùng category thay vì tên thủ tục hay id: tên có biến thể
+# ("(chủ hộ)" / "(người thuê)"), còn id đổi sau mỗi lần seed vì hàm này xoá và
+# tạo lại toàn bộ bảng.
+BADGE_CATEGORIES = ("Giấy tờ cư dân", "Phương tiện")
+
+
+def validate_badge_categories(items: list[dict[str, Any]]) -> None:
+    """Category mà badge dựa vào phải thật sự tồn tại trong seed.
+
+    Gõ sai một chữ thì badge im lặng không bao giờ được trao — đúng lớp lỗi mà
+    `validate_conditions` sinh ra để chặn cho rule engine.
+    """
+    present = {item.get("category") for item in items}
+    missing = sorted(set(BADGE_CATEGORIES) - present)
+    if missing:
+        raise ValueError(
+            f"Category cho badge không có mục checklist nào dùng: {missing}. "
+            f"Sửa BADGE_CATEGORIES hoặc src/services/badges.py cho khớp."
+        )
+
+
 CHECKLIST_ITEMS = [
     {
         "task_name": "Ký nội quy toà nhà",
@@ -117,6 +162,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "Lễ tân & CSKH",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Trong ngày",
+        "sla_business_days": 1,
     },
     {
         "task_name": "Làm thẻ cư dân (chủ hộ)",
@@ -129,6 +175,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "Lễ tân & CSKH",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "1–3 ngày làm việc",
+        "sla_business_days": 3,
     },
     {
         "task_name": "Làm thẻ cư dân (người thuê)",
@@ -145,6 +192,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "Lễ tân & CSKH",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "1–3 ngày làm việc",
+        "sla_business_days": 3,
     },
     {
         "task_name": "Đăng ký tạm trú tại công an phường",
@@ -181,6 +229,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "An ninh",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "1–2 ngày làm việc",
+        "sla_business_days": 2,
     },
     {
         "task_name": "Đăng ký chỗ đỗ xe cố định",
@@ -193,6 +242,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "An ninh",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "2–5 ngày làm việc",
+        "sla_business_days": 5,
     },
     {
         # Tên phải khớp bảng định tuyến trong data/kb/bql/bql-co-cau-va-quy-trinh.md.
@@ -208,6 +258,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "Quản lý tiện ích chung",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Trong ngày",
+        "sla_business_days": 1,
     },
     {
         "task_name": "Kích hoạt thẻ phòng gym",
@@ -220,6 +271,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "Quản lý tiện ích chung",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Trong ngày",
+        "sla_business_days": 1,
     },
     {
         "task_name": "Đăng ký thẻ thang máy",
@@ -232,6 +284,7 @@ CHECKLIST_ITEMS = [
         "handling_department": "An ninh",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Trong ngày",
+        "sla_business_days": 1,
     },
     {
         "task_name": "Đăng ký internet và truyền hình",
@@ -243,6 +296,9 @@ CHECKLIST_ITEMS = [
         "handling_department": "Kỹ thuật (hỗ trợ lắp đặt)",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Theo lịch nhà mạng",
+        # KHÔNG có SLA: lịch do nhà mạng đặt, BQL chỉ hỗ trợ lắp đặt. Đặt một
+        # con số ở đây là tự bịa cam kết thay cho bên thứ ba.
+        "sla_business_days": None,
     },
     {
         "task_name": "Đăng ký chuyển đồ vào căn hộ",
@@ -255,6 +311,9 @@ CHECKLIST_ITEMS = [
         "handling_department": "Lễ tân & CSKH",
         "submission_location": "Quầy lễ tân tầng 1",
         "processing_time": "Đặt trước 24 giờ",
+        # KHÔNG có SLA: "đặt trước 24 giờ" là hạn cư dân phải báo TRƯỚC, không
+        # phải thời gian BQL xử lý. Đo đúng hạn theo con số này sẽ sai nghĩa.
+        "sla_business_days": None,
     },
 ]
 
@@ -384,6 +443,8 @@ def main() -> None:
         validate_conditions(item["conditions"])
         validate_routing(item)
         validate_documents(item)
+        validate_sla(item)
+    validate_badge_categories(CHECKLIST_ITEMS)
 
     rng = random.Random(SEED)
     session = SessionLocal()

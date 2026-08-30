@@ -179,6 +179,36 @@ class ChecklistResponse(BaseModel):
             "/onboarding thay vì hiển thị danh sách này."
         ),
     )
+    newly_earned_badges: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Huy hiệu VỪA đạt được nhờ thao tác này — để chạy hiệu ứng chúc "
+            "mừng. Luôn rỗng ở GET: chỉ đường ghi mới biết được cái gì là 'vừa'. "
+            "Danh sách đầy đủ nằm ở GET /user/badges."
+        ),
+    )
+
+
+class BadgeResponse(BaseModel):
+    """Một huy hiệu kèm trạng thái đạt/chưa đạt của cư dân đang xem."""
+
+    key: str
+    name: str
+    icon: str
+    earnedAt: datetime | None = None  # noqa: N815 — khoá JSON dùng camelCase theo FE
+    isEarned: bool  # noqa: N815
+
+
+class UserBadgesResponse(BaseModel):
+    """Toàn bộ huy hiệu, KỂ CẢ chưa đạt.
+
+    Trả cả badge chưa đạt để giao diện hiện chúng dạng khoá — cư dân thấy còn
+    gì phía trước. Lọc sẵn ở backend thì phía FE không dựng được màn hình đó.
+    """
+
+    badges: list[BadgeResponse]
+    earnedCount: int  # noqa: N815
+    totalCount: int  # noqa: N815
 
 
 class CompletionRequest(BaseModel):

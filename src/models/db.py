@@ -171,6 +171,19 @@ class ChecklistItem(Base):
     submission_location: Mapped[str | None] = mapped_column(String(255))
     processing_time: Mapped[str | None] = mapped_column(String(100))
 
+    # Cùng thời hạn với `processing_time` nhưng ở dạng TÍNH ĐƯỢC. Chuỗi kia là
+    # để hiển thị cho cư dân ("1–3 ngày làm việc", "Theo lịch nhà mạng"); report
+    # cần một con số để đo đúng hạn. Không parse chuỗi ra số: hai giá trị cuối
+    # không phải thời hạn của BQL, một hàm parse sẽ im lặng đoán sai khi có giá
+    # trị mới.
+    #
+    # NULL = thủ tục KHÔNG có SLA của BQL (ngoài phạm vi, hoặc phụ thuộc bên thứ
+    # ba). `seed_data` kiểm bất biến `third_party_info ⟹ NULL` lúc nạp.
+    #
+    # Số ngày trích từ bảng định tuyến trong data/kb/bql/bql-co-cau-va-quy-trinh.md,
+    # lấy CẬN TRÊN của khoảng — "đúng hạn" là không vượt cam kết tối đa.
+    sla_business_days: Mapped[int | None] = mapped_column(Integer)
+
     # US-13/D1 — mã giấy tờ thủ tục này yêu cầu, chép từ mục "Giấy tờ cần mang"
     # trong data/kb/bql/. Rỗng = không đòi giấy tờ nào. `seed_data` kiểm mã hợp
     # lệ lúc nạp.
@@ -413,4 +426,77 @@ class UsageLog(Base):
     cost_usd: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class AuditLog(Base):
+    """Nhật ký thao tác nhạy cảm. Bảng do migration 8f3a1c2e4b5d tạo.
+
+    Ghi bằng SQL thô trong `src/middleware/audit.py`; model này khai ở đây để
+    `Base.metadata.create_all` dựng được bảng khi test chạy trên SQLite —
+    thiếu nó thì `log_action` nuốt lỗi "no such table" và report đọc audit
+    không có gì để đọc.
+
+    Cũng là NGUỒN MỐC THỜI GIAN của report: `applications` chỉ có
+    `created_at`/`updated_at`, không lưu lúc nào hồ sơ vào từng trạng thái.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (Index("idx_audit_action_created", "action", "created_at"),)
+
+    audit_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    old_value: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    new_value: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class UserBadge(Base):
+    """Huy hiệu cư dân đã đạt. Bảng do migration 8f3a1c2e4b5d tạo.
+
+    CHỈ lưu badge ĐÃ đạt — không dòng nghĩa là chưa đạt, cùng nếp với
+    `ChecklistCompletion`. Danh sách badge và điều kiện nằm trong
+    `src/services/badges.py` dạng hằng số, không ở DB: tất định và đọc được
+    lúc review, cùng lý do đã áp cho rule engine checklist.
+
+    `UNIQUE(user_id, badge_key)` là chốt chặn thật cho việc trao trùng — hai
+    request đồng thời đều thấy "chưa có" rồi cùng insert; ràng buộc này để DB
+    phân xử thay vì tầng ứng dụng.
+    """
+
+    __tablename__ = "user_badges"
+    __table_args__ = (UniqueConstraint("user_id", "badge_key", name="uq_user_badge"),)
+
+    badge_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    badge_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    earned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class SystemSetting(Base):
+    """Cấu hình hệ thống, chỉ lưu phần ĐÃ BỊ ĐỔI.
+
+    Giá trị mặc định nằm trong `src/services/settings.py`; DB rỗng vẫn đọc ra
+    đủ khoá. Lưu cả mặc định xuống đây sẽ khiến đổi mặc định trong code không
+    có tác dụng với môi trường đã chạy.
+    """
+
+    __tablename__ = "system_settings"
+
+    setting_key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    setting_value: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
     )
