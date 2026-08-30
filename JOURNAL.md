@@ -127,23 +127,39 @@
 ## Week 5: 20/08 - 26/08
 
 ### Mục tiêu tuần này
-- [ ] Phase 2: agent tạo ticket, HITL BQL duyệt hồ sơ, định tuyến phòng ban, nhắc việc
-- [ ] Triển khai Railway + Vercel
-- [ ] Nộp hồ sơ dự án (26/08)
+- [x] Phase 2: agent tạo ticket, HITL BQL duyệt hồ sơ, định tuyến phòng ban, nhắc việc
+- [x] Triển khai Railway + Vercel
+- [x] Nộp hồ sơ dự án (26/08)
 
 ### Đã hoàn thành
--
+
+**Backend (Hiếu)** — 10 task Phase 2, chạy bằng subagent-driven development:
+- Bảng Phase 2: roles, permissions, departments, tickets, notifications, audit_log, usage_logs
+- RBAC theo permission (`require_permission`), không chỉ theo vai trò
+- Web Push: đăng ký thiết bị + bắn thông báo khi BQL đổi trạng thái hồ sơ
+- Hệ thống ticket (US-11), duyệt hàng loạt kèm khoá lạc quan, tự phân công theo tải
+- Xem tài liệu qua signed URL, theo dõi chi phí LLM, ghi nhật ký hành động
+
+**AI (Hải)**: guardrails + node LangChain; mời cư dân gửi câu hỏi cho BQL khi KB thiếu dữ liệu.
+
+**Frontend (Thu)**: luồng điền hồ sơ có AI dẫn dắt, nhắc việc cho cư dân, cải thiện mobile.
 
 ### Khó khăn & Giải pháp
 | Khó khăn | Giải pháp | Kết quả |
 |----------|-----------|---------|
-| | | |
+| Task 1-4 tạo cột trong DB nhưng quên khai trong ORM → Task 6 không chạy được | Bổ sung `Application.assigned_to`, `version`, `User.department_id`, ORM `Department`/`StaffAssignment` trước khi làm tiếp | Task 6-10 chạy suôn |
+| Endpoint duyệt hàng loạt dùng `require_admin` thay vì `require_permission(BATCH_APPROVE)` | Reviewer bắt được, sửa trong một vòng | Phân quyền nhất quán toàn bộ endpoint mới |
+| `update_application_status` ghi `user_id=None` vào nhật ký — không biết ai đã đổi | Thêm tham số `performed_by`, truyền từ route xuống | Nhật ký truy vết được người thực hiện |
+| Truy vấn tự phân công lọc `role IN ('admin','staff')` nhưng `staff` không có trong enum `User.role` | Bỏ điều kiện thừa; `JOIN staff_assignments` đã đủ giới hạn theo bộ phận | Tự phân công hoạt động |
 
 ### Bài học
--
+- **Cột trong migration không tự xuất hiện trong ORM.** Hai nơi phải sửa, thiếu một là hỏng ở task sau chứ không hỏng ngay — mất thời gian truy nguyên.
+- **Reviewer bắt được thứ mình không thấy.** Lỗi `require_admin` và `user_id=None` đều lọt qua mắt người viết, chỉ lộ ra khi có người đọc lại với đúng bản đặc tả trong tay.
 
 ### Kế hoạch tuần sau
--
+- Dựng hệ thống quan sát (log, chỉ số, cảnh báo)
+- Hoàn thiện pitch deck và video demo
+- Chạy eval lấy số liệu thật cho slide
 
 ---
 
@@ -151,16 +167,50 @@
 
 ### Mục tiêu tuần này
 - [ ] Hoàn thiện pitch deck và video demo
-- [ ] Chạy eval, đưa số liệu vào slide
+- [x] Chạy eval, đưa số liệu vào slide
 - [ ] Demo Day (01/09)
 
 ### Đã hoàn thành
--
+
+**Hệ thống quan sát (Hiếu)** — 29-30/08:
+- `AlertService`: cửa sổ trượt 5 phút + webhook Slack. Ngưỡng theo `OPERATIONS.md`
+  mục 4: lỗi >1%, p95 >8s, chi phí >$10/ngày, health check hỏng 3 lần liên tiếp.
+- `GET /api/v1/metrics` định dạng Prometheus; `docker-compose.yml` dựng sẵn
+  backend + Prometheus + Grafana, Grafana tự nạp datasource và dashboard.
+- Đã kiểm chứng chuỗi đầy đủ: backend → Prometheus → Grafana trả về số thật.
+
+**Dọn cây migration (Hiếu)** — 28/08: cây Alembic có 3 head song song, DB dùng
+chung thiếu cột `checklist_items.form_schema` khiến **mọi** request chạm
+checklist trả 500 cho cả nhóm.
+
+**Đánh giá độc lập (Hải)** — 29/08: đổi giám khảo từ gpt-4o-mini (tự chấm bài
+mình) sang Claude Sonnet 5.
 
 ### Khó khăn & Giải pháp
 | Khó khăn | Giải pháp | Kết quả |
 |----------|-----------|---------|
-| | | |
+| Cây Alembic 3 head, DB thiếu cột `form_schema` → cả nhóm nhận 500 | Không gộp cả 3 nhánh vì nhánh Phase 2 có `drop_table('applications')` — bảng này tạo trước điểm rẽ, gộp thẳng sẽ **xoá dữ liệu thật**. Viết migration vá riêng rồi `alembic stamp` | Về 1 head, không mất dữ liệu |
+| Grafana hiện "No data" dù Prometheus có số | Dashboard trỏ datasource bằng `uid`, mà `uid` để Grafana tự sinh thì **mỗi máy một khác** — teammate dựng stack mới cũng sẽ trắng | Đặt `uid: moveinmate-prometheus` cố định trong provisioning |
+| 4 test `test_alerts.py` đỏ | Tính tay lại: cả 4 sai ở **test**, không phải ở code. VD test nói "dưới 10 request" nhưng vòng lặp tạo đúng 10; test p95 dùng 1 mẫu chậm trên 51 mẫu, p95 rơi vào vị trí 48 nên vẫn là 1s | 534/534 xanh. Đã thử phá ngưỡng để chắc test bắt được lỗi thật |
+| Model tự chấm bài mình (self-judge bias) | Hải tách giám khảo sang Claude Sonnet 5 | Xem mục Bài học |
 
 ### Bài học
--
+- **Chỉ số tự chấm là chỉ số vô nghĩa.** Khi gpt-4o-mini vừa sinh câu trả lời
+  vừa chấm điểm, kết quả là **100%** ở cả ba tiêu chí — hoàn hảo đến mức đáng
+  ngờ. Đổi sang giám khảo độc lập: **48,6% đúng, 35,7% có trích dẫn**. Con số
+  100% từng được coi là thành tích, thực chất chỉ là model khen chính nó.
+  Khoảng cách 94,6% (khớp từ khoá) so với 48,6% (đúng nội dung) cũng cho thấy
+  đo bằng từ khoá không nói lên điều gì về tính đúng đắn.
+- **Test đỏ không đồng nghĩa code sai.** Cả 4 test hỏng đều do chính test tự
+  mâu thuẫn với mô tả của nó. Tính tay trước khi sửa code — nếu sửa code cho
+  test xanh thì đã phá đúng hành vi đang đúng.
+- **Migration gộp có thể xoá dữ liệu.** `alembic merge` sinh sẵn không đọc nội
+  dung `downgrade()`; nhánh Phase 2 có `drop_table('applications')` mà bảng đó
+  nằm ngoài phạm vi gộp. Phải đọc từng nhánh trước khi gộp trên DB dùng chung.
+
+### Kế hoạch còn lại trước Demo Day
+- **Chốt cách trình bày số liệu eval** — dùng 48,6% (trung thực, kèm giải
+  thích vì sao con số cũ sai) thay vì 100%
+- Backend: Report API, Settings API, Badge system (spec đã viết 29/08)
+- Frontend: trang Báo cáo, Cài đặt, chuông thông báo
+- AI: FAQ CRUD + tích hợp LangGraph

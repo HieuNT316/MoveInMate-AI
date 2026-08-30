@@ -1,6 +1,6 @@
 # Vận hành: quan sát, guardrail, độ tin cậy
 
-**Rà soát:** 11/08/2026 · đối chiếu hệ thống hiện tại với những gì một sản phẩm AI chạy thật cần có.
+**Rà soát:** 11/08/2026 · cập nhật 30/08/2026 sau khi dựng xong hệ thống quan sát.
 
 ## Quan hệ với tài liệu khác
 
@@ -23,99 +23,67 @@ Tài liệu này chỉ trả lời một câu hỏi: **nếu sản phẩm chạy
 | Xác thực + phân quyền | ✅ | JWT Supabase, `require_admin` kiểm phía server |
 | Đánh giá offline | ✅ | `eval/questions.yaml` 35 câu, `scripts/run_eval.py` |
 | CI | ✅ | ruff + pytest |
-| **Tracing (LangSmith)** | ❌ **khai nhưng chưa làm** | Có trong README, `requirements.txt`, sơ đồ kiến trúc — **`src/` không có dòng nào** |
-| **Log có cấu trúc** | ❌ | Chỉ `print()` trong `main.py` và `ingest.py` |
-| **Giới hạn tần suất** | ❌ | Không có. URL công khai + key OpenAI trả phí |
-| **Health check thật** | ❌ | `/health` trả `ok` kể cả khi DB, Chroma hay LLM chết |
-| **Theo dõi token / chi phí** | ❌ | Không ghi lại lượt gọi nào tốn bao nhiêu |
-| **Guardrail đầu vào** | ❌ | Không lọc prompt injection, không che PII trước khi lưu `chat_history` |
-| **Vòng phản hồi người dùng** | ❌ | Không có nút đánh giá câu trả lời |
-| **Bắt lỗi tập trung** | ❌ | Không có exception handler; lỗi 500 biến mất không dấu vết |
+| Tracing (LangSmith) | ✅ | `src/services/tracing.py` export cấu hình sang `os.environ` lúc khởi động |
+| Log có cấu trúc | ✅ | `src/observability.py` — JSON mỗi dòng, kèm `request_id`, tự che chuỗi kết nối |
+| Giới hạn tần suất | ✅ | `src/services/rate_limit.py` — cửa sổ cố định theo IP |
+| Health check thật | ✅ | `/health/deep` kiểm DB + Chroma, trả 503 khi có thành phần chết |
+| Theo dõi token / chi phí | ✅ | `src/services/cost_tracking.py` ghi vào `usage_logs` |
+| Che PII trước khi lưu | ✅ | `src/services/pii.py`, gọi tại điểm ghi duy nhất `store.add_chat` |
+| Bắt lỗi tập trung | ✅ | `unhandled_exception_handler` trong `main.py`, trả `request_id` để tra cứu |
+| **Chỉ số + bảng điều khiển** | ✅ | `/api/v1/metrics` (Prometheus) · `docker-compose.yml` dựng sẵn Prometheus + Grafana |
+| **Cảnh báo** | ✅ | `src/services/alerts.py` — webhook Slack, ngưỡng theo mục 4 dưới đây |
+| **Vòng phản hồi người dùng** | ❌ | Vẫn chưa có nút 👍/👎 mỗi câu trả lời |
+| **Chống prompt injection** | ❌ | Chưa lọc; rủi ro tăng khi agent có hành động ghi |
+| **Bảo vệ endpoint `/metrics`** | ❌ | Không đòi xác thực — ai biết địa chỉ đều đọc được số liệu vận hành |
+
+**Rà lại 30/08.** Phần lớn khoảng trống nêu ngày 11/08 đã được lấp trong tuần
+25-30/08. Ba mục còn ❌ ở trên là những gì thực sự chưa làm.
 
 ---
 
-## 2. Ba lỗ hổng cần xử lý trước
+## 2. Ba lỗ hổng ưu tiên (nêu 11/08) — đã xử lý xong
 
-### 2.1 LangSmith — deliverable đang khai khống
-
-`requirements.txt` ghi thẳng *"tracing — deliverable #4 của BTC"*, README liệt kê
-`Observability | LangSmith`, sơ đồ kiến trúc vẽ hẳn một khối `LangSmith`. Nhưng
-`grep -rn langsmith src/` không ra kết quả nào.
-
-Đây không phải thiếu sót kỹ thuật đơn thuần — **tài liệu đang mô tả một thứ không tồn tại.**
-Nếu mentor hỏi "cho xem trace" thì không có gì để mở.
-
-Chi phí thật để làm: LangChain tự đẩy trace khi có biến môi trường, không cần sửa code:
-
-```bash
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=<key>
-LANGCHAIN_PROJECT=moveinmate
-```
-
-Ước tính **30 phút**, gồm cả tạo tài khoản và xác minh trace hiện ra.
-
-### 2.2 Không có giới hạn tần suất trên URL công khai
-
-`https://moveinmate-api-production.up.railway.app` mở cho cả internet, và mỗi
-lượt `/chat` tốn một lần embedding (Google) cộng một lần gọi LLM (OpenAI, **key
-trả phí của Hiếu**).
-
-Không có gì ngăn một người gọi endpoint này vài nghìn lần. Rủi ro là tiền thật,
-và hạn mức Google cạn thì cả nhóm mất luôn khả năng demo.
-
-Mức đề xuất: **20 lượt/phút cho mỗi người dùng** với `/chat`, 100 lượt/phút cho
-các endpoint đọc. Thư viện: `slowapi`.
-
-### 2.3 Health check nông
-
-```python
-@app.get("/health")
-async def health():
-    return {"status": "ok", "env": settings.app_env}
-```
-
-Trả `ok` kể cả khi Postgres mất kết nối, Chroma hỏng index, hay hạn mức embedding
-đã cạn. Railway dùng chính endpoint này để quyết định instance còn sống — nghĩa là
-**một instance hỏng hoàn toàn vẫn được giữ trong vòng phục vụ**.
-
-Đã có tiền lệ: ngày 11/08 index Chroma hỏng (`Error finding id`), `count()` vẫn
-báo 386 và server vẫn khoẻ mạnh về mọi mặt quan sát được.
-
-Cần tách hai đường: `/health` giữ nguyên cho Railway probe (nhanh, không phụ
-thuộc bên ngoài), thêm `/health/deep` kiểm DB + Chroma + số chunk và trả 503 khi
-có thành phần chết.
+| Lỗ hổng | Đã làm gì | Ngày |
+|---|---|---|
+| **LangSmith khai khống** — README và sơ đồ kiến trúc vẽ khối LangSmith nhưng `grep -rn langsmith src/` không ra gì | `src/services/tracing.py` export cấu hình sang `os.environ` lúc khởi động; tắt mặc định để prompt của cư dân không vô tình bị gửi ra dịch vụ ngoài | 25/08 |
+| **Không có giới hạn tần suất** trên URL công khai — mỗi lượt `/chat` tốn tiền thật | `src/services/rate_limit.py`: 10 lượt/phút và 100 lượt/giờ cho `/chat`, 20/phút cho tải tệp. Tự viết, không thêm phụ thuộc — dịch vụ chạy một instance | 25/08 |
+| **Health check nông** — `/health` trả `ok` kể cả khi Chroma hỏng | Thêm `/health/deep` kiểm DB + Chroma, trả 503 khi có thành phần chết. `count() == 0` tính là hỏng, không phải trạng thái hợp lệ | 25/08 |
 
 ---
 
 ## 3. Còn lại, xếp theo mức nghiêm trọng
 
-| Thành phần | Vì sao cần | Ưu tiên |
+| Thành phần | Vì sao cần | Trạng thái |
 |---|---|---|
-| **Log có cấu trúc** kèm `request_id` | `print()` không có mức, không có mốc thời gian, không lần được một request qua nhiều lớp. Lỗi trên Railway hiện là một dòng trần | W4 |
-| **Theo dõi token/chi phí** mỗi lượt chat | Không biết một câu hỏi tốn bao nhiêu thì không đặt được ngân sách, cũng không phát hiện được lượt bất thường | W4 |
-| **Bắt lỗi tập trung** | Lỗi 500 hiện không được ghi lại ở đâu ngoài log runtime của Railway | W4 |
-| **Vòng phản hồi** (👍/👎 mỗi câu trả lời) | Nguồn dữ liệu duy nhất cho biết chất lượng thật ngoài 35 câu tự soạn. Cũng là đầu vào để mở rộng bộ eval | W4-W5 |
-| **Che PII trước khi lưu `chat_history`** | Cư dân sẽ gõ số CCCD, số điện thoại vào ô chat. Hiện lưu nguyên văn vào Postgres | W4 |
-| **Chống prompt injection** | Rủi ro thấp ở sản phẩm chỉ đọc như hiện tại, tăng lên khi agent có hành động ghi (Phase 2) | Phase 2 |
+| **Bảo vệ `/api/v1/metrics`** | Endpoint đang mở hoàn toàn (đã kiểm `routes.py:101`, không có `Depends` nào). Ai biết địa chỉ đều đọc được lưu lượng, tỉ lệ lỗi, chi phí ngày | **Cần làm trước khi mở ra internet** |
+| **Vòng phản hồi** (👍/👎 mỗi câu trả lời) | Nguồn dữ liệu duy nhất cho biết chất lượng thật ngoài 37 câu tự soạn. Cũng là đầu vào để mở rộng bộ eval | Chưa làm |
+| **Chống prompt injection** | Rủi ro thấp khi sản phẩm chỉ đọc, tăng lên khi agent có hành động ghi | Chưa làm |
+| **Đưa `alerts` vào cùng nguồn với `usage_logs`** | `AlertService` đếm chi phí trong bộ nhớ tiến trình, khởi động lại là mất; `usage_logs` mới là bản ghi bền | Cân nhắc Phase 3 |
+
+**Ba mục đầu bảng cũ** (log có cấu trúc, theo dõi chi phí, bắt lỗi tập trung,
+che PII) đã làm xong trong tuần 25-30/08 — xem bảng hiện trạng mục 1.
 
 ---
 
 ## 4. Ngưỡng cảnh báo đề xuất
 
-Chưa có hệ thống cảnh báo; đây là mức để đặt khi dựng.
+Bốn ngưỡng đầu **đã cài** trong `src/services/alerts.py`, bắn webhook Slack,
+cách nhau tối thiểu 5 phút để không dội tin. Hai ngưỡng cuối chưa cài.
 
-| Chỉ số | Ngưỡng | Ý nghĩa khi vượt |
-|---|---|---|
-| Tỷ lệ `no_context` | > 40% số lượt | KB thiếu nội dung, hoặc ngưỡng đặt quá chặt |
-| Tỷ lệ `no_context` | < 5% số lượt | Guard hỏng — đang trả lời cả những câu không có căn cứ |
-| p95 độ trễ `/chat` | > 8 giây | LLM hoặc embedding đang chậm |
-| Lỗi 5xx | > 1% số request | Có thành phần hỏng |
-| Chi phí LLM mỗi ngày | > ngưỡng đặt trước | Bị lạm dụng hoặc có vòng lặp |
-| `collection.count()` | giảm so với lần trước | Index bị hỏng hoặc bị ghi đè |
+| Chỉ số | Ngưỡng | Ý nghĩa khi vượt | Đã cài |
+|---|---|---|---|
+| Lỗi 5xx | > 1% số request (cửa sổ 5 phút, tối thiểu 10 mẫu) | Có thành phần hỏng | ✅ |
+| p95 độ trễ | > 8 giây | LLM hoặc embedding đang chậm | ✅ |
+| Chi phí LLM mỗi ngày | > `ALERT_COST_DAILY_THRESHOLD` (mặc định $10) | Bị lạm dụng hoặc có vòng lặp | ✅ |
+| Health check hỏng | 3 lần liên tiếp | DB hoặc Chroma chết | ✅ |
+| Tỷ lệ `no_context` | > 40% số lượt | KB thiếu nội dung, hoặc ngưỡng đặt quá chặt | ❌ có chỉ số, chưa cảnh báo |
+| Tỷ lệ `no_context` | < 5% số lượt | Guard hỏng — đang trả lời cả những câu không có căn cứ | ❌ |
+| `collection.count()` | giảm so với lần trước | Index bị hỏng hoặc bị ghi đè | ❌ |
 
-Hai dòng đầu là một cặp: **chỉ nhìn một phía sẽ bỏ sót chế độ hỏng đối lập.** Guard
-quá chặt và guard hỏng đều tệ, và cả hai đều không nhìn thấy được nếu chỉ đo tỷ lệ lỗi.
+Hai dòng `no_context` là một cặp: **chỉ nhìn một phía sẽ bỏ sót chế độ hỏng đối
+lập.** Guard quá chặt và guard hỏng đều tệ, và cả hai đều không nhìn thấy được
+nếu chỉ đo tỷ lệ lỗi. `moveinmate_no_context_ratio` đã có trên bảng điều khiển
+nhưng chưa gắn ngưỡng cảnh báo — đó là việc còn nợ.
 
 ---
 
@@ -124,4 +92,5 @@ quá chặt và guard hỏng đều tệ, và cả hai đều không nhìn thấ
 - **Autoscale / multi-instance** — Chroma chạy trong tiến trình FastAPI, mỗi instance sẽ có một vector store riêng.
 - **A/B testing prompt** — cần lưu lượng người dùng thật.
 - **Đo mức độ hài lòng chính thức** — cần khảo sát người dùng thật, không có ở phạm vi này.
-- **Cảnh báo qua email/SMS/Slack** — charter đã loại kênh thông báo ngoài app.
+- **Thông báo cho CƯ DÂN qua email/SMS** — charter đã loại kênh ngoài app.
+  (Cảnh báo Slack ở mục 4 là chuyện khác: gửi cho ĐỘI VẬN HÀNH, không phải người dùng.)

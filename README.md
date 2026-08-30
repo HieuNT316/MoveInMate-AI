@@ -46,7 +46,7 @@ Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục 
 | Database | PostgreSQL qua Supabase |
 | Auth | Supabase Auth (JWT ES256 + JWKS) |
 | DevOps | Docker · Railway (backend) · Vercel (frontend) |
-| Observability | structured logging + exception handler (`src/observability.py`) |
+| Observability | log JSON + LangSmith tracing · Prometheus + Grafana · cảnh báo Slack |
 
 ## Quick Start
 
@@ -186,6 +186,23 @@ bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass
 - [x] Weekly Journal (`JOURNAL.md`)
 - [x] Worklog (`WORKLOG.md`)
 - [x] Evaluation Evidence (`eval/results/`) — 37 câu hỏi, `scripts/run_eval.py`
+
+### Kết quả đánh giá gần nhất (29/08)
+
+Giám khảo là **Claude Sonnet 5** — một model KHÁC model sinh câu trả lời:
+
+| Chỉ số | Kết quả |
+|---|---|
+| Khớp từ khoá | 94,6% (35/37) |
+| Giám khảo chấm đúng nội dung | **48,6%** |
+| Có trích dẫn nguồn hợp lệ | **35,7%** |
+| Độ trễ p95 | 5.309 ms (mục tiêu 3.000 ms — **chưa đạt**) |
+
+Bản đo trước đó để model tự chấm bài của chính nó và cho **100%** ở cả ba
+tiêu chí. Con số đó không dùng được: khoảng cách giữa 94,6% (khớp từ khoá) và
+48,6% (đúng nội dung) cho thấy một câu trả lời có thể chứa đủ từ khoá mà vẫn
+sai. Chúng tôi giữ lại con số thấp hơn vì nó phản ánh đúng chất lượng hiện tại
+và chỉ ra việc cần làm tiếp.
 
 ## Team
 
