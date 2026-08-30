@@ -1,0 +1,100 @@
+{
+  "ran_at": "2026-08-19T13:59:41+00:00",
+  "api": "https://moveinmate-api-production.up.railway.app/api/v1",
+  "total": 5,
+  "passed": 5,
+  "right_kind": 5,
+  "llm_correct_count": 5,
+  "llm_correct_rate": 100.0,
+  "llm_cite_count": 5,
+  "llm_cite_rate": 100.0,
+  "llm_judge_errors": 0,
+  "results": [
+    {
+      "id": "Q01",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Để làm thẻ cư dân cho chủ hộ, cần chuẩn bị các giấy tờ sau:\n\n- Giấy tờ tùy thân (CCCD/Hộ chiếu) bản gốc và bản sao.\n- Giấy tờ căn hộ: Biên bản bàn giao/Sổ hồng/Thông báo sở hữu (theo thực tế).\n- 01 ảnh 3×4 (mỗi người đăng ký thẻ).",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q02",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Khách thuê muốn làm thẻ cư dân cần chuẩn bị các giấy tờ sau:\n\n- CCCD/Hộ chiếu.\n- Hợp đồng thuê còn hiệu lực (ghi rõ căn hộ, thời hạn, chữ ký/đóng dấu hợp lệ).\n- Giấy ủy quyền của chủ hộ (nếu quy định tòa yêu cầu) hoặc phụ lục xác nhận đồng ý cấp thẻ cho bên thuê.\n- 01 ảnh 3×4.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q03",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Khi mất thẻ cư dân, bạn cần thực hiện các bước sau:\n\n1. Báo Ban Quản Lý (BQL) ngay lập tức để khóa thẻ cũ, tránh bị lạm dụng.\n2. Chuẩn bị hồ sơ cấp lại, bao gồm:\n   - Đơn đề nghị cấp lại thẻ (mẫu của BQL).\n   - CCCD/Hộ chiếu của người dùng thẻ (bản gốc để đối chiếu).\n   - Ảnh 3×4 (nếu thẻ mới cần in",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q04",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để đăng ký tạm trú, bạn cần chuẩn bị các giấy tờ sau:\n\n1. Phiếu báo thay đổi hộ khẩu, nhân khẩu – bản chính có chữ ký (có ý kiến Chủ sở hữu).\n2. Bản nhân khẩu (từ 14 tuổi trở lên, mỗi người 01 bản) – bản chính có chữ ký.\n3. CMND/CCCD – bản sao của từng thành viên.\n4. Phiếu thu thập thông tin dân cư ",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q05",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Người nước ngoài thuê căn hộ phải khai báo tạm trú trong 12 giờ kể từ thời điểm đến ở.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    }
+  ]
+}

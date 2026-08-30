@@ -80,3 +80,10 @@ out/
 # AI logs — tracked structure, ignored content
 .ai-log/*.jsonl
 .ai-log/archive/
+
+# Binary tunnel client — tải lại từ github.com/cloudflare/cloudflared, không commit 40MB
+cloudflared.exe
+
+# Scratch files từ lúc gỡ lỗi, không thuộc sản phẩm
+chunks.txt
+page.html

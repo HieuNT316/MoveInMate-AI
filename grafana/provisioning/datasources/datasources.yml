@@ -1,7 +1,11 @@
 apiVersion: 1
 
 datasources:
+  # `uid` đặt CỐ ĐỊNH, không để Grafana tự sinh: dashboard JSON tham chiếu
+  # datasource bằng uid, mà uid tự sinh thì mỗi máy một khác — teammate dựng
+  # stack mới sẽ thấy toàn "No data" vì panel trỏ vào uid không tồn tại.
   - name: Prometheus
+    uid: moveinmate-prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090

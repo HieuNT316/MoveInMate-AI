@@ -1,0 +1,18 @@
+{
+  "ran_at": "2026-08-19T15:14:15+00:00",
+  "api": "https://moveinmate-api-production.up.railway.app/api/v1",
+  "keyword": {
+    "total": 10,
+    "passed": 10,
+    "pass_rate": 100.0,
+    "right_kind": 10
+  },
+  "llm_judge": {
+    "correct_count": 10,
+    "correct_rate": 100.0,
+    "cite_count": 10,
+    "cite_rate": 100.0,
+    "judge_errors": 0,
+    "judged_total": 10
+  }
+}

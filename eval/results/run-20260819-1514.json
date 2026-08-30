@@ -1,0 +1,187 @@
+{
+  "ran_at": "2026-08-19T15:14:15+00:00",
+  "api": "https://moveinmate-api-production.up.railway.app/api/v1",
+  "total": 10,
+  "passed": 10,
+  "right_kind": 10,
+  "llm_correct_count": 10,
+  "llm_correct_rate": 100.0,
+  "llm_cite_count": 10,
+  "llm_cite_rate": 100.0,
+  "llm_judge_errors": 0,
+  "results": [
+    {
+      "id": "Q01",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Để làm thẻ cư dân cho chủ hộ, cần chuẩn bị các giấy tờ sau:\n\n- Giấy tờ tùy thân (CCCD/Hộ chiếu) bản gốc và bản sao.\n- Giấy tờ căn hộ: Biên bản bàn giao/Sổ hồng/Thông báo sở hữu (theo thực tế).\n- 01 ảnh 3×4 (mỗi người đăng ký thẻ).",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q02",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Khách thuê muốn làm thẻ cư dân cần chuẩn bị các giấy tờ sau:\n\n1. CCCD/Hộ chiếu.\n2. Hợp đồng thuê còn hiệu lực (ghi rõ căn hộ, thời hạn, chữ ký/đóng dấu hợp lệ).\n3. Giấy ủy quyền của chủ hộ (nếu quy định tòa yêu cầu) hoặc phụ lục xác nhận đồng ý cấp thẻ cho bên thuê.\n4. 01 ảnh 3×4.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q03",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Khi mất thẻ cư dân, bạn cần thực hiện các bước sau:\n\n1. Báo Ban Quản Lý (BQL) ngay lập tức để khóa thẻ cũ, tránh bị lạm dụng.\n2. Chuẩn bị hồ sơ cấp lại bao gồm:\n   - Đơn đề nghị cấp lại thẻ (mẫu của BQL).\n   - CCCD/Hộ chiếu của người dùng thẻ (bản gốc).\n   - Ảnh 3×4 (nếu cần in lại).\n   - Hợp đồng t",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q04",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để đăng ký tạm trú, bạn cần chuẩn bị các giấy tờ sau:\n\n1. Phiếu báo thay đổi hộ khẩu, nhân khẩu – bản chính có chữ ký (có ý kiến Chủ sở hữu).\n2. Bản nhân khẩu (từ 14 tuổi trở lên, mỗi người 01 bản) – bản chính có chữ ký.\n3. CMND/CCCD – bản sao của từng thành viên.\n4. Phiếu thu thập thông tin dân cư ",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q05",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Người nước ngoài thuê căn hộ phải khai báo tạm trú trong 12 giờ kể từ thời điểm đến ở.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q06",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Bạn cần nộp hồ sơ tạm trú tại Công an phường Tây Mỗ (khu căn hộ) hoặc Công an phường Đại Mỗ (khu biệt thự).",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q07",
+      "procedure": "luu-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Thông báo lưu trú cho khách ở qua đêm phải được thực hiện trước 23:00 cùng ngày. Nếu khách đến sau 23:00, cần thông báo vào sáng hôm sau.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q08",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Bạn cần chuẩn bị các giấy tờ sau để đăng ký thường trú về căn hộ mới:\n\n1. **Tờ khai thay đổi thông tin cư trú** (Mẫu CT01) — bản chính, có chữ ký.\n2. **Căn cước công dân** của bạn và của từng thành viên cùng chuyển — bản gốc để đối chiếu. Nếu trẻ chưa có CCCD thì dùng giấy khai sinh.\n3. **Giấy tờ ch",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q09",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Có, bạn vẫn có thể đăng ký thường trú nếu có hợp đồng mua bán kèm biên bản bàn giao căn hộ.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q10",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho",
+        "Cơ cấu bộ phận và quy trình xử lý hồ sơ của Ban quản lý"
+      ],
+      "answer": "Không, Ban quản lý không tiếp nhận và không xác nhận thủ tục đăng ký thường trú.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    }
+  ]
+}

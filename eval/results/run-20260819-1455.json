@@ -1,0 +1,598 @@
+{
+  "ran_at": "2026-08-19T14:55:03+00:00",
+  "api": "https://moveinmate-api-production.up.railway.app/api/v1",
+  "total": 35,
+  "passed": 9,
+  "right_kind": 28,
+  "llm_correct_count": 9,
+  "llm_correct_rate": 25.7,
+  "llm_cite_count": 9,
+  "llm_cite_rate": 42.9,
+  "llm_judge_errors": 0,
+  "results": [
+    {
+      "id": "Q01",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Để làm thẻ cư dân cho chủ hộ, cần chuẩn bị các giấy tờ sau:\n\n- Bản sao kèm xuất trình bản gốc CCCD/Hộ chiếu để đối chiếu.\n- Giấy tờ căn hộ: Biên bản bàn giao/Sổ hồng/Thông báo sở hữu (theo thực tế).\n- 01 ảnh 3×4 (mỗi người đăng ký thẻ).",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q02",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ",
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Khách thuê muốn làm thẻ cư dân cần chuẩn bị các giấy tờ sau:\n\n- CCCD/Hộ chiếu.\n- Hợp đồng thuê còn hiệu lực (ghi rõ căn hộ, thời hạn, chữ ký/đóng dấu hợp lệ).\n- Giấy ủy quyền của chủ hộ (nếu quy định tòa yêu cầu) hoặc phụ lục xác nhận đồng ý cấp thẻ cho bên thuê.\n- 01 ảnh 3×4.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q03",
+      "procedure": "the-cu-dan",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Thẻ cư dân Vinhomes Smart City: Đăng ký, phí, hồ sơ, đổi thẻ"
+      ],
+      "answer": "Khi mất thẻ cư dân, bạn cần thực hiện các bước sau:\n\n1. Báo Ban Quản Lý (BQL) ngay lập tức để khóa thẻ cũ, tránh bị lạm dụng.\n2. Chuẩn bị hồ sơ cấp lại bao gồm:\n   - Đơn đề nghị cấp lại thẻ (mẫu của BQL).\n   - CCCD/Hộ chiếu của người dùng thẻ (bản gốc).\n   - Ảnh 3×4 (nếu cần in lại).\n   - Nếu là khá",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q04",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Để đăng ký tạm trú, bạn cần chuẩn bị các giấy tờ sau:\n\n1. Phiếu báo thay đổi hộ khẩu, nhân khẩu – bản chính có chữ ký (có ý kiến Chủ sở hữu).\n2. Bản nhân khẩu (từ 14 tuổi trở lên, mỗi người 01 bản) – bản chính có chữ ký.\n3. CMND/CCCD – bản sao của từng thành viên.\n4. Phiếu thu thập thông tin dân cư ",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q05",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City"
+      ],
+      "answer": "Người nước ngoài thuê căn hộ phải khai báo tạm trú trong 12 giờ kể từ thời điểm đến ở.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q06",
+      "procedure": "tam-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Khai báo tạm trú & thông báo lưu trú tại Vinhomes Smart City",
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Bạn cần nộp hồ sơ tạm trú tại Công an phường Tây Mỗ (khu căn hộ) hoặc Công an phường Đại Mỗ (khu biệt thự).",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q07",
+      "procedure": "luu-tru",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "23"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 503",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q08",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Bạn cần chuẩn bị các giấy tờ sau:\n\n1. **Tờ khai thay đổi thông tin cư trú** (Mẫu CT01) — bản chính, có chữ ký.\n2. **Căn cước công dân** của bạn và của từng thành viên cùng chuyển — bản gốc để đối chiếu. Nếu trẻ chưa có CCCD thì dùng giấy khai sinh.\n3. **Giấy tờ chứng minh chỗ ở hợp pháp** — bản sao,",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q09",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho"
+      ],
+      "answer": "Có, bạn vẫn có thể đăng ký thường trú nếu có hợp đồng mua bán kèm biên bản bàn giao căn hộ.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q10",
+      "procedure": "thuong-tru",
+      "expect": "answer",
+      "answer_source": "rag",
+      "right_kind": true,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": true,
+      "sources": [
+        "Cập nhật thông tin cư trú khi chuyển về căn hộ mới (dành cho",
+        "Cơ cấu bộ phận và quy trình xử lý hồ sơ của Ban quản lý"
+      ],
+      "answer": "Không, Ban quản lý không tiếp nhận và không xác nhận thủ tục đăng ký thường trú.",
+      "llm_correct": "ĐÚNG",
+      "llm_citation": "ĐÚNG",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q11",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "đăng ký xe"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q12",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "1.250.000"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q13",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "An ninh"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q14",
+      "procedure": "cho-do-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "phí"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q15",
+      "procedure": "cho-do-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "danh sách chờ"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q16",
+      "procedure": "gym",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ cư dân"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q17",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "15.000"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q18",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "người lớn"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q19",
+      "procedure": "noi-quy",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "lễ tân"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q20",
+      "procedure": "noi-quy",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "phải ký"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q21",
+      "procedure": "chuyen-do",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "24"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q22",
+      "procedure": "internet",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "nhà mạng"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q23",
+      "procedure": "thang-may",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ cư dân"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q24",
+      "procedure": "quy-trinh",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "tiếp nhận"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q25",
+      "procedure": "lien-he",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "08"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q26",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "CCCD"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q27",
+      "procedure": "the-xe",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "thẻ xe"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q28",
+      "procedure": "be-boi",
+      "expect": "answer",
+      "answer_source": "error",
+      "right_kind": true,
+      "missing_terms": [
+        "lễ tân"
+      ],
+      "cited_ok": false,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q29",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q30",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": "SAI",
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q31",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q32",
+      "procedure": "ngoai-pham-vi",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q33",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q34",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    },
+    {
+      "id": "Q35",
+      "procedure": "ngoai-du-lieu",
+      "expect": "refuse",
+      "answer_source": "error",
+      "right_kind": false,
+      "missing_terms": [],
+      "cited_ok": true,
+      "passed": false,
+      "sources": [],
+      "answer": "HTTP 429",
+      "llm_correct": "SAI",
+      "llm_citation": null,
+      "llm_judge_error": false
+    }
+  ]
+}
