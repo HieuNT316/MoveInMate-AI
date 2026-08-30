@@ -245,37 +245,74 @@ Backend expose metrics ở `GET /api/v1/metrics` ở định dạng Prometheus t
 
 Cooldown 5 phut giua cac alert de khong spam.
 
-### Thiet lap
+### Chạy stack quan sát ở máy cá nhân
 
-**1. Prometheus scrape backend:**
+Toàn bộ đã dựng sẵn trong `docker-compose.yml` — không phải cấu hình tay:
 
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: 'moveinmate'
-    scrape_interval: 30s
-    static_configs:
-      - targets: ['moveinmate-api-production.up.railway.app']
-    metrics_path: '/api/v1/metrics'
+```bash
+docker compose up -d          # backend + prometheus + grafana
 ```
 
-**2. Import Grafana dashboard:**
+| Dịch vụ | Địa chỉ | Đăng nhập |
+|---|---|---|
+| Backend | http://localhost:8000 | — |
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | `admin` / `admin` |
 
-Dashboard JSON nam tai `grafana/dashboards/moveinmate-overview.json`. Import vao Grafana qua UI (Dashboards → Import) hoac API.
+Grafana tự nạp datasource và dashboard lúc khởi động (`grafana/provisioning/`),
+không phải import tay.
 
-**3. Thiet lap Slack webhook (optional):**
+**Kiểm tra Prometheus có thấy backend không:** mở
+http://localhost:9090 → Status → Targets → `moveinmate-backend` phải là **UP**.
+
+**Nếu dashboard hiện "No data":** metrics là **cửa sổ trượt 5 phút trong bộ
+nhớ tiến trình** — không có traffic thì không có số. Gọi vài request
+(`curl http://localhost:8000/api/v1/health`) rồi đợi một nhịp scrape (30 giây).
+
+**Đừng đổi `uid` của datasource** trong `grafana/provisioning/datasources/datasources.yml`.
+Dashboard tham chiếu datasource bằng `uid`; để Grafana tự sinh thì mỗi máy một
+giá trị khác nhau và mọi panel trỏ vào hư không — đúng lỗi đã gặp 29/08.
+
+### Slack webhook (tuỳ chọn)
 
 ```bash
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzz
 ALERT_COST_DAILY_THRESHOLD=10.0
 ```
 
-Neu khong co webhook, alert van kiem tra nhung chi log warning, khong gui Slack.
+Không có webhook thì ngưỡng vẫn được kiểm, chỉ ghi cảnh báo vào log thay vì
+gửi Slack — nên môi trường dev không cần biến này.
 
-**4. Variables can thiet:**
+### Chia sẻ dashboard cho cả nhóm
 
-| Variable | Gia tri |
-|---|---|
-| `DS_PROMETHEUS` | Data source Prometheus da cau hinh |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
-| `ALERT_COST_DAILY_THRESHOLD` | Ngưỡng chi phí alert (mặc định $10/ngày) |
+`localhost:3000` chỉ máy chạy Docker mới mở được. Muốn người khác xem thì
+mở đường hầm Cloudflare:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Lệnh này in ra một URL `*.trycloudflare.com` dùng ngay được, **nhưng URL đổi
+sau mỗi lần chạy lại và không có mật khẩu** — chỉ hợp cho lúc demo, không phải
+cách dùng lâu dài. Muốn URL cố định thì tạo named tunnel trong Cloudflare Zero
+Trust rồi `cloudflared tunnel run <tên>`.
+
+`cloudflared.exe` KHÔNG nằm trong repo (40MB); tải ở
+https://github.com/cloudflare/cloudflared/releases.
+
+### Khi lên production
+
+`prometheus.yml` hiện trỏ `backend:8000` — tên dịch vụ trong mạng Docker.
+Scrape bản deploy trên Railway thì đổi thành:
+
+```yaml
+  - job_name: 'moveinmate-backend'
+    metrics_path: /api/v1/metrics
+    scheme: https
+    static_configs:
+      - targets: ['moveinmate-api-production.up.railway.app']
+```
+
+Lưu ý `/api/v1/metrics` hiện **không đòi xác thực** — bất kỳ ai biết địa chỉ
+đều đọc được số liệu vận hành. Trước khi mở ra internet thì phải đặt sau một
+lớp chặn (Cloudflare Access, hoặc thêm kiểm tra quyền trong route).
