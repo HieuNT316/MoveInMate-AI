@@ -11,9 +11,13 @@ PROCEDURES = {
         FormFieldSchema(key="vehicle_type", label="Loại phương tiện",
                        type="select", options=["Ô tô","Xe máy"],
                        required=True, question="Bạn đăng ký thẻ xe gì?"),
+        # Dấu CHẤM phải nằm trong tập ký tự cho phép: biển số Việt Nam hiện
+        # hành có dạng `29H1-234.56` (xe máy, và ô tô cấp sau 2020). Bản đầu
+        # thiếu dấu chấm nên từ chối đúng những biển số thật — cư dân gõ đúng
+        # mà bị báo "sai định dạng", không có cách nào đi tiếp.
         FormFieldSchema(key="plate", label="Biển số xe", type="text",
                        required=True, question="Biển số xe của bạn là gì?",
-                       pattern=r"^[0-9A-Z\-]{5,15}$"),
+                       pattern=r"^[0-9A-Z.\-]{5,15}$"),
         FormFieldSchema(key="quantity", label="Số lượng thẻ cần làm",
                        type="number", required=False,
                        question="Bạn cần làm bao nhiêu thẻ?", default="1"),
@@ -26,9 +30,13 @@ PROCEDURES = {
         FormFieldSchema(key="vehicle_type", label="Loại phương tiện",
                        type="select", options=["Ô tô","Xe máy"],
                        required=True, question="Bạn đăng ký cho loại xe gì?"),
+        # Dấu CHẤM phải nằm trong tập ký tự cho phép: biển số Việt Nam hiện
+        # hành có dạng `29H1-234.56` (xe máy, và ô tô cấp sau 2020). Bản đầu
+        # thiếu dấu chấm nên từ chối đúng những biển số thật — cư dân gõ đúng
+        # mà bị báo "sai định dạng", không có cách nào đi tiếp.
         FormFieldSchema(key="plate", label="Biển số xe", type="text",
                        required=True, question="Biển số xe của bạn là gì?",
-                       pattern=r"^[0-9A-Z\-]{5,15}$"),
+                       pattern=r"^[0-9A-Z.\-]{5,15}$"),
     ], attachments=[
         AttachmentSpecSchema(code="cccd", label="Ảnh CCCD chủ phương tiện", required=True),
         AttachmentSpecSchema(code="the_xe", label="Ảnh thẻ xe hoặc đăng ký xe", required=True),
