@@ -198,3 +198,67 @@ class TestSafeCheck:
 
         monkeypatch.setattr(badges, "check_progress_badges", boom)
         assert badges.safe_check_progress(db_session, 2) == []
+
+
+class TestBadgeKhongTraoNham:
+    """Category là điều kiện CẦN, chưa đủ.
+
+    Category "Phương tiện" có HAI mục — "Đăng ký thẻ xe" và "Đăng ký chỗ đỗ xe
+    cố định" — cùng `conditions={"has_car": True}` nên cùng hiện với một người.
+    Chỉ khớp category thì duyệt chỗ đỗ xe cũng trao badge "Thẻ xe", trong khi
+    chính thủ tục đó lại ĐÒI ảnh thẻ xe làm giấy tờ đính kèm.
+
+    `validate_badge_categories` trong `seed_data` chỉ kiểm category TỒN TẠI,
+    không kiểm ánh xạ 1-1, nên chốt đó không bắt được ca này.
+    """
+
+    def _dung_muc(self, db_session, ten: str, category: str) -> int:
+        from src.models.db import ChecklistItem
+
+        item = ChecklistItem(
+            task_name=ten, description="", category=category,
+            item_type="bql_actionable", conditions={"has_car": True},
+            order_index=1, required_documents=[],
+        )
+        db_session.add(item)
+        db_session.flush()
+        return item.checklist_item_id
+
+    def _dung_cu_dan(self, db_session, email: str) -> int:
+        from src.models.db import User
+
+        u = User(
+            full_name="Test", email=email, apartment="S101-01",
+            building="S101", role="resident", has_car=True, amenity_packages=[],
+        )
+        db_session.add(u)
+        db_session.flush()
+        return u.user_id
+
+    def test_cho_do_xe_khong_duoc_trao_badge_the_xe(self, db_session):
+        """Đi qua `check_card_badges` thật, không chỉ gọi hàm lọc.
+
+        Test chỉ gọi `_la_thu_tuc_cap_the` sẽ KHÔNG đỏ khi ai đó bỏ lời gọi
+        hàm đó khỏi `check_card_badges` — đã thử và xác nhận.
+        """
+        from src.services.badges import check_card_badges
+
+        uid = self._dung_cu_dan(db_session, "badge.xe@moveinmate.demo")
+        cho_do = self._dung_muc(db_session, "Đăng ký chỗ đỗ xe cố định", "Phương tiện")
+        the_xe = self._dung_muc(db_session, "Đăng ký thẻ xe", "Phương tiện")
+
+        assert check_card_badges(db_session, uid, cho_do) == []
+        assert check_card_badges(db_session, uid, the_xe) == ["vehicle_card"]
+
+    def test_ca_hai_muc_the_cu_dan_deu_duoc_trao(self):
+        """Chủ hộ và người thuê loại trừ nhau qua `ownership_type` — cả hai đều hợp lệ."""
+        from src.services.badges import _la_thu_tuc_cap_the
+
+        assert _la_thu_tuc_cap_the("Làm thẻ cư dân (chủ hộ)", "resident_card") is True
+        assert _la_thu_tuc_cap_the("Làm thẻ cư dân (người thuê)", "resident_card") is True
+
+    def test_the_thang_may_khong_phai_the_xe(self):
+        """"Đăng ký thẻ thang máy" chứa chữ "thẻ" nhưng không cấp thẻ xe."""
+        from src.services.badges import _la_thu_tuc_cap_the
+
+        assert _la_thu_tuc_cap_the("Đăng ký thẻ thang máy", "vehicle_card") is False

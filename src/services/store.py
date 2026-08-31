@@ -403,13 +403,21 @@ def create_application(
     note: str | None = None,
     form_data: dict | None = None,
 ) -> dict[str, Any]:
-    # Validate form_data neu co
-    if form_data:
-        schema = get_form_schema(db, checklist_item_id)
-        if schema:
-            errors = validate_form_data(schema, form_data)
-            if errors:
-                raise ValidationError(errors)
+    # Thủ tục CÓ form thì luôn phải validate, kể cả khi client không gửi gì.
+    #
+    # Bản cũ viết `if form_data:` — falsy với cả `None` LẪN `{}`. Mà
+    # `ApplicationCreateV2.form_data` mặc định `None`, nên client chỉ cần bỏ
+    # trường đó là nộp được hồ sơ "Đăng ký thẻ xe" KHÔNG có biển số, không có
+    # loại xe. Đã đo: `validate_form_data(schema, {})` trả về hai lỗi "Thiếu",
+    # nhưng `create_application(form_data=None)` vẫn tạo thành công.
+    #
+    # Đúng cái mà toàn bộ tính năng AI Form Generation sinh ra để chặn: BQL
+    # nhận hồ sơ rỗng và lại phải gọi điện hỏi lại từng người.
+    schema = get_form_schema(db, checklist_item_id)
+    if schema:
+        errors = validate_form_data(schema, form_data or {})
+        if errors:
+            raise ValidationError(errors)
     app = Application(
         user_id=user_id,
         checklist_item_id=checklist_item_id,

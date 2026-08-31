@@ -138,6 +138,24 @@ def _is_fast_track(user: dict[str, Any]) -> bool:
     return datetime.now(UTC) - started <= timedelta(days=FAST_TRACK_DAYS)
 
 
+def _la_thu_tuc_cap_the(task_name: str, badge_key: str) -> bool:
+    """Thủ tục này có thật sự CẤP tấm thẻ mà badge nói tới không.
+
+    Khớp bằng chữ trong tên, không bằng id: `seed_data` xoá và tạo lại
+    `checklist_items` nên id đổi sau mỗi lần seed.
+
+    Cố ý hẹp — thủ tục mới cùng category sẽ KHÔNG được trao badge cho tới khi
+    ai đó thêm vào đây. Sai về phía không trao thì cư dân thiếu một huy hiệu;
+    sai về phía trao bừa thì huy hiệu mất hết ý nghĩa.
+    """
+    ten = task_name.lower()
+    if badge_key == "vehicle_card":
+        return "thẻ xe" in ten
+    if badge_key == "resident_card":
+        return "thẻ cư dân" in ten
+    return False
+
+
 def check_card_badges(db: Session, user_id: int, checklist_item_id: int) -> list[str]:
     """Kiểm badge thẻ khi một hồ sơ được duyệt.
 
@@ -149,6 +167,20 @@ def check_card_badges(db: Session, user_id: int, checklist_item_id: int) -> list
 
     badge_key = CARD_BADGE_BY_CATEGORY.get(item["category"])
     if badge_key is None:
+        return []
+
+    # Category là ĐIỀU KIỆN CẦN, chưa đủ. Category "Phương tiện" có HAI mục —
+    # "Đăng ký thẻ xe" và "Đăng ký chỗ đỗ xe cố định" — và cả hai cùng
+    # `conditions={"has_car": True}`, tức cùng hiện với một người. Chỉ khớp
+    # category thì duyệt chỗ đỗ xe cũng trao badge "Thẻ xe", trong khi chính
+    # thủ tục đó lại ĐÒI ảnh thẻ xe làm giấy tờ đính kèm — trao huy hiệu "đã
+    # có thẻ xe" cho việc giả định thẻ xe có sẵn.
+    #
+    # (Cặp "Giấy tờ cư dân" không dính vì hai mục loại trừ nhau qua
+    # `ownership_type`: owner và renter không bao giờ thấy cả hai.)
+    #
+    # Lọc thêm bằng CHỮ trong tên thủ tục thay vì id: id đổi sau mỗi lần seed.
+    if not _la_thu_tuc_cap_the(item["task_name"], badge_key):
         return []
 
     return [badge_key] if award_badge(db, user_id, badge_key) else []
