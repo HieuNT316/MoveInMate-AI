@@ -220,7 +220,11 @@ async def _send_single_push(
         # 404/410 = expired subscription
         if resp.status_code in (404, 410):
             raise SubscriptionExpired()
-        return resp.ok
+        # `is_success` chứ KHÔNG phải `resp.ok`: `.ok` là thuộc tính của thư
+        # viện `requests`, `httpx.Response` không có nó. Gọi `.ok` ném
+        # AttributeError, bị `notifications.py` nuốt, và mọi lượt gửi bị coi
+        # như thất bại im lặng.
+        return resp.is_success
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (404, 410):
             raise SubscriptionExpired()

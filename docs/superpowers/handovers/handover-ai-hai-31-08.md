@@ -74,3 +74,34 @@ không ai thấy, nhưng chúng vô hiệu hoá đúng những thứ được d�
 sự cố. Test không bắt được vì mock chặn trước chỗ hỏng.
 
 Không cái nào chặn demo hôm nay — chỉ là các chỉ số sẽ báo 0 nếu ai hỏi tới.
+
+---
+
+## 3. Push notification không gửi được — thiếu thư viện (bổ sung 31/08, chiều)
+
+**Thư viện `webpush` KHÔNG có trong `requirements.txt` và không có trong venv.**
+Đã kiểm:
+
+```
+grep webpush requirements.txt  -> khong co
+import webpush                 -> No module named 'webpush'
+import pywebpush               -> No module named 'pywebpush'
+```
+
+Chuỗi hỏng: `_get_webpush()` trả `None` → `_init_webpush()` trả `None` →
+`_send_single_push` ném `PushError("WebPush not configured")` →
+`notifications.py` nuốt lỗi. Cư dân không bao giờ nhận được thông báo, và
+không có dấu hiệu gì.
+
+**Tôi đã sửa một nửa:** `src/services/push.py` dùng `resp.ok` — thuộc tính của
+thư viện `requests`, `httpx.Response` **không có** (`hasattr(r,'ok') → False`).
+Đã đổi thành `resp.is_success`. Nhưng kể cả sửa dòng này, push vẫn không chạy
+cho tới khi thư viện được cài.
+
+**Cần quyết:** thêm `webpush` (hoặc `pywebpush`) vào `requirements.txt`, hay
+gỡ tính năng khỏi phạm vi và nói rõ trong tài liệu. Chọn cách nào cũng được,
+nhưng để nguyên như hiện tại là tệ nhất — tính năng có trong code, có endpoint,
+có test xanh, mà không bao giờ gửi nổi một thông báo.
+
+`tests/test_push.py:165-183` đang assert đúng trạng thái hỏng này **như thể là
+hành vi đúng** — sửa xong nhớ sửa cả test đó.
