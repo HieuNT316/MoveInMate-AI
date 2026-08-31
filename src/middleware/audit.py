@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import text
+from src.models.db import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +34,37 @@ def log_action(
         ip_address: Client IP address.
         user_agent: Client user agent string.
     """
+    # Dùng ORM chứ KHÔNG dùng `text()` với tham số bind.
+    #
+    # `old_value`/`new_value` là dict Python. Bind thẳng vào SQL thô thì cả
+    # psycopg2 lẫn sqlite3 đều không adapt được kiểu dict:
+    #
+    #   psycopg2.ProgrammingError: can't adapt type 'dict'
+    #   sqlite3.ProgrammingError: Error binding parameter 5: type 'dict'
+    #                             is not supported
+    #
+    # Lỗi đó bị `except` bên dưới nuốt, nên bảng `audit_log` RỖNG HOÀN TOÀN mà
+    # không ai biết — kéo theo mọi mốc thời gian của Report API (`_first_reached`
+    # trong `src/services/reports.py` đọc chính bảng này) trả None vĩnh viễn.
+    # Đo trên Postgres thật ngày 31/08: 0 dòng sau khi gọi, `commit()` vẫn OK
+    # nên không có tín hiệu nào lộ ra ngoài.
+    #
+    # `AuditLog.old_value` khai `JSONType` (JSONB trên Postgres, JSON trên
+    # SQLite) nên SQLAlchemy tự serialize đúng.
     try:
-        stmt = text("""
-            INSERT INTO audit_log (user_id, action, resource_type, resource_id, old_value, new_value, ip_address, user_agent)
-            VALUES (:user_id, :action, :resource_type, :resource_id, :old_value, :new_value, :ip_address, :user_agent)
-        """)
-        db.execute(stmt, {
-            "user_id": user_id,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "old_value": old_value,
-            "new_value": new_value,
-            "ip_address": ip_address,
-            "user_agent": user_agent,
-        })
-        # Do NOT commit here - let the caller manage the transaction
+        db.add(
+            AuditLog(
+                user_id=user_id,
+                action=action,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                old_value=old_value,
+                new_value=new_value,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+        )
+        db.flush()  # đẩy INSERT xuống DB ngay để lỗi lộ ra ở đây, không phải ở commit của caller
+        # KHÔNG commit ở đây — để caller quản lý transaction.
     except Exception as e:
         logger.error(f"Failed to log audit: {e}")

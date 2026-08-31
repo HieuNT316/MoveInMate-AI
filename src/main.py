@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -102,7 +103,17 @@ async def request_context_middleware(request: Request, call_next):
         alerts = get_alert_service()
         alerts.record_request(status_code)
         alerts.record_latency(duration_ms)
-        alerts.check_and_alert()
+
+        # `check_and_alert` gửi webhook Slack bằng `requests.post` — ĐỒNG BỘ,
+        # timeout 5 giây, và giữ một `threading.Lock` trong lúc gửi. Gọi thẳng
+        # ở đây thì nó chặn event loop: MỌI người dùng khác treo theo cho tới
+        # khi Slack trả lời. Đúng lúc hệ thống đang có sự cố (ngưỡng vừa vượt)
+        # thì lại làm nó chậm thêm cho tất cả — hỏng theo hướng tệ nhất.
+        #
+        # Đẩy sang threadpool: cảnh báo là việc phụ, không được phép làm chậm
+        # đường phục vụ chính.
+        asyncio.get_running_loop().run_in_executor(None, alerts.check_and_alert)
+
         request_id_var.reset(token)
 
 

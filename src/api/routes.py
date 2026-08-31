@@ -1353,13 +1353,42 @@ async def get_document_content(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Generate signed URL (15 min expiry)
+    #
+    # `file_path` của tài liệu KB là đường dẫn TRÊN ĐĨA (`data/kb/**/*.md`),
+    # không phải object trong bucket — bucket chỉ chứa ảnh minh chứng hồ sơ
+    # (`storage.build_object_path` sinh path dạng `{application_id}/{uuid}.ext`).
+    # Nên với mọi tài liệu hiện có, Supabase trả 404 NoSuchKey và
+    # `generate_signed_url` ném `StorageError`. Đã đo trên bucket thật 31/08.
+    #
+    # Bắt lại thành 404 kèm lời giải thích thay vì để lọt lên handler 500:
+    # "chưa có bản tải về" là sự thật về dữ liệu, không phải sự cố hệ thống, và
+    # 500 sẽ khiến người vận hành đi tìm lỗi hạ tầng không tồn tại.
     bucket = get_settings().supabase_storage_bucket
-    signed_url = storage.generate_signed_url(bucket, doc["file_path"], 900)
+    try:
+        signed_url = storage.generate_signed_url(bucket, doc["file_path"], 900)
+    except storage.StorageError:
+        logger.info(
+            "document_content_not_in_bucket",
+            extra={"document_id": doc["document_id"], "file_path": doc["file_path"]},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Tài liệu này chưa có bản tải về. Nội dung đã được nạp vào kho "
+                "tri thức và trợ lý vẫn trích dẫn được, nhưng tệp gốc chưa được "
+                "tải lên kho lưu trữ."
+            ),
+        ) from None
 
     return DocumentContentResponse(
         document_id=doc["document_id"],
         title=doc["title"],
-        content_type="application/pdf",
+        # Suy từ đuôi tệp, không chốt cứng PDF: tài liệu KB hiện đều là `.md`.
+        content_type=(
+            "application/pdf"
+            if doc["file_path"].lower().endswith(".pdf")
+            else "text/markdown"
+        ),
         signed_url=signed_url,
         expires_at=datetime.now() + timedelta(minutes=15),
     )

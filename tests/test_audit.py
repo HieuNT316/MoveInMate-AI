@@ -7,70 +7,32 @@ from src.middleware.audit import log_action
 class TestLogAction:
     """Unit tests for the log_action function."""
 
-    def test_log_action_inserts_audit_record(self):
-        """log_action executes INSERT with correct parameters."""
+    def test_khong_nem_loi_khi_db_hong(self):
+        """Lỗi ghi nhật ký không được làm hỏng thao tác chính.
+
+        Test này CỐ Ý dùng mock: nó kiểm hành vi nuốt lỗi, không kiểm việc ghi
+        được xuống DB — phần đó thuộc `TestLogActionGhiThatXuongDB` bên dưới,
+        chạy trên DB thật.
+
+        Ba test cũ ở đây khoá `db.execute()` cùng dict tham số, tức là khoá
+        CÁCH CÀI ĐẶT (raw SQL) chứ không phải hành vi. Chúng vẫn xanh suốt
+        thời gian `log_action` không ghi nổi một dòng nào — xem docstring của
+        `TestLogActionGhiThatXuongDB`.
+        """
         mock_db = MagicMock()
-
-        log_action(
-            mock_db,
-            user_id=1,
-            action="application.status_changed",
-            resource_type="application",
-            resource_id=42,
-            old_value={"status": "received"},
-            new_value={"status": "approved"},
-            ip_address="192.168.1.1",
-            user_agent="TestClient/1.0",
-        )
-
-        mock_db.execute.assert_called_once()
-        call_args = mock_db.execute.call_args
-        params = call_args[0][1]
-        assert params["user_id"] == 1
-        assert params["action"] == "application.status_changed"
-        assert params["resource_type"] == "application"
-        assert params["resource_id"] == 42
-        assert params["old_value"] == {"status": "received"}
-        assert params["new_value"] == {"status": "approved"}
-        assert params["ip_address"] == "192.168.1.1"
-        assert params["user_agent"] == "TestClient/1.0"
-
-    def test_log_action_with_minimal_params(self):
-        """log_action works with only required parameters."""
-        mock_db = MagicMock()
-
-        log_action(
-            mock_db,
-            user_id=None,
-            action="ticket.created",
-            resource_type="ticket",
-            resource_id=None,
-        )
-
-        call_args = mock_db.execute.call_args
-        params = call_args[0][1]
-        assert params["user_id"] is None
-        assert params["resource_id"] is None
-        assert params["old_value"] is None
-        assert params["new_value"] is None
-        assert params["ip_address"] is None
-        assert params["user_agent"] is None
-
-    def test_log_action_handles_exception(self):
-        """log_action does not raise on DB error, just logs it."""
-        mock_db = MagicMock()
-        mock_db.execute.side_effect = Exception("DB connection failed")
+        mock_db.add.side_effect = Exception("DB connection failed")
 
         with patch("src.middleware.audit.logger") as mock_logger:
-            # Should not raise
-            log_action(
+            log_action(  # không được ném
                 mock_db,
                 user_id=1,
                 action="test.action",
                 resource_type="test",
                 resource_id=1,
             )
-            mock_logger.error.assert_called_once_with("Failed to log audit: DB connection failed")
+            mock_logger.error.assert_called_once_with(
+                "Failed to log audit: DB connection failed"
+            )
 
 
 class TestAuditInStoreFunctions:
@@ -184,3 +146,65 @@ class TestAuditInStoreFunctions:
         assert kwargs["resource_id"] == 10
         assert kwargs["user_id"] == 2
         assert kwargs["new_value"] == {"subject": "Help needed", "status": "open"}
+
+
+class TestLogActionGhiThatXuongDB:
+    """Chạy `log_action` trên DB THẬT, không mock.
+
+    Các test ở trên dùng `MagicMock` cho session — mock nuốt mọi kiểu tham số
+    nên chúng KHÔNG THỂ ĐỎ khi giá trị không bind được xuống DB. Đúng lỗi đã
+    xảy ra: bản cũ dùng `text()` với tham số bind là `dict`, cả psycopg2 lẫn
+    sqlite3 đều báo "can't adapt type 'dict'", lỗi bị `except` nuốt, và bảng
+    `audit_log` rỗng hoàn toàn suốt nhiều ngày mà 610 test vẫn xanh.
+
+    Hệ quả không chỉ là mất vết bảo mật: `_first_reached` trong
+    `src/services/reports.py` đọc chính bảng này để biết hồ sơ vào trạng thái
+    nào lúc nào, nên `onTimeRate` và `avgProcessingDays` trả None vĩnh viễn.
+    """
+
+    def test_ghi_duoc_dict_vao_old_value_va_new_value(self, db_session):
+        """dict phải xuống được DB và đọc lại nguyên vẹn."""
+        from sqlalchemy import select
+
+        from src.models.db import AuditLog
+
+        log_action(
+            db_session,
+            user_id=None,
+            action="application.status_changed",
+            resource_type="application",
+            resource_id=7,
+            old_value={"status": "received"},
+            new_value={"status": "approved"},
+        )
+        db_session.commit()
+
+        row = db_session.scalar(
+            select(AuditLog).where(AuditLog.action == "application.status_changed")
+        )
+        assert row is not None, "log_action không ghi được dòng nào xuống DB"
+        assert row.old_value == {"status": "received"}
+        assert row.new_value == {"status": "approved"}
+        assert row.resource_id == 7
+
+    def test_ghi_duoc_khi_old_value_rong(self, db_session):
+        """Hành động tạo mới không có trạng thái cũ — None phải hợp lệ."""
+        from sqlalchemy import select
+
+        from src.models.db import AuditLog
+
+        log_action(
+            db_session,
+            user_id=None,
+            action="ticket.created",
+            resource_type="ticket",
+            resource_id=3,
+            old_value=None,
+            new_value={"subject": "Hỏi về thẻ xe", "status": "open"},
+        )
+        db_session.commit()
+
+        row = db_session.scalar(select(AuditLog).where(AuditLog.action == "ticket.created"))
+        assert row is not None
+        assert row.old_value is None
+        assert row.new_value["subject"] == "Hỏi về thẻ xe"
