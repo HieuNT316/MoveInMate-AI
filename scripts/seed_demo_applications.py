@@ -34,7 +34,7 @@ from sqlalchemy import select, text
 from src.config import get_settings, safe_database_url
 from src.database import SessionLocal
 from src.models.db import Application, ChecklistItem, User
-from src.services import store
+from src.services import badges, store
 
 SEED = 20260831
 
@@ -179,8 +179,20 @@ def main() -> None:
                     performed_by=admin.user_id,
                 )
 
+            # Badge trao ở TẦNG ROUTE (`routes.py`), không ở store — nên đi
+            # thẳng qua `update_application_status` như trên thì không sinh
+            # badge nào. Gọi tay ở đây cho đúng hành vi người dùng thật.
+            if trang_thai in ("approved", "delivered"):
+                badges.check_card_badges(db, nguoi.user_id, ma_item)
+
             _lui_thoi_gian(db, app_id, ngay_nop, ngay_xong)
             tao_duoc += 1
+
+        # Badge tiến độ dựa trên `checklist_completions`, mà `seed_data` INSERT
+        # thẳng bảng đó (không qua `set_completion` ở route) nên cũng không sinh
+        # badge. Quét lại một lượt cho mọi cư dân.
+        for u in cu_dan:
+            badges.check_progress_badges(db, u.user_id)
 
         db.commit()
 
