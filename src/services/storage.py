@@ -15,12 +15,15 @@ index là bất kỳ ai hỏi đúng câu đều truy xuất được.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import PurePosixPath
 
 import httpx
 
 from src.config import get_settings
+
+logger = logging.getLogger("moveinmate")
 
 # Chỉ nhận ảnh và PDF. Danh sách ĐÓNG, không đoán theo đuôi file: cư dân nộp
 # minh chứng thì ba định dạng này là đủ, mở rộng thêm chỉ tăng bề mặt tấn công.
@@ -105,11 +108,24 @@ def signed_url(path: str) -> str | None:
             timeout=30,
         )
         if response.status_code >= 400:
+            # Log ở mức WARNING chứ không im lặng: khi BQL bấm xem ảnh CCCD mà
+            # không hiện, cư dân nhận 502 còn server trước đây KHÔNG ghi lại gì
+            # — không có cách nào biết vì bucket sai, khoá hết hạn, hay ảnh
+            # không tồn tại. Chỉ ghi mã lỗi và đường dẫn, không ghi `headers`
+            # (chứa service key).
+            logger.warning(
+                "signed_url_failed",
+                extra={"status_code": response.status_code, "path": path},
+            )
             return None
         # Supabase trả đường dẫn tương đối dạng "/object/sign/<bucket>/...".
         relative = response.json()["signedURL"]
         return f"{base}{relative}" if relative.startswith("/") else relative
-    except (httpx.HTTPError, KeyError, ValueError):
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        logger.warning(
+            "signed_url_failed",
+            extra={"error": type(exc).__name__, "path": path},
+        )
         return None
 
 
