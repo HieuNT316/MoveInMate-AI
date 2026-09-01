@@ -166,7 +166,7 @@
 ## Week 6: 27/08 - 01/09 — Demo Day
 
 ### Mục tiêu tuần này
-- [ ] Hoàn thiện pitch deck và video demo
+- [x] Hoàn thiện pitch deck và video demo
 - [x] Chạy eval, đưa số liệu vào slide
 - [ ] Demo Day (01/09)
 
