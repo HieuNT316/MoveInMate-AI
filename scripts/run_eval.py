@@ -102,8 +102,15 @@ def _access_token() -> str:
 JUDGE_MODEL = "anthropic/claude-sonnet-5"
 
 
-def _get_judge_llm() -> BaseChatModel:
-    """Giám khảo độc lập qua OpenRouter — xem `JUDGE_MODEL` ở trên."""
+def _get_judge_llm(
+    model: str | None = None, max_tokens: int | None = None
+) -> BaseChatModel:
+    """Giám khảo độc lập qua OpenRouter — xem `JUDGE_MODEL` ở trên.
+
+    `model` để `run_ragas.py` đổi sang giám khảo rẻ hơn khi cần: RAGAS gọi LLM
+    nhiều lần cho mỗi câu nên tốn gấp bội `run_eval`. Đổi thì phải giữ nguyên
+    ràng buộc gốc — giám khảo KHÁC model sinh câu trả lời (`gpt-4o-mini`).
+    """
     from langchain_openai import ChatOpenAI
 
     settings = get_settings()
@@ -112,12 +119,49 @@ def _get_judge_llm() -> BaseChatModel:
             "Cần OPEN_ROUTER_API_KEY trong .env để chạy model giám khảo qua OpenRouter."
         )
     return ChatOpenAI(
-        model=JUDGE_MODEL,
+        model=model or JUDGE_MODEL,
         api_key=settings.open_router_api_key,
         base_url=settings.openrouter_base_url,
         temperature=0,
         timeout=30,
+        # `max_tokens` KHONG phai chi de cat bot dau ra. OpenRouter giu cho
+        # credit theo dung con so nay truoc khi goi model: khong dat thi no
+        # lay tran dau ra cua model (sonnet-5: 65_536 token) va tinh tien giu
+        # cho theo tran do. So du con it hon muc giu cho la moi request bi tu
+        # choi 402 "requested up to 65536 tokens, but can only afford ..." du
+        # cau tra loi that chi dai vai tram token va tien du thua.
+        max_tokens=max_tokens,
     )
+
+
+def _fetch_full_context(query: str) -> str:
+    """Truy xuất lại TOÀN BỘ chunk chưa gộp cho đúng câu hỏi này.
+
+    Tái tạo chính xác ngữ cảnh `generate_node` đã dùng để viết câu trả lời,
+    thay vì `sources[]` mà `/chat` trả về (đã gộp theo `document_id`, mỗi tài
+    liệu chỉ giữ một đoạn trích 220 ký tự cho người dùng đọc — xem
+    `_SNIPPET_LEN` ở `rag_retrieve.py`). Gọi thẳng `rag_retrieve_node`, không
+    qua HTTP: Chroma tĩnh (KB không đổi giữa hai lần gọi cùng phiên chấm), câu
+    hỏi ở đây không có lịch sử hội thoại nên `standalone_query == query` —
+    kết quả giống hệt lần gọi thật trong `/chat`, không phải suy đoán.
+
+    Tốn thêm một lượt gọi embedding mỗi câu — cộng dồn ngang với chi phí sinh
+    câu trả lời ban đầu. Đổi lại giám khảo mới chấm công bằng, không phải vì
+    số đẹp hơn.
+    """
+    import asyncio
+
+    from src.agents.nodes.rag_retrieve import rag_retrieve_node
+
+    try:
+        result = asyncio.run(rag_retrieve_node({"query": query}))
+    except Exception:  # noqa: BLE001
+        return "(không truy xuất lại được để giám khảo xem — lỗi mạng/embedding)"
+
+    chunks = result.get("retrieved") or []
+    if not chunks:
+        return "(không có tài liệu)"
+    return "\n\n".join(f"[{c['title']}]\n{c['content']}" for c in chunks)
 
 
 def _grade_llm(
@@ -137,18 +181,18 @@ def _grade_llm(
     sources: list[dict] = payload.get("sources") or []
 
     if sources:
-        # Trước đây chỉ đưa TIÊU ĐỀ tài liệu (`s["title"]`) cho giám khảo, bỏ
-        # qua `snippet` — đoạn trích thật đã có sẵn trong response. Giám khảo
-        # chưa từng thấy nội dung được trích thì không thể chấm "trích dẫn có
-        # đúng không" một cách nghiêm túc, chỉ đoán theo tên tài liệu nghe có
-        # hợp lý hay không. Lộ rõ khi đổi sang giám khảo cẩn trọng hơn: nó từ
-        # chối trả lời ĐÚNG/SAI và tự thêm nhãn "KHÔNG CHẮC CHẮN" cho citation
-        # dù prompt không cho lựa chọn đó — đúng phản ứng hợp lý khi thiếu dữ
-        # liệu để xác minh.
-        sources_str = "\n".join(
-            f"- {s.get('title', '(không tên)')}: {s.get('snippet', '')[:200]}"
-            for s in sources
-        )
+        # Vòng sửa 1 (đã làm): thay title bằng snippet — vẫn không đủ. `sources[]`
+        # do `/chat` trả về đã GỘP theo document_id (mỗi tài liệu giữ đúng 1 đoạn
+        # trích, cắt cứng 220 ký tự — `_SNIPPET_LEN` trong rag_retrieve.py, giới
+        # hạn hiển thị cho NGƯỜI DÙNG, không phải giới hạn dữ liệu `generate` có).
+        # `generate_node` thực tế dùng TOÀN BỘ chunk CHƯA gộp, đầy đủ nội dung.
+        #
+        # Giám khảo chấm "trích dẫn đúng không" mà chỉ thấy một phần nhỏ hơn hẳn
+        # những gì AI thực sự dùng để trả lời — tất nhiên sẽ chấm SAI những câu
+        # đúng nhưng viện tới phần nội dung nằm ngoài 220 ký tự đó. Sửa: gọi lại
+        # thẳng `rag_retrieve_node` cho ĐÚNG câu hỏi này, lấy full context y hệt
+        # generate đã thấy — không phải đoán hay nới lỏng tiêu chí chấm.
+        sources_str = _fetch_full_context(question["question"])
     else:
         sources_str = "(không có trích dẫn)"
 

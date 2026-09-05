@@ -1,0 +1,97 @@
+{
+  "ran_at": "2026-09-05T11:10:29+00:00",
+  "api": "http://localhost:8000/api/v1",
+  "judge_model": "anthropic/claude-sonnet-5",
+  "embedding_model": "models/gemini-embedding-001",
+  "total_answerable": 28,
+  "samples_built": 20,
+  "max_workers": 3,
+  "skipped": [
+    {
+      "id": "Q11",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q12",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q13",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q14",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q25",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q26",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q27",
+      "reason": "API loi: HTTP 429"
+    },
+    {
+      "id": "Q28",
+      "reason": "API loi: HTTP 429"
+    }
+  ],
+  "scores": {
+    "faithfulness": {
+      "score": 0.99,
+      "scored_samples": 20,
+      "failed_samples": 0
+    },
+    "answer_relevancy": {
+      "score": 0.8435,
+      "scored_samples": 20,
+      "failed_samples": 0
+    },
+    "llm_context_precision_without_reference": {
+      "score": 0.8889,
+      "scored_samples": 20,
+      "failed_samples": 0
+    }
+  },
+  "note": "Chỉ chấm câu expect=answer. Không chạy context_recall / answer_correctness vì questions.yaml không có ground_truth. Mỗi chỉ số kèm `scored_samples`/`failed_samples` — chỉ số có `failed_samples` > 0 là trung bình KHÔNG đầy đủ, đừng đem lên slide.",
+  "estimate_full_set": {
+    "phuong_phap": "mean imputation",
+    "giai_thich": "8 cau khong do duoc (loi ha tang, khong phai he thong tra loi kem) duoc gan bang dung diem trung binh cua 20 cau da do. Vi the diem trung binh cho 28 cau BANG DUNG diem trung binh cua 20 cau - phep dien nay khong tao ra thong tin moi, chi doi don vi bao cao tu '20 cau' sang '28 cau'.",
+    "canh_bao": "Diem la uoc luong, KHONG phai do that tren 28 cau. Neu bao cao con so nay thi phai kem cau 'uoc luong tren mau 20/28 cau'. Do lech chuan tinh tren tap da dien se nho hon thuc te vi 8 gia tri dien vao khong co phuong sai.",
+    "cau_duoc_dien": [
+      "Q11",
+      "Q12",
+      "Q13",
+      "Q14",
+      "Q25",
+      "Q26",
+      "Q27",
+      "Q28"
+    ],
+    "ly_do_thieu": "Han muc tai khoan OpenRouter: 429 (tan suat) o buoc goi /chat, roi 402 in_flight_budget_exhausted o buoc cham. Mau cua 8 cau nay DA thu thap xong va luu tai eval/results/ragas-20260905-thieu8-samples.json - nap credit roi chay lai la co so do that, khong ton luot embedding.",
+    "scores": {
+      "faithfulness": {
+        "score": 0.99,
+        "observed_samples": 20,
+        "imputed_samples": 8,
+        "total_samples": 28
+      },
+      "answer_relevancy": {
+        "score": 0.8435,
+        "observed_samples": 20,
+        "imputed_samples": 8,
+        "total_samples": 28
+      },
+      "llm_context_precision_without_reference": {
+        "score": 0.8889,
+        "observed_samples": 20,
+        "imputed_samples": 8,
+        "total_samples": 28
+      }
+    }
+  }
+}
