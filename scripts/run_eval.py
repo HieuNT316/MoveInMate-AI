@@ -102,8 +102,15 @@ def _access_token() -> str:
 JUDGE_MODEL = "anthropic/claude-sonnet-5"
 
 
-def _get_judge_llm() -> BaseChatModel:
-    """Giám khảo độc lập qua OpenRouter — xem `JUDGE_MODEL` ở trên."""
+def _get_judge_llm(
+    model: str | None = None, max_tokens: int | None = None
+) -> BaseChatModel:
+    """Giám khảo độc lập qua OpenRouter — xem `JUDGE_MODEL` ở trên.
+
+    `model` để `run_ragas.py` đổi sang giám khảo rẻ hơn khi cần: RAGAS gọi LLM
+    nhiều lần cho mỗi câu nên tốn gấp bội `run_eval`. Đổi thì phải giữ nguyên
+    ràng buộc gốc — giám khảo KHÁC model sinh câu trả lời (`gpt-4o-mini`).
+    """
     from langchain_openai import ChatOpenAI
 
     settings = get_settings()
@@ -112,11 +119,18 @@ def _get_judge_llm() -> BaseChatModel:
             "Cần OPEN_ROUTER_API_KEY trong .env để chạy model giám khảo qua OpenRouter."
         )
     return ChatOpenAI(
-        model=JUDGE_MODEL,
+        model=model or JUDGE_MODEL,
         api_key=settings.open_router_api_key,
         base_url=settings.openrouter_base_url,
         temperature=0,
         timeout=30,
+        # `max_tokens` KHONG phai chi de cat bot dau ra. OpenRouter giu cho
+        # credit theo dung con so nay truoc khi goi model: khong dat thi no
+        # lay tran dau ra cua model (sonnet-5: 65_536 token) va tinh tien giu
+        # cho theo tran do. So du con it hon muc giu cho la moi request bi tu
+        # choi 402 "requested up to 65536 tokens, but can only afford ..." du
+        # cau tra loi that chi dai vai tram token va tien du thua.
+        max_tokens=max_tokens,
     )
 
 
