@@ -62,6 +62,19 @@ railway up                    # deploy code CÓ file migration trước
 image đã build, không build lại từ mã nguồn — image cũ vẫn thiếu file migration.
 Phải `railway up` để buộc build image mới.
 
+**Cùng lỗi này xảy ra với `docker compose` ở máy cá nhân** (06/09). `docker
+compose up -d` dùng lại image đã có, kể cả khi mã nguồn đã đổi — `--force-recreate`
+cũng chỉ tạo lại **container**, không build lại **image**. Container vào
+crashloop với đúng thông điệp `Can't locate revision`.
+
+Dấu hiệu nhận ra: image cũ hơn lần migration gần nhất.
+
+```bash
+docker images --format "{{.Repository}} | {{.CreatedSince}}" | grep p-225
+docker compose build backend     # build lại, KHÔNG phải up --force-recreate
+docker compose up -d backend
+```
+
 ### A.2 Cập nhật code đã deploy
 
 ```powershell
