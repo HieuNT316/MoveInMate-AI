@@ -24,12 +24,18 @@ async def rag_retrieve_node(state: ChatState) -> dict[str, Any]:
     hiện nhiều lần chỉ vì nhiều chunk của nó cùng khớp.
     """
     settings = get_settings()
-    store = get_vectorstore()
     # Ưu tiên câu đã viết lại độc lập ngữ cảnh (rewrite_query) — rơi về câu
     # gốc khi không có lịch sử hội thoại (rewrite_query bỏ qua bước viết lại).
     query = state.get("standalone_query") or state["query"]
 
     try:
+        # `get_vectorstore()` phải nằm TRONG try: nó mở kết nối Chroma và có
+        # thể hỏng ngay lúc khởi tạo (thư mục index mất, file .sqlite3 hỏng).
+        # Để ngoài thì lỗi thoát ra dạng RuntimeError thô, `routes.py` chỉ bắt
+        # `RetrievalError` nên người dùng nhận 500 "Đã có lỗi xảy ra" thay vì
+        # 503 kèm lời giải thích. Đã đo: get_vectorstore chết -> RuntimeError
+        # -> route không bắt; similarity_search chết -> RetrievalError -> 503.
+        store = get_vectorstore()
         # Client Chroma là sync; bọc run_in_threadpool để không chẹn event
         # loop của FastAPI khi có nhiều request /chat đồng thời.
         results = await run_in_threadpool(
