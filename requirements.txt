@@ -56,3 +56,15 @@ pytest-asyncio==1.4.0
 pytest-cov==7.0.0        # `pytest --cov=src` — report.md khai 80% từ 12/08,
                          # gói này thiếu nên không ai đo lại được con số đó
 httpx==0.28.1                   # TestClient của FastAPI
+
+# ---- Đánh giá RAG (scripts/run_ragas.py) ----
+# Bộ chỉ số chuẩn ngành, chạy song song `run_eval.py`. Chỉ dùng cho eval,
+# không có gói nào dưới đây được import trong `src/`.
+ragas==0.4.3
+# ⚠️ GHIM CÓ LÝ DO, đừng nâng lên bản mới: ragas 0.4.3 import cứng
+# `langchain_community.chat_models.vertexai`, mà bản `langchain-community`
+# 0.4.x đã khai tử và gỡ hẳn module đó → `import ragas` chết ngay. 0.3.30 là
+# bản còn giữ module này. Dự án KHÔNG tự dùng `langchain_community` ở đâu cả
+# (vectorstore.py dùng `langchain_chroma`), nên hạ bản ở đây chỉ phục vụ ragas
+# và không đụng gì tới `src/`. Đã kiểm: 616 test vẫn xanh sau khi hạ.
+langchain-community==0.3.30

@@ -1,0 +1,28 @@
+{
+  "ran_at": "2026-09-05T12:18:54+00:00",
+  "api": "http://localhost:8000/api/v1",
+  "judge_model": "anthropic/claude-sonnet-5",
+  "embedding_model": "models/gemini-embedding-001",
+  "total_answerable": 4,
+  "samples_built": 4,
+  "max_workers": 3,
+  "skipped": [],
+  "scores": {
+    "faithfulness": {
+      "score": 1.0,
+      "scored_samples": 3,
+      "failed_samples": 1
+    },
+    "answer_relevancy": {
+      "score": 0.8667,
+      "scored_samples": 4,
+      "failed_samples": 0
+    },
+    "llm_context_precision_without_reference": {
+      "score": 0.9306,
+      "scored_samples": 4,
+      "failed_samples": 0
+    }
+  },
+  "note": "Chỉ chấm câu expect=answer. Không chạy context_recall / answer_correctness vì questions.yaml không có ground_truth. Mỗi chỉ số kèm `scored_samples`/`failed_samples` — chỉ số có `failed_samples` > 0 là trung bình KHÔNG đầy đủ, đừng đem lên slide."
+}
