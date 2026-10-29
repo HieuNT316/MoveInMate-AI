@@ -52,8 +52,8 @@ Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục 
 
 ```bash
 # 1. Clone
-git clone https://github.com/AI20K-Build-Phase-Cohort-3/P-225.git
-cd P-225
+git clone https://github.com/HieuNT316/MoveInMate-AI.git
+cd MoveInMate-AI
 
 # 2. Backend
 python3.11 -m venv .venv
