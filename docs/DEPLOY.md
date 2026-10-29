@@ -2,17 +2,19 @@
 
 **Cập nhật:** 19/08/2026 (rà soát đồng bộ tài liệu ↔ mã nguồn, Task 22)
 
+> **Ghi chú 30/10/2026:** repo đã được chuyển sang `HieuNT316/MoveInMate-AI` (công khai) sau khi kết thúc chương trình AI20K. Bản deploy Railway nêu dưới đây **đã ngừng** (kiểm tra ngày 30/10/2026: trả về `Application not found`). Các URL và bảng trạng thái bên dưới là ghi chép lịch sử của thời điểm 19/08. Muốn chạy lại, làm theo các mục sau với tài khoản Railway, Vercel và Supabase của chính bạn.
+
 | Thành phần | Trạng thái | URL |
 |---|---|---|
-| Backend (Railway) | ✅ đang chạy | https://moveinmate-api-production.up.railway.app |
-| Frontend (Vercel) | ✅ đang chạy | https://web-ten-ruby-48.vercel.app |
-| Database (Supabase) | ✅ đang chạy | project `sjnpokwczrmyppwhtisu` |
+| Backend (Railway) | ⛔ đã ngừng (30/10/2026) | https://moveinmate-api-production.up.railway.app |
+| Frontend (Vercel) | ❔ chưa xác minh sau 19/08 | https://web-ten-ruby-48.vercel.app |
+| Database (Supabase) | ❔ chưa xác minh sau 19/08 | project `sjnpokwczrmyppwhtisu` |
 
 ---
 
 ## 0. Đọc trước — ràng buộc ảnh hưởng tới CẢ HAI bên
 
-**Repo là private và thuộc org `AI20K-Build-Phase-Cohort-3`. Không ai trong nhóm có quyền admin:**
+**Khi triển khai (tháng 8/2026), repo là private và thuộc org `AI20K-Build-Phase-Cohort-3`. Không ai trong nhóm có quyền admin:**
 
 ```
 HieuNT316       admin=false  push=true
@@ -20,7 +22,7 @@ HaiVietahihi    admin=false  push=true
 MinhThu200401   admin=false  push=true
 ```
 
-Hệ quả: **Railway và Vercel đều KHÔNG nhìn thấy repo** khi kết nối qua GitHub. Bạn sẽ gặp màn hình *"We still can't find this repository"*. Đó không phải sai URL, cũng không phải bạn làm sai bước nào — cài GitHub App vào một org là quyền của **owner org (BTC)**.
+Repo cá nhân `HieuNT316/MoveInMate-AI` không có ràng buộc này, nên bạn có thể kết nối Railway và Vercel qua GitHub để tự động deploy. Phần còn lại của mục này mô tả tình huống cũ. Hệ quả khi đó: **Railway và Vercel đều KHÔNG nhìn thấy repo** khi kết nối qua GitHub. Bạn sẽ gặp màn hình *"We still can't find this repository"*. Đó không phải sai URL, cũng không phải bạn làm sai bước nào — cài GitHub App vào một org là quyền của **owner org (BTC)**.
 
 Đừng mất thời gian thử lại. **Cả hai bên đều deploy bằng CLI từ máy cá nhân**, không cần quyền GitHub nào.
 

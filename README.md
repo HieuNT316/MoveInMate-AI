@@ -2,7 +2,9 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-| | Đang chạy tại |
+> **Lưu ý:** bản deploy cũ trên Railway đã ngừng hoạt động sau khi chương trình kết thúc (kiểm tra 30/10/2026), nên các đường dẫn dưới đây có thể không còn truy cập được. Muốn chạy thử, xem [Quick Start](#quick-start) hoặc [`docs/DEPLOY.md`](./docs/DEPLOY.md).
+
+| | Bản deploy cũ |
 |---|---|
 | **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
 | **API** | https://moveinmate-api-production.up.railway.app |
@@ -176,7 +178,7 @@ npm run dev                        # http://localhost:3000
 - [x] Source Code (GitHub)
 - [x] README.md
 - [x] Architecture Diagram (`docs/architecture_diagram.md`)
-- [x] AI Logs (tự động qua pre-push hook)
+- [x] AI Logs (đã nộp cho BTC trong chương trình; phần hook ghi log đã được gỡ khỏi repo này)
 - [x] Live URL — [frontend](https://web-ten-ruby-48.vercel.app) · [backend](https://moveinmate-api-production.up.railway.app/health)
 - [ ] Video Demo
 - [ ] Pitch Deck (`presentation/`)
@@ -210,6 +212,19 @@ và chỉ ra việc cần làm tiếp.
 | Nguyễn Minh Thu | Frontend | Next.js PWA, giao diện cư dân và BQL |
 
 **Mentor:** Đặng Hải Lộc · **Chương trình:** VinUni AI20K Build Phase, Cohort 3
+
+## Vai trò của tôi — Nguyễn Trung Hiếu (Backend + Data)
+
+Dự án nhóm 3 người trong chương trình VinUni AI20K Build Phase. Tôi phụ trách toàn bộ phần backend và dữ liệu:
+
+- **API và cơ sở dữ liệu:** thiết kế API FastAPI (`src/api/`), mô hình SQLAlchemy và 16 migration Alembic, tích hợp PostgreSQL trên Supabase.
+- **Rule engine checklist:** `src/services/checklist.py` sinh checklist cá nhân hoá bằng luật tất định theo loại sở hữu, xe, gói tiện ích. Không dùng LLM cho việc này vì thủ tục hành chính cần đúng tuyệt đối và giải thích được. Có test ma trận persona, và `seed_data` kiểm tra khoá `conditions` khi nạp dữ liệu.
+- **Xác thực và phân quyền:** xác minh JWT Supabase ES256 qua JWKS, phân vai cư dân và Ban quản lý, chặn header dev `X-User-Id` ở môi trường production.
+- **Hồ sơ nhận nhà và định tuyến phòng ban (US-13):** luồng nộp hồ sơ, chuyển đúng bộ phận BQL xử lý và theo dõi trạng thái. Có lưu trữ ảnh giấy tờ ở bucket private, truy cập qua signed URL hết hạn sau 5 phút.
+- **Dữ liệu tri thức (KB):** thu thập và soạn tài liệu pháp lý và quy trình trong `data/kb/` bằng `scripts/fetch_legal_kb.py` và `scripts/scrape_kb.py`, làm đầu vào cho pipeline RAG của bạn Hải.
+- **Vận hành:** giới hạn tốc độ, `GET /health/deep` kiểm tra DB và Chroma, deploy backend lên Railway bằng Docker, xây dựng bộ chạy đánh giá `scripts/run_eval.py`.
+
+Phần AI (LangGraph, RAG, prompt) do Hải làm, phần giao diện Next.js do Thu làm. Chi tiết phân vai nằm ở [`docs/ROLES_AND_PLAN.md`](./docs/ROLES_AND_PLAN.md).
 
 ## License
 
