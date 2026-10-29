@@ -74,9 +74,6 @@ uvicorn src.main:app --reload      # http://localhost:8000/docs
 cd web
 npm ci
 npm run dev                        # http://localhost:3000
-
-# 4. Cài AI logging hook (một lần sau khi clone)
-bash scripts/setup_hooks.sh        # Windows: powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
 ```
 
 ## Project Structure
