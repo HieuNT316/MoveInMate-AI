@@ -46,7 +46,7 @@ Chụp từ bản demo, toàn bộ tên, email và hồ sơ là dữ liệu mô 
 <table>
 <tr><td width="50%"><img src="docs/screenshots/login.png" alt="Đăng nhập, chọn nhanh tài khoản demo"><br><sub>Đăng nhập, chọn nhanh tài khoản demo</sub></td><td width="50%"><img src="docs/screenshots/onboarding.png" alt="Thiết lập hồ sơ: loại căn, xe, tiện ích"><br><sub>Thiết lập hồ sơ: loại căn, xe, tiện ích</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/checklist_1.png" alt="Trang chủ cư dân và trợ lý AI chỉ đúng bước tiếp theo"><br><sub>Trang chủ cư dân và trợ lý AI chỉ đúng bước tiếp theo</sub></td><td width="50%"><img src="docs/screenshots/checklist_3.png" alt="Checklist cá nhân hoá, trạng thái duyệt của BQL"><br><sub>Checklist cá nhân hoá, trạng thái duyệt của BQL</sub></td></tr>
-<tr><td width="50%"><img src="docs/screenshots/AIAgent.png" alt="Trợ lý AI giải đáp thủ tục"><br><sub>Trợ lý AI giải đáp thủ tục</sub></td><td width="50%"><img src="docs/screenshots/checklist_2.png" alt="Huy hiệu hành trình và thông tin khu nhà"><br><sub>Huy hiệu hành trình và thông tin khu nhà</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/AIAgent_2.png" alt="Trợ lý AI trả lời kèm nguồn trích dẫn"><br><sub>Trợ lý AI trả lời kèm nguồn tài liệu trích dẫn</sub></td><td width="50%"><img src="docs/screenshots/checklist_2.png" alt="Huy hiệu hành trình và thông tin khu nhà"><br><sub>Huy hiệu hành trình và thông tin khu nhà</sub></td></tr>
 <tr><td width="50%"><img src="docs/screenshots/profile.png" alt="Hồ sơ đã nộp và phản hồi của BQL"><br><sub>Hồ sơ đã nộp và phản hồi của BQL</sub></td><td width="50%"><img src="docs/screenshots/ticket_support.png" alt="Yêu cầu hỗ trợ gửi thẳng BQL"><br><sub>Yêu cầu hỗ trợ gửi thẳng BQL</sub></td></tr>
 </table>
 
