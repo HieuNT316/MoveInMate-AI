@@ -2,13 +2,13 @@
 
 **Cập nhật:** 19/08/2026 (rà soát đồng bộ tài liệu ↔ mã nguồn, Task 22)
 
-> **Ghi chú 30/10/2026:** repo đã được chuyển sang `HieuNT316/MoveInMate-AI` (công khai) sau khi kết thúc chương trình AI20K. Bản deploy Railway nêu dưới đây **đã ngừng** (kiểm tra ngày 30/10/2026: trả về `Application not found`). Project Supabase cũng đã bị xoá (tên miền `*.supabase.co` không còn phân giải, pooler báo `tenant not found`). Các URL và bảng trạng thái bên dưới là ghi chép lịch sử của thời điểm 19/08. Muốn chạy lại, làm theo các mục sau với tài khoản Railway, Vercel và Supabase của chính bạn.
+> **Ghi chú 30/10/2026:** repo đã được chuyển sang `HieuNT316/MoveInMate-AI` (công khai) sau khi kết thúc chương trình AI20K. Trial Railway hết hạn nên backend ngừng; sau khi nâng lên gói Hobby, đã deploy lại bằng `railway up` và kiểm tra: `/health` ok, `/health/deep` ok (412 tài liệu), `X-User-Id` trả 401, đăng nhập tài khoản demo thành công. Có thể chuyển sang Render theo mục bên dưới nếu không muốn trả phí Railway.
 
 | Thành phần | Trạng thái | URL |
 |---|---|---|
-| Backend (Railway) | ⛔ đã ngừng (30/10/2026) | https://moveinmate-api-production.up.railway.app |
-| Frontend (Vercel) | ⚠️ còn phản hồi (chuyển tới `/login`) nhưng không dùng được vì backend và DB đã mất (30/10/2026) | https://web-ten-ruby-48.vercel.app |
-| Database (Supabase) | ⛔ đã bị xoá (30/10/2026) | project `sjnpokwczrmyppwhtisu` |
+| Backend (Railway) | ✅ đang chạy (gói Hobby, kiểm tra 30/10/2026) | https://moveinmate-api-production.up.railway.app |
+| Frontend (Vercel) | ✅ còn phản hồi (chuyển tới `/login`) | https://web-ten-ruby-48.vercel.app |
+| Database (Supabase) | ✅ đang chạy, đã có schema và dữ liệu demo | project `sjnpokwczrmyppwhtisu` |
 
 ---
 

@@ -2,9 +2,9 @@
 
 > Cư dân mới phải tự mò hàng loạt thủ tục nhận nhà → AI Agent lập checklist cá nhân hóa và giải đáp thủ tục có trích nguồn, cho cư dân và Ban quản lý chung cư Vinhomes Smart City.
 
-> **Lưu ý:** bản deploy cũ trên Railway đã ngừng hoạt động sau khi chương trình kết thúc (kiểm tra 30/10/2026), nên các đường dẫn dưới đây có thể không còn truy cập được. Muốn chạy thử, xem [Quick Start](#quick-start) hoặc [`docs/DEPLOY.md`](./docs/DEPLOY.md).
+> Kiểm tra ngày 30/10/2026: backend, cơ sở dữ liệu và đăng nhập tài khoản demo đều hoạt động. Backend chạy trên Railway gói trả phí và có thể ngừng khi gói hết hạn. Muốn tự chạy, xem [Quick Start](#quick-start) hoặc [`docs/DEPLOY.md`](./docs/DEPLOY.md).
 
-| | Bản deploy cũ |
+| | Đang chạy tại |
 |---|---|
 | **Ứng dụng** | https://web-ten-ruby-48.vercel.app |
 | **API** | https://moveinmate-api-production.up.railway.app |
