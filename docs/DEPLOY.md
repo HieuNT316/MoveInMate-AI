@@ -32,6 +32,29 @@ Repo cá nhân `HieuNT316/MoveInMate-AI` không có ràng buộc này, nên bạ
 
 ---
 
+## Deploy lại trên Render (gói free)
+
+Dùng khi trial Railway đã hết. Repo `HieuNT316/MoveInMate-AI` là công khai và thuộc tài khoản cá nhân, nên Render kết nối GitHub bình thường.
+
+1. Tạo project Supabase (hoặc dùng project hiện có), chạy `alembic upgrade head`, `python -m scripts.seed_data`, `python -m scripts.provision_auth` **từ máy cá nhân trỏ vào DB đó**. Entrypoint cũng tự chạy `alembic upgrade head` khi container lên.
+2. Vào render.com, đăng nhập bằng GitHub, chọn **New → Blueprint**, chọn repo `MoveInMate-AI`. Render đọc [`render.yaml`](../render.yaml).
+3. Điền các biến bí mật Render hỏi (`DATABASE_URL` là chuỗi **Session pooler**, cổng 5432). `CORS_ORIGINS` là domain frontend.
+4. Chờ build (image khoảng 1 GB, có thể mất 10 phút trở lên). Kiểm tra:
+   ```bash
+   curl https://<ten-dich-vu>.onrender.com/health
+   curl -o /dev/null -w "%{http_code}
+" -H "X-User-Id: 1" https://<ten-dich-vu>.onrender.com/api/v1/profile   # phải ra 401
+   ```
+5. Cập nhật biến `NEXT_PUBLIC_API_URL` của frontend Vercel sang URL Render rồi deploy lại frontend (mục C).
+
+Giới hạn của gói free cần biết:
+- **Ngủ sau khoảng 15 phút không có truy cập**, lần gọi đầu mất khoảng một phút.
+- **RAM 512 MB.** Nếu container bị giết vì hết bộ nhớ (log ghi `Out of memory`), cần nâng gói trả phí hoặc chuyển nơi khác.
+- Hệ thống file là tạm thời: tài liệu BQL nạp qua giao diện sẽ mất khi khởi động lại. Chroma được nạp mồi lại từ `data/chroma_seed` mỗi lần.
+- Chỉ chạy **một instance** vì bộ đếm giới hạn tốc độ nằm trong bộ nhớ.
+
+---
+
 ## A. Backend — Railway (đã xong, đây là cách cập nhật)
 
 ### A.1 Bẫy phải biết trước

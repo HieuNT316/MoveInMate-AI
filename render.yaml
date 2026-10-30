@@ -1,0 +1,32 @@
+# Blueprint Render cho backend (gói free). Xem docs/DEPLOY.md mục "Deploy lại trên Render".
+# Biến `sync: false` là bí mật: Render hỏi giá trị khi tạo Blueprint, không đọc từ repo.
+services:
+  - type: web
+    name: moveinmate-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: CHAT_PROVIDER
+        value: openai
+      - key: DATABASE_URL # Session pooler của Supabase, cổng 5432
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: CORS_ORIGINS # domain frontend, vd https://web-ten-ruby-48.vercel.app
+        sync: false
