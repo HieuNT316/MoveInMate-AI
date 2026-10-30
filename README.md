@@ -37,6 +37,27 @@ Cư dân mới nhận nhà tại chung cư phải hoàn thành nhiều thủ t�
 
 Thủ tục thuộc phạm vi BQL được hỗ trợ đầy đủ. Thủ tục thuộc cơ quan bên thứ ba (ví dụ đăng ký tạm trú qua công an) chỉ được hướng dẫn theo quy định công khai và ghi rõ nguồn.
 
+## Ảnh chụp màn hình
+
+Chụp từ bản demo, toàn bộ tên, email và hồ sơ là dữ liệu mô phỏng (`@moveinmate.demo`).
+
+### Cư dân
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/login.png" alt="Đăng nhập, chọn nhanh tài khoản demo"><br><sub>Đăng nhập, chọn nhanh tài khoản demo</sub></td><td width="50%"><img src="docs/screenshots/onboarding.png" alt="Thiết lập hồ sơ: loại căn, xe, tiện ích"><br><sub>Thiết lập hồ sơ: loại căn, xe, tiện ích</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/checklist_1.png" alt="Trang chủ cư dân và trợ lý AI chỉ đúng bước tiếp theo"><br><sub>Trang chủ cư dân và trợ lý AI chỉ đúng bước tiếp theo</sub></td><td width="50%"><img src="docs/screenshots/checklist_3.png" alt="Checklist cá nhân hoá, trạng thái duyệt của BQL"><br><sub>Checklist cá nhân hoá, trạng thái duyệt của BQL</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/AIAgent.png" alt="Trợ lý AI giải đáp thủ tục"><br><sub>Trợ lý AI giải đáp thủ tục</sub></td><td width="50%"><img src="docs/screenshots/checklist_2.png" alt="Huy hiệu hành trình và thông tin khu nhà"><br><sub>Huy hiệu hành trình và thông tin khu nhà</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/profile.png" alt="Hồ sơ đã nộp và phản hồi của BQL"><br><sub>Hồ sơ đã nộp và phản hồi của BQL</sub></td><td width="50%"><img src="docs/screenshots/ticket_support.png" alt="Yêu cầu hỗ trợ gửi thẳng BQL"><br><sub>Yêu cầu hỗ trợ gửi thẳng BQL</sub></td></tr>
+</table>
+
+### Ban quản lý
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/BQL_MainHome.png" alt="Tổng quan tiến độ onboarding toàn khu"><br><sub>Tổng quan tiến độ onboarding toàn khu</sub></td><td width="50%"><img src="docs/screenshots/BQL_Request.png" alt="Duyệt đơn và định tuyến theo bộ phận"><br><sub>Duyệt đơn và định tuyến theo bộ phận</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/BQL_PeopleList1.png" alt="Quản lý cư dân, tiến độ từng người"><br><sub>Quản lý cư dân, tiến độ từng người</sub></td><td width="50%"><img src="docs/screenshots/BQL_Insight.png" alt="Báo cáo SLA theo trạng thái và bộ phận"><br><sub>Báo cáo SLA theo trạng thái và bộ phận</sub></td></tr>
+<tr><td width="50%"><img src="docs/screenshots/BQL_Docs2.png" alt="Kho tri thức BQL nạp vào trợ lý AI"><br><sub>Kho tri thức BQL nạp vào trợ lý AI</sub></td><td width="50%"><img src="docs/screenshots/BQL_setting.png" alt="Cài đặt cảnh báo SLA"><br><sub>Cài đặt cảnh báo SLA</sub></td></tr>
+</table>
+
 ## Tech Stack
 
 | Layer | Technology |
